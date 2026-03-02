@@ -112,6 +112,7 @@ class ZohoBillingService
     public function createHostedPageForSubscription(User $user, string $planCode): array
     {
         $customerId = $this->ensureCustomerForUser($user);
+
         $response = $this->client->request('POST', '/hostedpages/newsubscription', [
             'customer_id' => $customerId,
             'plan' => [
@@ -120,13 +121,22 @@ class ZohoBillingService
         ]);
 
         $hostedPage = $response['hostedpage'] ?? [];
+        $hostedPageId = $hostedPage['hostedpage_id'] ?? null;
+        $checkoutUrl = $hostedPage['url'] ?? null;
+
+        if (! is_string($checkoutUrl) || $checkoutUrl === '' || ! is_string($hostedPageId) || $hostedPageId === '') {
+            Log::error('Zoho hosted page response missing checkout details', [
+                'response' => $response,
+                'customer_id' => $customerId,
+                'plan_code' => $planCode,
+            ]);
+
+            throw new RuntimeException('Failed to generate checkout URL.');
+        }
 
         return [
-            'hostedpage_id' => $hostedPage['hostedpage_id'] ?? null,
-            'checkout_url' => $hostedPage['url'] ?? null,
-            'expires_at' => $hostedPage['expire_time'] ?? null,
-            'zoho_customer_id' => $customerId,
-            'raw' => $response,
+            'hostedpage_id' => $hostedPageId,
+            'checkout_url' => $checkoutUrl,
         ];
     }
 

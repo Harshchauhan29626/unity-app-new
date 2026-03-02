@@ -34,9 +34,6 @@ class BillingCheckoutController extends Controller
                 'data' => [
                     'hostedpage_id' => $result['hostedpage_id'],
                     'checkout_url' => $result['checkout_url'],
-                    'expires_at' => $result['expires_at'],
-                    'zoho_customer_id' => $result['zoho_customer_id'],
-                    'note' => 'Open checkout_url in WebView',
                 ],
             ]);
         } catch (ValidationException $validationException) {
@@ -50,12 +47,12 @@ class BillingCheckoutController extends Controller
         } catch (Throwable $throwable) {
             Log::error('Zoho checkout creation failed', [
                 'user_id' => $user->id,
-                'message' => $throwable->getMessage(),
+                'message' => 'Failed to generate checkout URL.',
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => $throwable->getMessage(),
+                'message' => 'Failed to generate checkout URL.',
                 'data' => [],
             ], 500);
         }
