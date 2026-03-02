@@ -46,7 +46,7 @@ class ZohoBillingService
     public function ensureCustomerForUser(User $user, ?string $resolvedPhone = null): array
     {
         $email = $this->resolveBillingEmail($user);
-        $resolvedPhone ??= $this->resolvePhone($user);
+        $resolvedPhone ??= $this->resolveZohoPhone($user);
 
         $customerId = $this->resolveOrCreateCustomerId($user, $email, $resolvedPhone);
 
@@ -61,7 +61,7 @@ class ZohoBillingService
 
     public function createHostedPageForSubscription(User $user, string $planCode): array
     {
-        $resolvedPhone = $this->resolvePhone($user);
+        $resolvedPhone = $this->resolveZohoPhone($user);
 
         Log::info('Resolved phone for Zoho checkout', [
             'user_id' => $user->id,
@@ -411,7 +411,7 @@ class ZohoBillingService
         return $email;
     }
 
-    private function resolvePhone(User $user): string
+    private function resolveZohoPhone(User $user): string
     {
         $candidates = [
             $user->phone ?? null,

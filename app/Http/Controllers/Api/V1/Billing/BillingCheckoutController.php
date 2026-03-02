@@ -81,10 +81,7 @@ class BillingCheckoutController extends Controller
 
 /*
 | Test steps
-| 1) Ensure logged-in user has valid email in users table.
-| 2) POST /api/v1/billing/checkout {"plan_code":"01"}
-|    -> should return checkout_url
-| 3) In Zoho Billing UI search by that real email -> customer must exist
-| 4) Checkout page should NOT ask to configure mobile (mobile already present)
-| 5) Complete payment.
+| 1) Call POST /api/v1/billing/checkout with plan_code=01.
+| 2) Open checkout_url: mobile must not be requested.
+| 3) Complete payment and confirm redirect to Razorpay works.
 */
