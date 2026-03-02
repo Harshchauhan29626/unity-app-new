@@ -144,6 +144,51 @@ class ZohoBillingService
         return $this->client->request('GET', '/hostedpages/' . $hostedpageId);
     }
 
+    public function parseHostedPageForMembership(array $hostedPageResponse): array
+    {
+        $hostedPage = $hostedPageResponse['hostedpage'] ?? [];
+        $subscription = $hostedPage['subscription'] ?? [];
+
+        $status = strtolower((string) (
+            $hostedPage['payment_status']
+            ?? $hostedPage['status']
+            ?? $subscription['status']
+            ?? ''
+        ));
+
+        $isPaid = in_array($status, ['paid', 'success', 'completed', 'active', 'payment_success'], true);
+
+        $planCode = $subscription['plan']['plan_code']
+            ?? data_get($hostedPage, 'plan.plan_code')
+            ?? data_get($hostedPage, 'plan_code');
+
+        $startsAt = $subscription['start_date']
+            ?? $subscription['activated_at']
+            ?? $subscription['created_time']
+            ?? now()->toDateTimeString();
+
+        $endsAt = $subscription['next_billing_at']
+            ?? $subscription['current_term_ends_at']
+            ?? $subscription['current_term_end']
+            ?? data_get($hostedPage, 'subscription.next_billing_at')
+            ?? $this->calculateMembershipEndAt(
+                (string) ($subscription['interval'] ?? data_get($hostedPage, 'plan.interval') ?? ''),
+                $startsAt,
+            );
+
+        return [
+            'status' => $status,
+            'is_paid' => $isPaid,
+            'subscription_id' => $subscription['subscription_id'] ?? data_get($hostedPage, 'subscription_id'),
+            'invoice_id' => data_get($hostedPage, 'invoice.invoice_id')
+                ?? data_get($subscription, 'invoice_id')
+                ?? data_get($hostedPage, 'invoice_id'),
+            'plan_code' => $planCode,
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+        ];
+    }
+
     public function syncMembershipFromHostedPage(User $user, array $hostedPageResponse): bool
     {
         $hostedPage = $hostedPageResponse['hostedpage'] ?? [];
@@ -248,6 +293,27 @@ class ZohoBillingService
             'mobile' => $phone,
             'is_primary_contact' => true,
         ];
+    }
+
+    private function calculateMembershipEndAt(string $interval, string $startsAt): ?string
+    {
+        $start = now();
+
+        try {
+            $start = \Illuminate\Support\Carbon::parse($startsAt);
+        } catch (\Throwable) {
+            $start = now();
+        }
+
+        $normalized = strtolower(trim($interval));
+
+        return match (true) {
+            str_contains($normalized, 'year'),
+            str_contains($normalized, 'annual') => $start->copy()->addYear()->toDateTimeString(),
+            str_contains($normalized, 'quarter') => $start->copy()->addMonths(3)->toDateTimeString(),
+            str_contains($normalized, 'month') => $start->copy()->addMonth()->toDateTimeString(),
+            default => null,
+        };
     }
 
     private function resolveUserPhone(User $user): string
