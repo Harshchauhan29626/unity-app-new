@@ -36,11 +36,20 @@
                     <label class="form-label small text-muted">Reported From</label>
                     <input type="date" name="date_from" class="form-control form-control-sm" value="{{ $filters['date_from'] }}">
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-md-2">
                     <label class="form-label small text-muted">Reported To</label>
                     <input type="date" name="date_to" class="form-control form-control-sm" value="{{ $filters['date_to'] }}">
                 </div>
-                <div class="col-12 d-flex gap-2">
+                <div class="col-12 col-md-2">
+                    <label class="form-label small text-muted">Circle</label>
+                    <select name="circle_id" class="form-select form-select-sm">
+                        <option value="all">All Circles</option>
+                        @foreach ($circles as $circle)
+                            <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-md-1 d-flex gap-2">
                     <button type="submit" class="btn btn-sm btn-primary">Apply Filters</button>
                     <a href="{{ route('admin.post-reports.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
                 </div>
@@ -66,7 +75,7 @@
                     @forelse ($reports as $report)
                         @php
                             $postOwner = $report->post?->user;
-                            $postOwnerName = $postOwner?->display_name ?: trim(($postOwner?->first_name ?? '') . ' ' . ($postOwner?->last_name ?? ''));
+                            $circleName = $report->post?->circle?->name;
                             $reporterName = $report->reporter?->display_name ?: trim(($report->reporter?->first_name ?? '') . ' ' . ($report->reporter?->last_name ?? ''));
                             $isPostActive = $report->post ? ! $report->post->is_deleted && ! $report->post->deleted_at : false;
                             $mediaUrl = (function ($media) {
@@ -109,7 +118,9 @@
                         <tr>
                             <td>{{ $report->created_at?->format('Y-m-d H:i') }}</td>
                             <td>{{ $report->post_id }}</td>
-                            <td>{{ $postOwnerName !== '' ? $postOwnerName : 'Unknown' }}</td>
+                            <td>
+                                @include('admin.partials.peer_identity', ['user' => $postOwner, 'circleName' => $circleName])
+                            </td>
                             <td>{{ $reporterName !== '' ? $reporterName : 'Unknown' }}</td>
                             <td>{{ $report->reasonOption?->title ?? $report->reason ?? '—' }}</td>
                             <td>{{ ucfirst($report->status) }}</td>

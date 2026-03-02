@@ -40,11 +40,20 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-md-2">
+                    <label class="form-label small text-muted">Circle</label>
+                    <select name="circle_id" class="form-select form-select-sm">
+                        <option value="all">All Circles</option>
+                        @foreach ($circles as $circle)
+                            <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-md-2">
                     <label class="form-label small text-muted">Search</label>
                     <input type="text" name="search" class="form-control form-control-sm" placeholder="Content or owner" value="{{ $filters['search'] }}">
                 </div>
-                <div class="col-12 col-md-2 d-flex gap-2">
+                <div class="col-12 col-md-1 d-flex gap-2">
                     <button type="submit" class="btn btn-sm btn-primary">Apply</button>
                     <a href="{{ route('admin.posts.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
                 </div>
@@ -57,8 +66,7 @@
                         <th>Created At</th>
                         <th>Post ID</th>
                         <th>Peer Name</th>
-                        <th>Circle</th>
-                        <th>Visibility</th>
+                                                <th>Visibility</th>
                         <th>Moderation Status</th>
                         <th>Active?</th>
                         <th>Content</th>
@@ -70,8 +78,8 @@
                     @forelse ($posts as $post)
                         @php
                             $owner = $post->user;
-                            $ownerName = $owner?->display_name ?: trim(($owner?->first_name ?? '') . ' ' . ($owner?->last_name ?? ''));
                             $isActive = ! $post->is_deleted && ! $post->deleted_at;
+                            $circleName = $post->circle?->name;
                             $mediaUrl = (function ($media) {
                                 if (empty($media)) {
                                     return null;
@@ -112,8 +120,9 @@
                         <tr>
                             <td>{{ $post->created_at?->format('Y-m-d H:i') }}</td>
                             <td>{{ $post->id }}</td>
-                            <td>{{ $ownerName !== '' ? $ownerName : 'Unknown' }}</td>
-                            <td>{{ $post->circle?->name ?? '—' }}</td>
+                            <td>
+                                @include('admin.partials.peer_identity', ['user' => $owner, 'circleName' => $circleName])
+                            </td>
                             <td>{{ ucfirst($post->visibility) }}</td>
                             <td>{{ $post->moderation_status ? ucfirst($post->moderation_status) : '—' }}</td>
                             <td>{{ $isActive ? 'Yes' : 'No' }}</td>
@@ -142,7 +151,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="text-center text-muted">No posts found.</td>
+                            <td colspan="9" class="text-center text-muted">No posts found.</td>
                         </tr>
                     @endforelse
                 </tbody>

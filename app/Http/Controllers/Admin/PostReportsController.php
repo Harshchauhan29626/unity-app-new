@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Circle;
 use App\Models\Post;
 use App\Models\PostReport;
 use App\Support\AdminAccess;
@@ -31,6 +32,7 @@ class PostReportsController extends Controller
             'reason' => $request->input('reason'),
             'date_from' => $request->input('date_from'),
             'date_to' => $request->input('date_to'),
+            'circle_id' => $request->input('circle_id', 'all'),
         ];
 
         $query = PostReport::query()
@@ -43,7 +45,8 @@ class PostReportsController extends Controller
                 'total_reports'
             )
             ->with([
-                'post.user:id,display_name,first_name,last_name',
+                'post.user.profile',
+                'post.circle:id,name',
                 'reporter:id,display_name,first_name,last_name',
                 'reasonOption:id,title',
             ]);
@@ -64,6 +67,12 @@ class PostReportsController extends Controller
             $query->whereDate('created_at', '<=', $filters['date_to']);
         }
 
+        if ($filters['circle_id'] && $filters['circle_id'] !== 'all') {
+            $query->whereHas('post', function ($postQuery) use ($filters) {
+                $postQuery->where('circle_id', $filters['circle_id']);
+            });
+        }
+
         $reports = $query
             ->orderByDesc('created_at')
             ->paginate(25)
@@ -81,12 +90,16 @@ class PostReportsController extends Controller
         ];
 
         $statuses = ['open', 'reviewed', 'dismissed', 'resolved'];
+        $circles = Circle::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         return view('admin.post_reports.index', [
             'reports' => $reports,
             'filters' => $filters,
             'reasons' => $reasons,
             'statuses' => $statuses,
+            'circles' => $circles,
         ]);
     }
 

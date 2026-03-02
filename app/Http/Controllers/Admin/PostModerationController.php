@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Circle;
 use App\Models\Post;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
@@ -31,11 +32,12 @@ class PostModerationController extends Controller
             'visibility' => $request->input('visibility'),
             'moderation_status' => $request->input('moderation_status'),
             'search' => $request->input('search'),
+            'circle_id' => $request->input('circle_id', 'all'),
         ];
 
         $query = Post::query()
             ->with([
-                'user:id,display_name,first_name,last_name',
+                'user.profile',
                 'circle:id,name',
             ]);
 
@@ -57,6 +59,10 @@ class PostModerationController extends Controller
 
         if ($filters['moderation_status']) {
             $query->where('posts.moderation_status', $filters['moderation_status']);
+        }
+
+        if ($filters['circle_id'] && $filters['circle_id'] !== 'all') {
+            $query->where('posts.circle_id', $filters['circle_id']);
         }
 
         if ($filters['search']) {
@@ -84,12 +90,16 @@ class PostModerationController extends Controller
             ->orderBy('moderation_status')
             ->pluck('moderation_status')
             ->values();
+        $circles = Circle::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         return view('admin.posts.index', [
             'posts' => $posts,
             'filters' => $filters,
             'visibilities' => $visibilities,
             'moderationStatuses' => $moderationStatuses,
+            'circles' => $circles,
         ]);
     }
 
