@@ -10,76 +10,10 @@
     @endif
 
 
-    @php
-        $selectedTopActivity = request('top_activity', 'testimonials');
-        $allowedTopActivities = ['testimonials', 'referrals', 'business_deals', 'p2p_meetings', 'requirements', 'become_leader', 'recommend_peer'];
-        if (! in_array($selectedTopActivity, $allowedTopActivities, true)) {
-            $selectedTopActivity = 'testimonials';
-        }
-    @endphp
 
-    <div class="card shadow-sm mt-1 mb-3">
-        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <strong>Top 5 Peers</strong>
-            <select id="top5ActivitySelect" class="form-select form-select-sm" style="max-width: 240px;">
-                <option value="testimonials" @selected($selectedTopActivity === 'testimonials')>Testimonials</option>
-                <option value="referrals" @selected($selectedTopActivity === 'referrals')>Referrals</option>
-                <option value="business_deals" @selected($selectedTopActivity === 'business_deals')>Business Deals</option>
-                <option value="p2p_meetings" @selected($selectedTopActivity === 'p2p_meetings')>P2P Meetings</option>
-                <option value="requirements" @selected($selectedTopActivity === 'requirements')>Requirements</option>
-                <option value="become_leader" @selected($selectedTopActivity === 'become_leader')>Become A Leader</option>
-                <option value="recommend_peer" @selected($selectedTopActivity === 'recommend_peer')>Recommend A Peer</option>
-            </select>
-        </div>
-        <div class="card-body p-0">
-            <div class="top5-pane d-none" data-pane="testimonials">
-                @include('admin.activities._top5_table', [
-                    'totalLabel' => 'Total Testimonials',
-                    'rows' => $topTestimonials ?? collect(),
-                ])
-            </div>
-            <div class="top5-pane d-none" data-pane="referrals">
-                @include('admin.activities._top5_table', [
-                    'totalLabel' => 'Total Referrals',
-                    'rows' => $topReferrals ?? collect(),
-                ])
-            </div>
-            <div class="top5-pane d-none" data-pane="business_deals">
-                @include('admin.activities._top5_table', [
-                    'totalLabel' => 'Total Business Deals',
-                    'rows' => $topBusinessDeals ?? collect(),
-                ])
-            </div>
-            <div class="top5-pane d-none" data-pane="p2p_meetings">
-                @include('admin.activities._top5_table', [
-                    'totalLabel' => 'Total P2P Meetings',
-                    'rows' => $topP2PMeetings ?? collect(),
-                ])
-            </div>
-            <div class="top5-pane d-none" data-pane="requirements">
-                @include('admin.activities._top5_table', [
-                    'totalLabel' => 'Total Requirements',
-                    'rows' => $topRequirements ?? collect(),
-                ])
-            </div>
-            <div class="top5-pane d-none" data-pane="become_leader">
-                @include('admin.activities._top5_table', [
-                    'totalLabel' => 'Total Become A Leader',
-                    'rows' => $topBecomeLeader ?? collect(),
-                ])
-            </div>
-            <div class="top5-pane d-none" data-pane="recommend_peer">
-                @include('admin.activities._top5_table', [
-                    'totalLabel' => 'Total Recommend A Peer',
-                    'rows' => $topRecommendPeer ?? collect(),
-                ])
-            </div>
-        </div>
-    </div>
 
     <div class="card shadow-sm">
         <form id="activitiesFiltersForm" method="GET" action="{{ route('admin.activities.index') }}">
-            <input type="hidden" name="top_activity" id="topActivityInput" value="{{ $selectedTopActivity }}">
         </form>
 
         <div class="d-flex flex-wrap justify-content-between align-items-center p-3 gap-2 border-bottom">
@@ -286,30 +220,6 @@
                 selectedContainer.appendChild(input);
             });
         });
-
-        const top5Select = document.getElementById('top5ActivitySelect');
-        const top5Panes = document.querySelectorAll('.top5-pane');
-        const topActivityInput = document.getElementById('topActivityInput');
-
-        const showTop5Pane = (paneKey) => {
-            top5Panes.forEach((pane) => {
-                pane.classList.toggle('d-none', pane.getAttribute('data-pane') !== paneKey);
-            });
-        };
-
-        if (top5Select) {
-            const current = top5Select.value || 'testimonials';
-            showTop5Pane(current);
-            if (topActivityInput) {
-                topActivityInput.value = current;
-            }
-            top5Select.addEventListener('change', () => {
-                showTop5Pane(top5Select.value);
-                if (topActivityInput) {
-                    topActivityInput.value = top5Select.value;
-                }
-            });
-        }
     });
 </script>
 @endpush
