@@ -131,44 +131,57 @@
     </div>
 
 
-    @php
-        $topPeerSections = [
-            ['title' => 'Top by Testimonials', 'items' => $topTestimonials ?? collect()],
-            ['title' => 'Top by Referrals', 'items' => $topReferrals ?? collect()],
-            ['title' => 'Top by Business Deals', 'items' => $topBusinessDeals ?? collect()],
-            ['title' => 'Top by P2P Meetings Completed', 'items' => $topP2PMeetings ?? collect()],
-            ['title' => 'Top by Requirements', 'items' => $topRequirements ?? collect()],
-            ['title' => 'Top by Become A Leader', 'items' => $topBecomeLeader ?? collect()],
-            ['title' => 'Top by Recommend A Peer', 'items' => $topRecommendPeer ?? collect()],
-        ];
-    @endphp
 
     <div class="row g-3 mt-1 mb-3">
-        @foreach ($topPeerSections as $section)
-            <div class="col-12 col-lg-6">
-                <div class="card shadow-sm h-100">
-                    <div class="card-header bg-white fw-semibold">{{ $section['title'] }}</div>
-                    <div class="card-body">
-                        @if (($section['items'] ?? collect())->isEmpty())
-                            <p class="text-muted small mb-0">No data</p>
-                        @else
-                            <div class="d-flex flex-column gap-2">
-                                @foreach ($section['items'] as $index => $peer)
-                                    <div class="border rounded p-2">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div class="fw-semibold">#{{ $index + 1 }} {{ $peer->peer_name ?? '-' }}</div>
-                                            <span class="badge bg-primary-subtle text-primary">{{ (int) ($peer->total ?? 0) }}</span>
-                                        </div>
-                                        <div class="small text-muted">{{ $peer->peer_company ?? '-' }}</div>
-                                        <div class="small text-muted">{{ $peer->peer_city ?? 'No City' }}</div>
-                                    </div>
-                                @endforeach
-                            </div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        @endforeach
+        <div class="col-12 col-lg-6">
+            @include('admin.activities._top5_table', [
+                'title' => 'Top 5 Peers — Testimonials',
+                'totalLabel' => 'Total Testimonials',
+                'rows' => $topTestimonials ?? collect(),
+            ])
+        </div>
+        <div class="col-12 col-lg-6">
+            @include('admin.activities._top5_table', [
+                'title' => 'Top 5 Peers — Referrals',
+                'totalLabel' => 'Total Referrals',
+                'rows' => $topReferrals ?? collect(),
+            ])
+        </div>
+        <div class="col-12 col-lg-6">
+            @include('admin.activities._top5_table', [
+                'title' => 'Top 5 Peers — Business Deals',
+                'totalLabel' => 'Total Business Deals',
+                'rows' => $topBusinessDeals ?? collect(),
+            ])
+        </div>
+        <div class="col-12 col-lg-6">
+            @include('admin.activities._top5_table', [
+                'title' => 'Top 5 Peers — P2P Meetings',
+                'totalLabel' => 'Total P2P Meetings',
+                'rows' => $topP2PMeetings ?? collect(),
+            ])
+        </div>
+        <div class="col-12 col-lg-6">
+            @include('admin.activities._top5_table', [
+                'title' => 'Top 5 Peers — Requirements',
+                'totalLabel' => 'Total Requirements',
+                'rows' => $topRequirements ?? collect(),
+            ])
+        </div>
+        <div class="col-12 col-lg-6">
+            @include('admin.activities._top5_table', [
+                'title' => 'Top 5 Peers — Become A Leader',
+                'totalLabel' => 'Total Become A Leader',
+                'rows' => $topBecomeLeader ?? collect(),
+            ])
+        </div>
+        <div class="col-12 col-lg-6">
+            @include('admin.activities._top5_table', [
+                'title' => 'Top 5 Peers — Recommend A Peer',
+                'totalLabel' => 'Total Recommend A Peer',
+                'rows' => $topRecommendPeer ?? collect(),
+            ])
+        </div>
     </div>
 
     <div class="modal fade" id="activitiesExportModal" tabindex="-1" aria-hidden="true">

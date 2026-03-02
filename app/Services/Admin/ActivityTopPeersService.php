@@ -1,66 +1,63 @@
 <?php
 
-namespace App\Services\Admin\Activities;
+namespace App\Services\Admin;
 
 use Carbon\Carbon;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
-class ActivitiesTopPeersService
+class ActivityTopPeersService
 {
     public function topTestimonials(array $filters): Collection
     {
-        return $this->buildTopPeers($filters, 'testimonials', 'from_user_id', 'created_at', 'deleted_at', 'is_deleted');
+        return $this->buildTopFive($filters, 'testimonials', 'from_user_id', 'created_at', 'deleted_at', 'is_deleted');
     }
 
     public function topReferrals(array $filters): Collection
     {
-        return $this->buildTopPeers($filters, 'referrals', 'from_user_id', 'created_at', 'deleted_at', 'is_deleted');
+        return $this->buildTopFive($filters, 'referrals', 'from_user_id', 'created_at', 'deleted_at', 'is_deleted');
     }
 
     public function topBusinessDeals(array $filters): Collection
     {
-        return $this->buildTopPeers($filters, 'business_deals', 'from_user_id', 'created_at', 'deleted_at', 'is_deleted');
+        return $this->buildTopFive($filters, 'business_deals', 'from_user_id', 'created_at', 'deleted_at', 'is_deleted');
     }
 
     public function topP2PMeetings(array $filters): Collection
     {
-        return $this->buildTopPeers(
+        return $this->buildTopFive(
             $filters,
             'p2p_meetings',
             'initiator_user_id',
             'created_at',
             'deleted_at',
-            'is_deleted',
-            function ($query) {
-                $query->whereDate('activity.meeting_date', '<', now()->toDateString());
-            }
+            'is_deleted'
         );
     }
 
     public function topRequirements(array $filters): Collection
     {
-        return $this->buildTopPeers($filters, 'requirements', 'user_id', 'created_at', 'deleted_at', null);
+        return $this->buildTopFive($filters, 'requirements', 'user_id', 'created_at', 'deleted_at', null);
     }
 
     public function topBecomeLeader(array $filters): Collection
     {
-        return $this->buildTopPeers($filters, 'leader_interest_submissions', 'user_id', 'created_at', null, null);
+        return $this->buildTopFive($filters, 'leader_interest_submissions', 'user_id', 'created_at', null, null);
     }
 
     public function topRecommendPeer(array $filters): Collection
     {
-        return $this->buildTopPeers($filters, 'peer_recommendations', 'user_id', 'created_at', null, null);
+        return $this->buildTopFive($filters, 'peer_recommendations', 'user_id', 'created_at', null, null);
     }
 
-    private function buildTopPeers(
+    private function buildTopFive(
         array $filters,
         string $table,
         string $actorColumn,
         string $dateColumn,
         ?string $softDeleteColumn,
-        ?string $softDeleteFlagColumn,
-        ?\Closure $extra = null
+        ?string $isDeletedColumn
     ): Collection {
         $query = DB::table("{$table} as activity")
             ->join('users as u', 'u.id', '=', "activity.{$actorColumn}")
@@ -74,28 +71,24 @@ class ActivitiesTopPeersService
             ->orderBy('peer_name')
             ->limit(5);
 
-        if ($softDeleteColumn !== null) {
+        if ($softDeleteColumn) {
             $query->whereNull("activity.{$softDeleteColumn}");
         }
 
-        if ($softDeleteFlagColumn !== null) {
-            $query->where("activity.{$softDeleteFlagColumn}", false);
+        if ($isDeletedColumn) {
+            $query->where("activity.{$isDeletedColumn}", false);
         }
 
-        $this->applySharedFilters($query, $filters, $dateColumn);
-
-        if ($extra) {
-            $extra($query);
-        }
+        $this->applyFilters($query, $filters, $dateColumn);
 
         return $query->get();
     }
 
-    private function applySharedFilters($query, array $filters, string $dateColumn): void
+    private function applyFilters(Builder $query, array $filters, string $dateColumn): void
     {
-        $fromAt = $this->normalizeDateTime(data_get($filters, 'from_at'), false);
-        $toAt = $this->normalizeDateTime(data_get($filters, 'to_at'), true);
-        $search = trim((string) data_get($filters, 'search', data_get($filters, 'q', '')));
+        $fromAt = $this->asCarbon(data_get($filters, 'from_at'), false);
+        $toAt = $this->asCarbon(data_get($filters, 'to_at'), true);
+        $search = trim((string) data_get($filters, 'q', data_get($filters, 'search', '')));
         $circleId = trim((string) data_get($filters, 'circle_id', ''));
 
         if ($fromAt) {
@@ -107,7 +100,7 @@ class ActivitiesTopPeersService
         }
 
         if ($circleId !== '' && strtolower($circleId) !== 'any') {
-            $query->whereExists(function ($sub) use ($circleId) {
+            $query->whereExists(function (Builder $sub) use ($circleId) {
                 $sub->selectRaw('1')
                     ->from('circle_members as cm_filter')
                     ->whereColumn('cm_filter.user_id', 'u.id')
@@ -119,7 +112,7 @@ class ActivitiesTopPeersService
 
         if ($search !== '') {
             $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search) . '%';
-            $query->where(function ($inner) use ($like) {
+            $query->where(function (Builder $inner) use ($like) {
                 $inner->whereRaw("concat_ws(' ', u.first_name, u.last_name) ILIKE ?", [$like])
                     ->orWhere('u.display_name', 'ILIKE', $like)
                     ->orWhere('u.company_name', 'ILIKE', $like)
@@ -128,20 +121,22 @@ class ActivitiesTopPeersService
         }
     }
 
-    private function normalizeDateTime($value, bool $isEndOfDay): ?Carbon
+    private function asCarbon(mixed $value, bool $endOfDay): ?Carbon
     {
-        $value = is_string($value) ? trim($value) : null;
-        if (! $value) {
+        if ($value instanceof Carbon) {
+            return $value;
+        }
+
+        $value = is_string($value) ? trim($value) : '';
+        if ($value === '') {
             return null;
         }
 
         try {
             $parsed = Carbon::parse($value);
-
-            if (! str_contains($value, 'T') && ! str_contains($value, ':')) {
-                return $isEndOfDay ? $parsed->endOfDay() : $parsed->startOfDay();
+            if (! str_contains($value, ':') && ! str_contains($value, 'T')) {
+                return $endOfDay ? $parsed->endOfDay() : $parsed->startOfDay();
             }
-
             return $parsed;
         } catch (\Throwable $exception) {
             return null;

@@ -15,7 +15,7 @@ use App\Models\Testimonial;
 use App\Models\User;
 use App\Models\VisitorRegistration;
 use App\Support\AdminCircleScope;
-use App\Services\Admin\Activities\ActivitiesTopPeersService;
+use App\Services\Admin\ActivityTopPeersService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -25,7 +25,7 @@ use Illuminate\View\View;
 // NOTE: After deploy run `php artisan optimize:clear` (optional) `composer dump-autoload`.
 class ActivitiesController extends Controller
 {
-    public function __construct(private ActivitiesTopPeersService $topPeersService)
+    public function __construct(private ActivityTopPeersService $topPeersService)
     {
     }
 
@@ -49,8 +49,8 @@ class ActivitiesController extends Controller
         $topPeerFilters = [
             'search' => data_get($filters, 'q', ''),
             'circle_id' => data_get($filters, 'circle_id', ''),
-            'from_at' => data_get($filters, 'from'),
-            'to_at' => data_get($filters, 'to'),
+            'from_at' => data_get($filters, 'from_dt'),
+            'to_at' => data_get($filters, 'to_dt'),
         ];
 
         return view('admin.activities.index', [
