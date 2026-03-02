@@ -108,8 +108,8 @@
                                     <option value="none" @selected(($media ?? '') === 'none')>No Media</option>
                                 </select>
                             </th>
-                            <th style="white-space:nowrap">
-                                <div class="d-flex gap-1 justify-content-end">
+                            <th class="text-end" style="white-space:nowrap;">
+                                <div class="d-inline-flex align-items-center gap-2" style="flex-wrap:nowrap;">
                                     <button type="submit" class="btn btn-sm btn-primary">Apply</button>
                                     <a href="{{ route('admin.posts.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
                                 </div>
@@ -167,26 +167,21 @@
                                 <td>{{ $post->moderation_status ? ucfirst($post->moderation_status) : '—' }}</td>
                                 <td>{{ $isActive ? 'Yes' : 'No' }}</td>
                                 <td>{{ \Illuminate\Support\Str::limit($post->content_text, 60) }}</td>
-                                <td>
+                                <td style="white-space:nowrap;">
                                     @if ($mediaUrl)
                                         <a class="btn btn-sm btn-outline-primary" target="_blank" href="{{ $mediaUrl }}">View</a>
                                     @else
-                                        None
+                                        <span class="text-muted">None</span>
                                     @endif
                                 </td>
-                                <td class="d-flex gap-2">
-                                    <a href="{{ route('admin.posts.show', $post) }}" class="btn btn-sm btn-outline-primary">View</a>
-                                    @if ($isActive)
-                                        <form method="POST" action="{{ route('admin.posts.deactivate', $post) }}">
+                                <td class="text-end" style="white-space:nowrap;">
+                                    <div class="d-inline-flex align-items-center gap-2" style="flex-wrap:nowrap;">
+                                        <a href="{{ route('admin.posts.show', $post) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                        <form method="POST" action="{{ route('admin.posts.deactivate', $post) }}" class="m-0 p-0 d-inline">
                                             @csrf
-                                            <button type="submit" class="btn btn-sm btn-outline-danger">Deactivate</button>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate this post?')">Deactivate</button>
                                         </form>
-                                    @else
-                                        <form method="POST" action="{{ route('admin.posts.restore', $post) }}">
-                                            @csrf
-                                            <button type="submit" class="btn btn-sm btn-outline-success">Restore</button>
-                                        </form>
-                                    @endif
+                                    </div>
                                 </td>
                             </tr>
                         @empty
