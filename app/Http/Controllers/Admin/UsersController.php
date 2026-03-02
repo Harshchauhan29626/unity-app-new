@@ -26,7 +26,7 @@ class UsersController extends Controller
     {
         [$query, $filters, $perPage] = $this->buildUserQuery($request);
 
-        $users = $query->paginate($perPage)->withQueryString();
+        $users = $query->paginate($perPage)->appends($request->query());
         $canEditUsers = AdminAccess::canEditUsers(Auth::guard('admin')->user());
 
         $membershipStatuses = User::query()
@@ -37,11 +37,15 @@ class UsersController extends Controller
             ->values();
 
         $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+        $q = $filters['search'] ?? '';
+        $circleId = $filters['circle_id'] ?? 'all';
 
         return view('admin.users.index', [
             'users' => $users,
             'membershipStatuses' => $membershipStatuses,
             'circles' => $circles,
+            'q' => $q,
+            'circleId' => $circleId,
             'filters' => $filters,
             'canEditUsers' => $canEditUsers,
         ]);

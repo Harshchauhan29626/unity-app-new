@@ -55,9 +55,7 @@
                         </a>
                     </th>
                     <th>Phone</th>
-                    <th>Company</th>
                     <th>Membership</th>
-                    <th>City</th>
                     <th>
                         <a href="{{ route('admin.users.index', array_merge(request()->query(), ['sort' => 'coins_balance', 'dir' => $filters['sort'] === 'coins_balance' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
                             Coins
@@ -80,18 +78,18 @@
                 <tr class="bg-light align-middle">
                     <th></th>
                     <th>
-                        <input type="text" name="q" form="usersFiltersForm" class="form-control form-control-sm" placeholder="Peer/Company/City" value="{{ $filters['search'] }}">
+                        <div class="d-flex flex-column gap-2" style="min-width:220px;">
+                            <input type="text" name="q" form="usersFiltersForm" value="{{ $q ?? '' }}" class="form-control form-control-sm" placeholder="Peer/Company/City">
+                            <select name="circle_id" form="usersFiltersForm" class="form-select form-select-sm">
+                                <option value="all">All Circles</option>
+                                @foreach($circles as $c)
+                                    <option value="{{ $c->id }}" @selected(($circleId ?? 'all') == $c->id)>{{ $c->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </th>
                     <th>
                         <input type="text" name="phone" form="usersFiltersForm" class="form-control form-control-sm" placeholder="Phone" value="{{ $filters['phone'] }}">
-                    </th>
-                    <th>
-                        <select name="circle_id" form="usersFiltersForm" class="form-select form-select-sm">
-                            <option value="all">All Circles</option>
-                            @foreach ($circles as $circle)
-                                <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
-                            @endforeach
-                        </select>
                     </th>
                     <th>
                         <select name="membership_status" form="usersFiltersForm" class="form-select form-select-sm">
@@ -100,9 +98,6 @@
                                 <option value="{{ $status }}" @selected($filters['membership_status'] === $status)>{{ ucfirst($status) }}</option>
                             @endforeach
                         </select>
-                    </th>
-                    <th>
-                        <input type="text" class="form-control form-control-sm" placeholder="—" disabled>
                     </th>
                     <th>
                         <input type="text" name="coins_balance" class="form-control form-control-sm" placeholder="—" disabled>
@@ -157,11 +152,9 @@
                             </div>
                         </td>
                         <td>{{ $user->phone ?? '—' }}</td>
-                        <td>{{ $user->company_name ?? '—' }}</td>
                         <td>
                             <span class="badge bg-primary-subtle text-primary text-uppercase">{{ $user->membership_status ?? 'Free' }}</span>
                         </td>
-                        <td>{{ $cityName }}</td>
                         <td>{{ number_format($user->coins_balance ?? 0) }}</td>
                         <td>{{ optional($user->last_login_at)->format('Y-m-d H:i') ?? '—' }}</td>
                         <td>
@@ -179,7 +172,7 @@
                         </td>
                     </tr>
                     <tr class="collapse-row">
-                        <td colspan="10" class="p-0 border-0">
+                        <td colspan="8" class="p-0 border-0">
                             <div class="collapse" id="{{ $detailsId }}">
                                 <div class="p-3 bg-light border-top">
                                     @php
@@ -293,7 +286,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="9" class="text-center text-muted py-4">No users found.</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted py-4">No users found.</td></tr>
                 @endforelse
             </tbody>
         </table>
