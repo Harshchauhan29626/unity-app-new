@@ -152,6 +152,26 @@ class ZohoBillingService
         return $response;
     }
 
+
+    public function getSubscription(string $subscriptionId): array
+    {
+        return $this->client->request('GET', '/subscriptions/' . $subscriptionId);
+    }
+
+    public function getInvoice(string $invoiceId): array
+    {
+        return $this->client->request('GET', '/invoices/' . $invoiceId);
+    }
+
+    public function listInvoicesBySubscription(string $subscriptionId): array
+    {
+        return $this->client->request('GET', '/invoices', [
+            'subscription_id' => $subscriptionId,
+            'page' => 1,
+            'per_page' => 10,
+        ], true);
+    }
+
     public function parseHostedPageForMembership(array $hostedPageResponse): array
     {
         $hostedPage = $hostedPageResponse['hostedpage'] ?? [];

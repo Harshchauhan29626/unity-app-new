@@ -105,4 +105,16 @@ class ZohoBillingSmokeTest extends TestCase
             'status' => 'paid',
         ]);
     }
+
+    public function test_zoho_billing_webhook_rejects_missing_token(): void
+    {
+        $response = $this->postJson('/api/v1/billing/zoho/webhook', [
+            'event_type' => 'subscription_activated',
+        ]);
+
+        $response->assertStatus(401)->assertJson([
+            'success' => false,
+        ]);
+    }
+
 }

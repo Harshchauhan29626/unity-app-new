@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Models\User;
 use App\Models\UserMembership;
-use App\Support\Membership\MembershipUpdater;
+use App\Services\Billing\MembershipSyncService;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +20,7 @@ class BillingCheckoutController extends Controller
 {
     public function __construct(
         private readonly ZohoBillingService $zohoBillingService,
-        private readonly MembershipUpdater $membershipUpdater,
+        private readonly MembershipSyncService $membershipSyncService,
     ) {
     }
 
@@ -149,7 +149,7 @@ class BillingCheckoutController extends Controller
             if (! $subscriptionId) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'Payment not finalized yet',
+                    'message' => 'Payment pending finalization',
                     'data' => [
                         'hostedpage_id' => $hostedpage_id,
                         'hostedpage_status' => $hostedPageStatus,
@@ -164,7 +164,7 @@ class BillingCheckoutController extends Controller
             if (! $isCompleted) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'Payment not finalized yet',
+                    'message' => 'Payment pending finalization',
                     'data' => [
                         'hostedpage_id' => $hostedpage_id,
                         'hostedpage_status' => $hostedPageStatus,
@@ -179,14 +179,15 @@ class BillingCheckoutController extends Controller
                     : now()->copy()->addYear()->toDateTimeString());
             }
 
-            DB::transaction(function () use ($user, $payment, $subscriptionId, $planCode, $termStart, $termEnd, $invoiceId): void {
-                $this->membershipUpdater->applyPaidMembership($user, [
-                    'zoho_subscription_id' => $subscriptionId,
-                    'zoho_plan_code' => $planCode,
-                    'zoho_last_invoice_id' => $invoiceId,
-                    'membership_starts_at' => $termStart,
-                    'membership_ends_at' => $termEnd,
-                    'last_payment_at' => now(),
+            $freshUser = DB::transaction(function () use ($user, $payment, $subscriptionBlock, $subscriptionId, $planCode, $termStart, $termEnd, $invoiceId) {
+                $syncedUser = $this->membershipSyncService->syncUserMembershipFromZoho($user, [
+                    'subscription' => array_merge($subscriptionBlock, [
+                        'subscription_id' => $subscriptionId,
+                        'plan_code' => $planCode,
+                        'current_term_starts_at' => $termStart,
+                        'current_term_ends_at' => $termEnd,
+                    ]),
+                    'invoice' => ['invoice_id' => $invoiceId],
                 ]);
 
                 if ($payment) {
@@ -196,11 +197,11 @@ class BillingCheckoutController extends Controller
                         'zoho_plan_code' => $planCode,
                     ])->save();
 
-                    $this->syncUserMembershipRow($user, $payment, $termStart, $termEnd);
+                    $this->syncUserMembershipRow($syncedUser, $payment, $termStart, $termEnd);
                 }
-            });
 
-            $freshUser = $user->fresh();
+                return $syncedUser;
+            });
 
             return response()->json([
                 'success' => true,

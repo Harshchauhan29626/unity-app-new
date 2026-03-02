@@ -51,6 +51,7 @@ use App\Http\Controllers\Api\V1\RequirementController as V1RequirementController
 use App\Http\Controllers\Api\V1\RequirementInterestController;
 use App\Http\Controllers\Api\V1\TimelineRequirementController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
+use App\Http\Controllers\Api\V1\Billing\ZohoBillingWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
@@ -290,6 +291,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/membership-plans', [MembershipPlanController::class, 'index']);
     Route::post('/webhooks/razorpay', [RazorpayWebhookController::class, 'handle']);
     Route::post('/zoho/webhook', [ZohoWebhookController::class, 'handle']);
+    Route::post('/billing/zoho/webhook', [ZohoBillingWebhookController::class, 'handle']);
     Route::get('/billing/checkout/{hostedpage_id}/status', [BillingCheckoutController::class, 'status']);
     Route::get('/files/{id}', [FileController::class, 'show']);
     Route::get('/event-galleries', [EventGalleryApiController::class, 'index']);
