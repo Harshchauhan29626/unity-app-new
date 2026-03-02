@@ -10,6 +10,8 @@ use Illuminate\Support\Str;
 
 class ZohoBillingService
 {
+    private const FALLBACK_PHONE = '9999999999';
+
     public function __construct(
         private readonly ZohoBillingClient $client,
         private readonly MembershipUpdater $membershipUpdater
@@ -40,9 +42,13 @@ class ZohoBillingService
         return $this->client->request('get', '/organizations');
     }
 
-    public function ensureCustomerForUser(User $user): array
+    public function ensureCustomerForUser(User $user, ?string $resolvedPhone = null): array
     {
+        $resolvedPhone ??= $this->resolvePhoneForZoho($user);
+
         if (! empty($user->zoho_customer_id)) {
+            $this->ensurePortalAndContactPerson($user, (string) $user->zoho_customer_id, $this->buildPortalEmail($user), $resolvedPhone);
+
             return ['customer_id' => $user->zoho_customer_id, 'email' => $this->buildPortalEmail($user)];
         }
 
@@ -56,6 +62,8 @@ class ZohoBillingService
                 'last_name' => (string) ($user->last_name ?? ''),
                 'company_name' => (string) ($user->company_name ?? ''),
                 'email' => $portalEmail,
+                'mobile' => $resolvedPhone,
+                'phone' => $resolvedPhone,
                 'is_portal_enabled' => true,
                 'billing_address' => [
                     'city' => (string) ($user->city ?? ''),
@@ -63,7 +71,18 @@ class ZohoBillingService
                 ],
             ];
 
-            $created = $this->client->request('post', '/customers', $payload);
+            try {
+                $created = $this->client->request('post', '/customers', $payload);
+            } catch (ZohoBillingException $exception) {
+                if (! $this->isPhoneFormatError($exception)) {
+                    throw $exception;
+                }
+
+                $payload['mobile'] = self::FALLBACK_PHONE;
+                $payload['phone'] = self::FALLBACK_PHONE;
+                $created = $this->client->request('post', '/customers', $payload);
+            }
+
             $customer = Arr::get($created, 'customer', []);
         }
 
@@ -74,14 +93,21 @@ class ZohoBillingService
 
         $user->forceFill(['zoho_customer_id' => $customerId])->save();
 
-        $this->ensurePortalAndContactPerson($user, $customerId, $portalEmail);
+        $this->ensurePortalAndContactPerson($user, $customerId, $portalEmail, $resolvedPhone);
 
         return ['customer_id' => $customerId, 'email' => $portalEmail];
     }
 
     public function createHostedPageForSubscription(User $user, string $planCode): array
     {
-        $customer = $this->ensureCustomerForUser($user);
+        $resolvedPhone = $this->resolvePhoneForZoho($user);
+
+        Log::info('Resolved phone for Zoho', [
+            'user_id' => $user->id,
+            'phone_masked' => $this->maskPhone($resolvedPhone),
+        ]);
+
+        $customer = $this->ensureCustomerForUser($user, $resolvedPhone);
         $payload = [
             'customer_id' => $customer['customer_id'],
             'plan' => [
@@ -201,7 +227,7 @@ class ZohoBillingService
         return false;
     }
 
-    private function ensurePortalAndContactPerson(User $user, string $customerId, string $portalEmail): void
+    private function ensurePortalAndContactPerson(User $user, string $customerId, string $portalEmail, string $resolvedPhone): void
     {
         $existing = $this->client->request('get', '/contactpersons', query: ['customer_id' => $customerId]);
         $contactPeople = Arr::get($existing, 'contact_persons', []);
@@ -210,34 +236,74 @@ class ZohoBillingService
             ->contains(fn (array $person): bool => Str::lower((string) ($person['email'] ?? '')) === Str::lower($portalEmail));
 
         if (! $alreadyExists) {
-            $this->createContactPerson($customerId, $portalEmail, $user);
+            $this->createContactPerson($customerId, $portalEmail, $user, $resolvedPhone);
         }
 
-        $this->client->request('put', '/customers/' . $customerId, [
+        $payload = [
             'is_portal_enabled' => true,
             'email' => $portalEmail,
-        ]);
+            'mobile' => $resolvedPhone,
+            'phone' => $resolvedPhone,
+        ];
+
+        try {
+            $this->client->request('put', '/customers/' . $customerId, $payload);
+        } catch (ZohoBillingException $exception) {
+            if ($this->isPhoneFormatError($exception)) {
+                $payload['mobile'] = self::FALLBACK_PHONE;
+                $payload['phone'] = self::FALLBACK_PHONE;
+
+                try {
+                    $this->client->request('put', '/customers/' . $customerId, $payload);
+                    return;
+                } catch (ZohoBillingException $retryException) {
+                    Log::warning('Zoho customer phone update failed after fallback retry', [
+                        'customer_id' => $customerId,
+                        'code' => $retryException->zohoCode(),
+                        'message' => $retryException->getMessage(),
+                    ]);
+
+                    return;
+                }
+            }
+
+            Log::warning('Zoho customer update failed before checkout', [
+                'customer_id' => $customerId,
+                'code' => $exception->zohoCode(),
+                'message' => $exception->getMessage(),
+            ]);
+        }
     }
 
-    private function createContactPerson(string $customerId, string $email, User $user): void
+    private function createContactPerson(string $customerId, string $email, User $user, string $resolvedPhone): void
     {
         $payload = [
             'customer_id' => $customerId,
             'email' => $email,
             'first_name' => (string) ($user->first_name ?? 'Unity'),
             'last_name' => (string) ($user->last_name ?? 'User'),
+            'mobile' => $resolvedPhone,
+            'phone' => $resolvedPhone,
             'is_portal_enabled' => true,
         ];
 
         try {
             $this->client->request('post', '/contactpersons', $payload);
         } catch (ZohoBillingException $exception) {
-            if ($exception->zohoCode() !== '31027') {
+            if ($exception->zohoCode() === '31027') {
+                $retryEmail = $this->buildPortalEmail($user, true);
+                $payload['email'] = $retryEmail;
+                $this->client->request('post', '/contactpersons', $payload);
+
+                return;
+            }
+
+            if (! $this->isPhoneFormatError($exception)) {
                 throw $exception;
             }
 
-            $retryEmail = $this->buildPortalEmail($user, true);
-            $payload['email'] = $retryEmail;
+            $payload['mobile'] = self::FALLBACK_PHONE;
+            $payload['phone'] = self::FALLBACK_PHONE;
             $this->client->request('post', '/contactpersons', $payload);
         }
     }
@@ -286,5 +352,56 @@ class ZohoBillingService
         $name = trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? '')));
 
         return $name !== '' ? $name : 'Unity User';
+    }
+
+    private function resolvePhoneForZoho(User $user): string
+    {
+        $candidates = [
+            $user->phone ?? null,
+            $user->mobile ?? null,
+            $user->phone_number ?? null,
+            $user->contact_number ?? null,
+            $user->whatsapp_number ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $normalized = $this->normalizeIndiaPhone((string) $candidate);
+            if ($normalized !== null) {
+                return $normalized;
+            }
+        }
+
+        return self::FALLBACK_PHONE;
+    }
+
+    private function normalizeIndiaPhone(string $value): ?string
+    {
+        $digits = preg_replace('/\D+/', '', $value) ?? '';
+
+        if ($digits === '') {
+            return null;
+        }
+
+        if (strlen($digits) > 10) {
+            $digits = substr($digits, -10);
+        }
+
+        if (strlen($digits) < 10) {
+            return null;
+        }
+
+        return $digits;
+    }
+
+    private function maskPhone(string $phone): string
+    {
+        return '******' . substr($phone, -2);
+    }
+
+    private function isPhoneFormatError(ZohoBillingException $exception): bool
+    {
+        $message = Str::lower($exception->getMessage());
+
+        return Str::contains($message, ['phone', 'mobile']);
     }
 }

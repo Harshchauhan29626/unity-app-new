@@ -72,10 +72,12 @@ class BillingCheckoutController extends Controller
 }
 
 /*
-| Postman smoke steps
-| 1) GET /api/v1/zoho/plans
-| 2) POST /api/v1/billing/checkout with JSON: {"plan_code":"01"}
-| 3) Open checkout_url and complete payment
-| 4) GET /api/v1/billing/checkout/{hostedpage_id} to finalize update
-| 5) Webhook can also update automatically.
+| Postman / manual verification steps for mobile autofill fix
+| 1) POST /api/v1/billing/checkout with a user that has NO phone in DB.
+|    Expect hosted page payment flow to proceed without manual mobile entry.
+| 2) POST /api/v1/billing/checkout with a user that HAS phone in DB.
+|    Ensure mobile is prefilled/accepted and payment proceeds.
+| 3) Verify in Zoho UI:
+|    - Customer has mobile number set
+|    - Contact person has mobile number set
 */
