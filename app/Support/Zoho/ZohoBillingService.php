@@ -73,8 +73,7 @@ class ZohoBillingService
                 $user->forceFill(['zoho_customer_id' => $existingCustomerId])->save();
             }
 
-            $this->ensurePortalEnabled($existingCustomerId, $email, $phone);
-            $this->ensureContactPerson($user, $existingCustomerId, $email, $phone);
+            $this->ensurePortalEnabled($user, $existingCustomerId, $email, $phone);
 
             return $existingCustomerId;
         }
@@ -88,6 +87,7 @@ class ZohoBillingService
             'mobile' => $phone,
             'phone' => $phone,
             'is_portal_enabled' => true,
+            'contact_persons' => [$this->buildPrimaryContactPerson($user, $email, $phone)],
             'billing_address' => [
                 'city' => $user->city ?? '',
                 'state' => '',
@@ -103,8 +103,7 @@ class ZohoBillingService
 
         $user->forceFill(['zoho_customer_id' => $customerId])->save();
 
-        $this->ensurePortalEnabled($customerId, $email, $phone);
-        $this->ensureContactPerson($user, $customerId, $email, $phone);
+        $this->ensurePortalEnabled($user, $customerId, $email, $phone);
 
         return $customerId;
     }
@@ -228,51 +227,27 @@ class ZohoBillingService
         return null;
     }
 
-    private function ensurePortalEnabled(string $customerId, string $email, string $phone): void
+    private function ensurePortalEnabled(User $user, string $customerId, string $email, string $phone): void
     {
         $this->client->request('PUT', '/customers/' . $customerId, [
             'is_portal_enabled' => true,
             'email' => $email,
             'mobile' => $phone,
             'phone' => $phone,
+            'contact_persons' => [$this->buildPrimaryContactPerson($user, $email, $phone)],
         ]);
     }
 
-    private function ensureContactPerson(User $user, string $customerId, string $email, string $phone): void
+    private function buildPrimaryContactPerson(User $user, string $email, string $phone): array
     {
-        $existing = $this->client->request('GET', '/contactpersons', ['customer_id' => $customerId], true);
-        $contactPersons = $existing['contact_persons'] ?? [];
-
-        foreach ($contactPersons as $contactPerson) {
-            if (strtolower((string) ($contactPerson['email'] ?? '')) !== strtolower($email)) {
-                continue;
-            }
-
-            $contactPersonId = (string) ($contactPerson['contact_person_id'] ?? '');
-
-            if ($contactPersonId !== '' && ! (bool) ($contactPerson['is_primary_contact'] ?? false)) {
-                $this->client->request('PUT', '/contactpersons/' . $contactPersonId, [
-                    'is_primary_contact' => true,
-                    'mobile' => $phone,
-                    'phone' => $phone,
-                ]);
-            }
-
-            return;
-        }
-
-        $payload = [
-            'customer_id' => $customerId,
+        return [
+            'first_name' => $user->first_name ?: ($user->display_name ?: 'Unity'),
+            'last_name' => $user->last_name ?: '',
             'email' => $email,
-            'first_name' => $user->first_name ?: 'Unity',
-            'last_name' => $user->last_name ?: 'Peer',
-            'mobile' => $phone,
             'phone' => $phone,
-            'is_portal_enabled' => true,
+            'mobile' => $phone,
             'is_primary_contact' => true,
         ];
-
-        $this->client->request('POST', '/contactpersons', $payload);
     }
 
     private function resolveUserPhone(User $user): string
