@@ -35,9 +35,8 @@
                     <div class="col-12 col-md-2">
                         <label class="form-label small text-muted">Moderation Status</label>
                         <select name="moderation_status" class="form-select form-select-sm">
-                            <option value="">Any</option>
-                            @foreach ($moderationStatuses as $status)
-                                <option value="{{ $status }}" @selected(($filters['moderation_status'] ?? '') === $status)>{{ ucfirst($status) }}</option>
+                            @foreach ($moderationOptions as $value => $label)
+                                <option value="{{ $value === 'any' ? '' : $value }}" @selected(($filters['moderation_status'] ?? '') === ($value === 'any' ? '' : $value))>{{ $label }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -77,12 +76,8 @@
                         </tr>
                         <tr class="bg-light">
                             <th></th>
-                            <th>
-                                <input type="text" name="post_id" class="form-control form-control-sm" style="min-width: 220px" value="{{ $postId ?? '' }}" placeholder="Post ID">
-                            </th>
-                            <th>
-                                <input type="text" name="peer" class="form-control form-control-sm" style="min-width: 180px" value="{{ $peer ?? '' }}" placeholder="Peer/Company/City">
-                            </th>
+                            <th><input type="text" name="post_id" class="form-control form-control-sm" style="min-width:220px" value="{{ $postId ?? '' }}" placeholder="Post ID"></th>
+                            <th><input type="text" name="peer" class="form-control form-control-sm" style="min-width:180px" value="{{ $peer ?? '' }}" placeholder="Peer/Company/City"></th>
                             <th>
                                 <select name="inline_visibility" class="form-select form-select-sm">
                                     <option value="any">Any</option>
@@ -93,9 +88,8 @@
                             </th>
                             <th>
                                 <select name="inline_moderation_status" class="form-select form-select-sm">
-                                    <option value="any">Any</option>
-                                    @foreach ($moderationStatuses as $status)
-                                        <option value="{{ $status }}" @selected(($inlineModerationStatus ?? 'any') === $status)>{{ ucfirst($status) }}</option>
+                                    @foreach ($moderationOptions as $value => $label)
+                                        <option value="{{ $value }}" @selected(($inlineModerationStatus ?? 'any') === $value)>{{ $label }}</option>
                                     @endforeach
                                 </select>
                             </th>
@@ -106,9 +100,7 @@
                                     <option value="no" @selected(($inlineActive ?? '') === 'no')>No</option>
                                 </select>
                             </th>
-                            <th>
-                                <input type="text" name="content" class="form-control form-control-sm" style="min-width: 260px" value="{{ $content ?? '' }}" placeholder="Content">
-                            </th>
+                            <th></th>
                             <th>
                                 <select name="media" class="form-select form-select-sm">
                                     <option value="any" @selected(($media ?? 'any') === 'any')>Any</option>
@@ -116,13 +108,8 @@
                                     <option value="none" @selected(($media ?? '') === 'none')>No Media</option>
                                 </select>
                             </th>
-                            <th style="white-space: nowrap; min-width: 160px;">
-                                <div class="d-flex gap-1 align-items-center">
-                                    <select name="actions" class="form-select form-select-sm" style="max-width: 110px;">
-                                        <option value="any" @selected(($actions ?? 'any') === 'any')>Any</option>
-                                        <option value="view" @selected(($actions ?? '') === 'view')>View</option>
-                                        <option value="deactivate" @selected(($actions ?? '') === 'deactivate')>Deactivate</option>
-                                    </select>
+                            <th style="white-space:nowrap">
+                                <div class="d-flex gap-1 justify-content-end">
                                     <button type="submit" class="btn btn-sm btn-primary">Apply</button>
                                     <a href="{{ route('admin.posts.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
                                 </div>
@@ -175,9 +162,7 @@
                             <tr>
                                 <td>{{ $post->created_at?->format('Y-m-d H:i') }}</td>
                                 <td>{{ $post->id }}</td>
-                                <td>
-                                    @include('admin.partials.peer_identity', ['user' => $owner, 'circleName' => $circleName])
-                                </td>
+                                <td>@include('admin.partials.peer_identity', ['user' => $owner, 'circleName' => $circleName])</td>
                                 <td>{{ ucfirst($post->visibility) }}</td>
                                 <td>{{ $post->moderation_status ? ucfirst($post->moderation_status) : '—' }}</td>
                                 <td>{{ $isActive ? 'Yes' : 'No' }}</td>
@@ -205,9 +190,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="9" class="text-center text-muted">No posts found.</td>
-                            </tr>
+                            <tr><td colspan="9" class="text-center text-muted">No posts found.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -215,7 +198,5 @@
         </form>
     </div>
 
-    <div class="mt-3">
-        {{ $posts->links() }}
-    </div>
+    <div class="mt-3">{{ $posts->links() }}</div>
 @endsection

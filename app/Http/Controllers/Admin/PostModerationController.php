@@ -41,26 +41,21 @@ class PostModerationController extends Controller
         $inlineVisibility = $request->query('inline_visibility', 'any');
         $inlineModerationStatus = $request->query('inline_moderation_status', 'any');
         $inlineActive = $request->query('inline_active', 'any');
-        $content = $request->query('content');
         $media = $request->query('media', 'any');
-        $actions = $request->query('actions', 'any'); // UI only
 
         $query = Post::query()
             ->with(['user', 'circle'])
             ->when($circleId !== 'all' && filled($circleId), fn ($q) => $q->where('circle_id', $circleId));
 
         if ($filters['active'] === 'active') {
-            $query->where('posts.is_deleted', false)
-                ->whereNull('posts.deleted_at');
+            $query->where('posts.is_deleted', false)->whereNull('posts.deleted_at');
         }
 
         if ($filters['active'] === 'deactivated') {
             $query->where(function ($subQuery) {
-                $subQuery->where('posts.is_deleted', true)
-                    ->orWhereNotNull('posts.deleted_at');
+                $subQuery->where('posts.is_deleted', true)->orWhereNotNull('posts.deleted_at');
             });
         }
-
 
         if (filled($filters['visibility']) && $filters['visibility'] !== 'any') {
             $query->where('posts.visibility', $filters['visibility']);
@@ -79,20 +74,17 @@ class PostModerationController extends Controller
         }
 
         if ($inlineActive === 'yes') {
-            $query->where('posts.is_deleted', false)
-                ->whereNull('posts.deleted_at');
+            $query->where('posts.is_deleted', false)->whereNull('posts.deleted_at');
         }
 
         if ($inlineActive === 'no') {
             $query->where(function ($subQuery) {
-                $subQuery->where('posts.is_deleted', true)
-                    ->orWhereNotNull('posts.deleted_at');
+                $subQuery->where('posts.is_deleted', true)->orWhereNotNull('posts.deleted_at');
             });
         }
 
         if ($filters['search']) {
             $search = '%' . $filters['search'] . '%';
-
             $query->where(function ($subQuery) use ($search) {
                 $subQuery->where('posts.content_text', 'ILIKE', $search)
                     ->orWhereHas('user', function ($userQuery) use ($search) {
@@ -127,10 +119,6 @@ class PostModerationController extends Controller
             });
         }
 
-        if (filled($content)) {
-            $query->where('posts.content_text', 'ILIKE', '%' . $content . '%');
-        }
-
         if ($media === 'has') {
             $query->where(function ($subQuery) {
                 $subQuery->whereNotNull('posts.media')
@@ -147,29 +135,25 @@ class PostModerationController extends Controller
             });
         }
 
-        $posts = $query
-            ->orderByDesc('posts.created_at')
-            ->paginate(25);
-
+        $posts = $query->orderByDesc('posts.created_at')->paginate(25);
         $posts->appends($request->query());
 
         $visibilities = ['public', 'connections', 'private'];
-        $moderationStatuses = Post::query()
-            ->whereNotNull('moderation_status')
-            ->distinct()
-            ->orderBy('moderation_status')
-            ->pluck('moderation_status')
-            ->values();
+        $moderationOptions = [
+            'any' => 'Any',
+            'pending' => 'Pending',
+            'complaint' => 'Complaint',
+            'open' => 'Open',
+            'rejected' => 'Rejected',
+        ];
 
-        $circles = Circle::query()
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
 
         return view('admin.posts.index', [
             'posts' => $posts,
             'filters' => $filters,
             'visibilities' => $visibilities,
-            'moderationStatuses' => $moderationStatuses,
+            'moderationOptions' => $moderationOptions,
             'circles' => $circles,
             'circleId' => $circleId,
             'postId' => $postId,
@@ -177,9 +161,7 @@ class PostModerationController extends Controller
             'inlineVisibility' => $inlineVisibility,
             'inlineModerationStatus' => $inlineModerationStatus,
             'inlineActive' => $inlineActive,
-            'content' => $content,
             'media' => $media,
-            'actions' => $actions,
         ]);
     }
 
@@ -211,9 +193,7 @@ class PostModerationController extends Controller
             $post->save();
         });
 
-        return redirect()
-            ->back()
-            ->with('success', 'Post deactivated.');
+        return redirect()->back()->with('success', 'Post deactivated.');
     }
 
     public function restore(string $postId): RedirectResponse
@@ -228,8 +208,6 @@ class PostModerationController extends Controller
             $post->save();
         });
 
-        return redirect()
-            ->back()
-            ->with('success', 'Post restored.');
+        return redirect()->back()->with('success', 'Post restored.');
     }
 }

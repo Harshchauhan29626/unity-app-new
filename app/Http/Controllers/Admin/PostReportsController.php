@@ -36,26 +36,28 @@ class PostReportsController extends Controller
             'date_to' => $request->input('date_to'),
         ];
 
+        $postId = $request->query('post_id');
+        $peer = $request->query('peer');
+        $reporter = $request->query('reporter');
+        $reasonText = $request->query('reason_text');
+        $totalReports = $request->query('total_reports', 'any');
+        $postActive = $request->query('post_active', 'any');
+        $media = $request->query('media', 'any');
+
         $query = PostReport::query()
             ->select('post_reports.*')
-            ->selectSub(
-                PostReport::query()
+            ->selectSub(function ($subQuery) {
+                $subQuery->from('post_reports as pr2')
                     ->selectRaw('count(*)')
-                    ->whereColumn('post_id', 'post_reports.post_id')
-                    ->whereNull('deleted_at'),
-                'total_reports'
-            )
-            ->with([
-                'post.user',
-                'post.circle',
-                'reporter:id,display_name,first_name,last_name',
-                'reasonOption:id,title',
-            ])
+                    ->whereColumn('pr2.post_id', 'post_reports.post_id')
+                    ->whereNull('pr2.deleted_at');
+            }, 'total_reports')
+            ->with(['post.user', 'post.circle', 'reporter', 'reasonOption'])
             ->when($circleId !== 'all' && filled($circleId), function ($q) use ($circleId) {
                 $q->whereHas('post', fn ($postQuery) => $postQuery->where('circle_id', $circleId));
             });
 
-        if ($filters['status']) {
+        if (filled($filters['status']) && $filters['status'] !== 'any') {
             $query->where('status', $filters['status']);
         }
 
@@ -71,28 +73,97 @@ class PostReportsController extends Controller
             $query->whereDate('created_at', '<=', $filters['date_to']);
         }
 
-        $reports = $query
-            ->orderByDesc('created_at')
-            ->paginate(25);
+        if (filled($postId)) {
+            $query->whereHas('post', fn ($postQuery) => $postQuery->where('id', 'ILIKE', '%' . $postId . '%'));
+        }
 
-        $reports->appends($request->query());
+        if (filled($peer)) {
+            $peerLike = '%' . $peer . '%';
+            $query->whereHas('post.user', function ($userQuery) use ($peerLike) {
+                $userQuery->where(function ($subQuery) use ($peerLike) {
+                    $subQuery->where('name', 'ILIKE', $peerLike)
+                        ->orWhere('display_name', 'ILIKE', $peerLike)
+                        ->orWhere('first_name', 'ILIKE', $peerLike)
+                        ->orWhere('last_name', 'ILIKE', $peerLike)
+                        ->orWhere('company', 'ILIKE', $peerLike)
+                        ->orWhere('company_name', 'ILIKE', $peerLike)
+                        ->orWhere('business_name', 'ILIKE', $peerLike)
+                        ->orWhere('city', 'ILIKE', $peerLike);
+                });
+            });
+        }
 
-        $reasons = [
-            'spam',
-            'abuse',
-            'fake',
-            'harassment',
-            'nudity',
-            'hate',
-            'scam',
-            'other',
-        ];
+        if (filled($reporter)) {
+            $reporterLike = '%' . $reporter . '%';
+            $query->whereHas('reporter', function ($reporterQuery) use ($reporterLike) {
+                $reporterQuery->where(function ($subQuery) use ($reporterLike) {
+                    $subQuery->where('name', 'ILIKE', $reporterLike)
+                        ->orWhere('display_name', 'ILIKE', $reporterLike)
+                        ->orWhere('first_name', 'ILIKE', $reporterLike)
+                        ->orWhere('last_name', 'ILIKE', $reporterLike)
+                        ->orWhere('email', 'ILIKE', $reporterLike);
+                });
+            });
+        }
 
+        if (filled($reasonText)) {
+            $query->where(function ($subQuery) use ($reasonText) {
+                $subQuery->where('reason', 'ILIKE', '%' . $reasonText . '%')
+                    ->orWhereHas('reasonOption', fn ($reasonQuery) => $reasonQuery->where('title', 'ILIKE', '%' . $reasonText . '%'));
+            });
+        }
+
+        if ($totalReports === '1') {
+            $query->whereRaw('(select count(*) from post_reports pr2 where pr2.post_id = post_reports.post_id and pr2.deleted_at is null) = ?', [1]);
+        }
+
+        if ($totalReports === '2-5') {
+            $query->whereRaw('(select count(*) from post_reports pr2 where pr2.post_id = post_reports.post_id and pr2.deleted_at is null) between ? and ?', [2, 5]);
+        }
+
+        if ($totalReports === '6+') {
+            $query->whereRaw('(select count(*) from post_reports pr2 where pr2.post_id = post_reports.post_id and pr2.deleted_at is null) >= ?', [6]);
+        }
+
+        if ($postActive === 'yes') {
+            $query->whereHas('post', function ($postQuery) {
+                $postQuery->where('is_deleted', false)->whereNull('deleted_at');
+            });
+        }
+
+        if ($postActive === 'no') {
+            $query->whereHas('post', function ($postQuery) {
+                $postQuery->where(function ($subQuery) {
+                    $subQuery->where('is_deleted', true)->orWhereNotNull('deleted_at');
+                });
+            });
+        }
+
+        if ($media === 'has') {
+            $query->whereHas('post', function ($postQuery) {
+                $postQuery->where(function ($subQuery) {
+                    $subQuery->whereNotNull('media')
+                        ->whereRaw("NULLIF(TRIM(media::text), '') IS NOT NULL")
+                        ->whereRaw("media::text NOT IN ('[]', '{}', 'null')");
+                });
+            });
+        }
+
+        if ($media === 'none') {
+            $query->whereHas('post', function ($postQuery) {
+                $postQuery->where(function ($subQuery) {
+                    $subQuery->whereNull('media')
+                        ->orWhereRaw("TRIM(media::text) = ''")
+                        ->orWhereRaw("media::text IN ('[]', '{}', 'null')");
+                });
+            });
+        }
+
+        $reports = $query->orderByDesc('created_at')->paginate(25)->appends($request->query());
+
+        $reasons = ['spam', 'abuse', 'fake', 'harassment', 'nudity', 'hate', 'scam', 'other'];
         $statuses = ['open', 'reviewed', 'dismissed', 'resolved'];
-
-        $circles = Circle::query()
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
 
         return view('admin.post_reports.index', [
             'reports' => $reports,
@@ -101,6 +172,13 @@ class PostReportsController extends Controller
             'statuses' => $statuses,
             'circles' => $circles,
             'circleId' => $circleId,
+            'postId' => $postId,
+            'peer' => $peer,
+            'reporter' => $reporter,
+            'reasonText' => $reasonText,
+            'totalReports' => $totalReports,
+            'postActive' => $postActive,
+            'media' => $media,
         ]);
     }
 
@@ -141,9 +219,7 @@ class PostReportsController extends Controller
         $report->reviewed_at = now();
         $report->save();
 
-        return redirect()
-            ->back()
-            ->with('success', 'Report marked as reviewed.');
+        return redirect()->back()->with('success', 'Report marked as reviewed.');
     }
 
     public function dismiss(Request $request, string $reportId): RedirectResponse
@@ -159,9 +235,7 @@ class PostReportsController extends Controller
         $report->admin_note = $validated['admin_note'] ?? null;
         $report->save();
 
-        return redirect()
-            ->back()
-            ->with('success', 'Report dismissed.');
+        return redirect()->back()->with('success', 'Report dismissed.');
     }
 
     public function resolve(Request $request, string $reportId): RedirectResponse
@@ -177,9 +251,7 @@ class PostReportsController extends Controller
         $report->admin_note = $validated['admin_note'] ?? null;
         $report->save();
 
-        return redirect()
-            ->back()
-            ->with('success', 'Report resolved.');
+        return redirect()->back()->with('success', 'Report resolved.');
     }
 
     public function deactivatePost(string $postId): RedirectResponse
@@ -191,9 +263,7 @@ class PostReportsController extends Controller
         $post->deleted_at = now();
         $post->save();
 
-        return redirect()
-            ->back()
-            ->with('success', 'Post deactivated.');
+        return redirect()->back()->with('success', 'Post deactivated.');
     }
 
     public function restorePost(string $postId): RedirectResponse
@@ -205,8 +275,6 @@ class PostReportsController extends Controller
         $post->deleted_at = null;
         $post->save();
 
-        return redirect()
-            ->back()
-            ->with('success', 'Post restored.');
+        return redirect()->back()->with('success', 'Post restored.');
     }
 }
