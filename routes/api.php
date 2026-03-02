@@ -50,6 +50,10 @@ use App\Http\Controllers\Api\V1\IndustryController;
 use App\Http\Controllers\Api\V1\RequirementController as V1RequirementController;
 use App\Http\Controllers\Api\V1\RequirementInterestController;
 use App\Http\Controllers\Api\V1\TimelineRequirementController;
+use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
+use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
+use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
+use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -274,10 +278,18 @@ Route::prefix('v1')->group(function () {
         Route::post('/forms/register-visitor', [VisitorRegistrationController::class, 'store']);
         Route::get('/forms/register-visitor/my', [VisitorRegistrationController::class, 'myIndex']);
         Route::get('/forms/visitor-registrations/my', [VisitorRegistrationController::class, 'myIndex']);
+
+
+        Route::get('/zoho/test-token', [ZohoDebugController::class, 'testToken']);
+        Route::get('/zoho/org', [ZohoDebugController::class, 'org']);
+        Route::get('/zoho/plans', [ZohoPlansController::class, 'index']);
+        Route::post('/billing/checkout', [BillingCheckoutController::class, 'checkout']);
+        Route::get('/billing/checkout/{hostedpage_id}', [BillingCheckoutController::class, 'status']);
     });
 
     Route::get('/membership-plans', [MembershipPlanController::class, 'index']);
     Route::post('/webhooks/razorpay', [RazorpayWebhookController::class, 'handle']);
+    Route::post('/zoho/webhook', [ZohoWebhookController::class, 'handle']);
     Route::get('/files/{id}', [FileController::class, 'show']);
     Route::get('/event-galleries', [EventGalleryApiController::class, 'index']);
     Route::get('/event-galleries/{id}', [EventGalleryApiController::class, 'show']);

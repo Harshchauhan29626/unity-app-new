@@ -1,0 +1,259 @@
+<?php
+
+namespace App\Support\Zoho;
+
+use App\Models\User;
+use App\Support\Membership\MembershipUpdater;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use RuntimeException;
+
+class ZohoBillingService
+{
+    public function __construct(
+        private readonly ZohoBillingClient $client,
+        private readonly MembershipUpdater $membershipUpdater,
+    ) {
+    }
+
+    public function listActivePlans(): array
+    {
+        $response = $this->client->request('GET', '/plans', ['filter_by' => 'Status.ACTIVE'], true);
+        $plans = $response['plans'] ?? [];
+
+        return collect($plans)
+            ->filter(fn (array $plan) => strtoupper((string) ($plan['status'] ?? '')) === 'ACTIVE')
+            ->map(fn (array $plan) => [
+                'plan_code' => $plan['plan_code'] ?? null,
+                'name' => $plan['name'] ?? null,
+                'price' => $plan['price'] ?? null,
+                'interval' => $plan['interval'] ?? null,
+                'status' => $plan['status'] ?? null,
+                'description' => $plan['description'] ?? null,
+            ])
+            ->values()
+            ->all();
+    }
+
+    public function getOrganization(): array
+    {
+        $response = $this->client->request('GET', '/organizations');
+
+        return $response['organizations'][0] ?? $response;
+    }
+
+    public function ensureCustomerForUser(User $user): string
+    {
+        if (! empty($user->zoho_customer_id)) {
+            $this->ensurePortalEnabled($user->zoho_customer_id);
+            $this->ensureContactPerson($user, $user->zoho_customer_id);
+
+            return $user->zoho_customer_id;
+        }
+
+        $customerEmail = $this->portalEmailForUser($user);
+        $existing = $this->findCustomerByEmail($customerEmail);
+
+        if ($existing !== null) {
+            $user->forceFill(['zoho_customer_id' => $existing])->save();
+            $this->ensurePortalEnabled($existing);
+            $this->ensureContactPerson($user, $existing);
+
+            return $existing;
+        }
+
+        $name = trim((string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))));
+
+        $payload = [
+            'display_name' => $name !== '' ? $name : ('User ' . Str::substr((string) $user->id, 0, 8)),
+            'company_name' => $user->company_name,
+            'email' => $customerEmail,
+            'is_portal_enabled' => true,
+            'billing_address' => [
+                'city' => $user->city ?? '',
+                'state' => '',
+            ],
+        ];
+
+        $response = $this->client->request('POST', '/customers', $payload);
+        $customerId = (string) ($response['customer']['customer_id'] ?? '');
+
+        if ($customerId === '') {
+            throw new RuntimeException('Unable to create Zoho customer.');
+        }
+
+        $user->forceFill(['zoho_customer_id' => $customerId])->save();
+
+        $this->ensurePortalEnabled($customerId);
+        $this->ensureContactPerson($user, $customerId);
+
+        return $customerId;
+    }
+
+    public function createHostedPageForSubscription(User $user, string $planCode): array
+    {
+        $customerId = $this->ensureCustomerForUser($user);
+        $response = $this->client->request('POST', '/hostedpages/newsubscription', [
+            'customer_id' => $customerId,
+            'plan' => [
+                'plan_code' => $planCode,
+            ],
+        ]);
+
+        $hostedPage = $response['hostedpage'] ?? [];
+
+        return [
+            'hostedpage_id' => $hostedPage['hostedpage_id'] ?? null,
+            'checkout_url' => $hostedPage['url'] ?? null,
+            'expires_at' => $hostedPage['expire_time'] ?? null,
+            'zoho_customer_id' => $customerId,
+            'raw' => $response,
+        ];
+    }
+
+    public function getHostedPage(string $hostedpageId): array
+    {
+        return $this->client->request('GET', '/hostedpages/' . $hostedpageId);
+    }
+
+    public function syncMembershipFromHostedPage(User $user, array $hostedPageResponse): bool
+    {
+        $hostedPage = $hostedPageResponse['hostedpage'] ?? [];
+        $subscription = $hostedPage['subscription'] ?? [];
+
+        $status = strtolower((string) ($subscription['status'] ?? $hostedPage['status'] ?? ''));
+        $isPaid = in_array($status, ['active', 'live', 'paid', 'payment_success', 'success'], true);
+
+        if (! $isPaid && ! isset($subscription['subscription_id'])) {
+            return false;
+        }
+
+        return $this->membershipUpdater->applyPaidMembership($user, [
+            'zoho_subscription_id' => $subscription['subscription_id'] ?? null,
+            'zoho_plan_code' => $subscription['plan']['plan_code'] ?? null,
+            'zoho_last_invoice_id' => $hostedPage['invoice']['invoice_id'] ?? ($subscription['invoice_id'] ?? null),
+            'membership_starts_at' => $subscription['start_date'] ?? $subscription['created_time'] ?? null,
+            'membership_ends_at' => $subscription['next_billing_at'] ?? $subscription['expires_at'] ?? null,
+            'last_payment_at' => now(),
+        ]);
+    }
+
+    public function applyWebhookEvent(array $event): bool
+    {
+        $eventType = strtolower((string) ($event['event_type'] ?? Arr::get($event, 'eventType', '')));
+        $payload = Arr::get($event, 'payload', $event['data'] ?? []);
+
+        $customerId = Arr::get($payload, 'customer.customer_id')
+            ?? Arr::get($payload, 'subscription.customer_id')
+            ?? Arr::get($payload, 'invoice.customer_id')
+            ?? Arr::get($payload, 'customer_id');
+
+        $subscriptionId = Arr::get($payload, 'subscription.subscription_id')
+            ?? Arr::get($payload, 'subscription_id')
+            ?? Arr::get($payload, 'invoice.subscription_id');
+
+        $user = $this->resolveUserByZoho($customerId, $subscriptionId);
+
+        if (! $user) {
+            Log::warning('Zoho webhook user not found', [
+                'event_type' => $eventType,
+                'customer_id' => $customerId,
+                'subscription_id' => $subscriptionId,
+            ]);
+
+            return false;
+        }
+
+        $invoiceId = Arr::get($payload, 'invoice.invoice_id') ?? Arr::get($payload, 'invoice_id');
+
+        if (in_array($eventType, ['invoice_created'], true) && $invoiceId) {
+            $user->forceFill(['zoho_last_invoice_id' => $invoiceId])->save();
+        }
+
+        if (in_array($eventType, ['payment_thankyou', 'subscription_created', 'subscription_activation', 'subscription_activated'], true)) {
+            return $this->membershipUpdater->applyPaidMembership($user, [
+                'zoho_customer_id' => $customerId,
+                'zoho_subscription_id' => $subscriptionId,
+                'zoho_plan_code' => Arr::get($payload, 'subscription.plan.plan_code') ?? Arr::get($payload, 'plan.plan_code'),
+                'zoho_last_invoice_id' => $invoiceId,
+                'membership_starts_at' => Arr::get($payload, 'subscription.start_date'),
+                'membership_ends_at' => Arr::get($payload, 'subscription.next_billing_at'),
+                'last_payment_at' => now(),
+            ]);
+        }
+
+        return false;
+    }
+
+    private function findCustomerByEmail(string $email): ?string
+    {
+        $response = $this->client->request('GET', '/customers', ['email' => $email], true);
+        $customers = $response['customers'] ?? [];
+
+        foreach ($customers as $customer) {
+            if (strtolower((string) ($customer['email'] ?? '')) === strtolower($email)) {
+                return $customer['customer_id'] ?? null;
+            }
+        }
+
+        return null;
+    }
+
+    private function ensurePortalEnabled(string $customerId): void
+    {
+        $this->client->request('PUT', '/customers/' . $customerId, [
+            'is_portal_enabled' => true,
+        ]);
+    }
+
+    private function ensureContactPerson(User $user, string $customerId): void
+    {
+        $email = $this->portalEmailForUser($user);
+
+        $existing = $this->client->request('GET', '/contactpersons', ['customer_id' => $customerId], true);
+        $contactPersons = $existing['contact_persons'] ?? [];
+
+        foreach ($contactPersons as $contactPerson) {
+            if (strtolower((string) ($contactPerson['email'] ?? '')) === strtolower($email)) {
+                return;
+            }
+        }
+
+        $payload = [
+            'customer_id' => $customerId,
+            'email' => $email,
+            'first_name' => $user->first_name ?: 'Unity',
+            'last_name' => $user->last_name ?: 'Peer',
+            'is_portal_enabled' => true,
+        ];
+
+        try {
+            $this->client->request('POST', '/contactpersons', $payload);
+        } catch (RuntimeException $exception) {
+            if (! str_contains($exception->getMessage(), '31027')) {
+                throw $exception;
+            }
+
+            $payload['email'] = $this->portalEmailForUser($user, true);
+            $this->client->request('POST', '/contactpersons', $payload);
+        }
+    }
+
+    private function portalEmailForUser(User $user, bool $withTimestamp = false): string
+    {
+        $prefix = (string) config('zoho_billing.portal_demo_email_prefix', 'demo');
+        $userPrefix = Str::lower(Str::substr(preg_replace('/[^a-zA-Z0-9]/', '', (string) $user->id), 0, 8));
+        $timestampPart = $withTimestamp ? ('+' . now()->timestamp) : '';
+
+        return sprintf('%s+%s%s@gmail.com', $prefix, $userPrefix ?: 'user', $timestampPart);
+    }
+
+    private function resolveUserByZoho(?string $customerId, ?string $subscriptionId): ?User
+    {
+        return User::query()
+            ->when($customerId, fn ($query) => $query->orWhere('zoho_customer_id', $customerId))
+            ->when($subscriptionId, fn ($query) => $query->orWhere('zoho_subscription_id', $subscriptionId))
+            ->first();
+    }
+}
