@@ -36,6 +36,15 @@ class PostModerationController extends Controller
             'search' => $request->input('search'),
         ];
 
+        $postId = $request->query('post_id');
+        $peer = $request->query('peer');
+        $inlineVisibility = $request->query('inline_visibility', 'any');
+        $inlineModerationStatus = $request->query('inline_moderation_status', 'any');
+        $inlineActive = $request->query('inline_active', 'any');
+        $content = $request->query('content');
+        $media = $request->query('media', 'any');
+        $actions = $request->query('actions', 'any'); // UI only
+
         $query = Post::query()
             ->with(['user', 'circle'])
             ->when($circleId !== 'all' && filled($circleId), fn ($q) => $q->where('circle_id', $circleId));
@@ -52,12 +61,33 @@ class PostModerationController extends Controller
             });
         }
 
-        if ($filters['visibility']) {
+
+        if (filled($filters['visibility']) && $filters['visibility'] !== 'any') {
             $query->where('posts.visibility', $filters['visibility']);
         }
 
-        if ($filters['moderation_status']) {
+        if (filled($filters['moderation_status']) && $filters['moderation_status'] !== 'any') {
             $query->where('posts.moderation_status', $filters['moderation_status']);
+        }
+
+        if (filled($inlineVisibility) && $inlineVisibility !== 'any') {
+            $query->where('posts.visibility', $inlineVisibility);
+        }
+
+        if (filled($inlineModerationStatus) && $inlineModerationStatus !== 'any') {
+            $query->where('posts.moderation_status', $inlineModerationStatus);
+        }
+
+        if ($inlineActive === 'yes') {
+            $query->where('posts.is_deleted', false)
+                ->whereNull('posts.deleted_at');
+        }
+
+        if ($inlineActive === 'no') {
+            $query->where(function ($subQuery) {
+                $subQuery->where('posts.is_deleted', true)
+                    ->orWhereNotNull('posts.deleted_at');
+            });
         }
 
         if ($filters['search']) {
@@ -67,9 +97,53 @@ class PostModerationController extends Controller
                 $subQuery->where('posts.content_text', 'ILIKE', $search)
                     ->orWhereHas('user', function ($userQuery) use ($search) {
                         $userQuery->where('display_name', 'ILIKE', $search)
+                            ->orWhere('name', 'ILIKE', $search)
                             ->orWhere('first_name', 'ILIKE', $search)
                             ->orWhere('last_name', 'ILIKE', $search);
                     });
+            });
+        }
+
+        if (filled($postId)) {
+            $query->where('posts.id', 'ILIKE', '%' . $postId . '%');
+        }
+
+        if (filled($peer)) {
+            $peerQuery = '%' . $peer . '%';
+            $query->whereHas('user', function ($userQuery) use ($peerQuery) {
+                $userQuery->where(function ($subQuery) use ($peerQuery) {
+                    $subQuery->where('name', 'ILIKE', $peerQuery)
+                        ->orWhere('display_name', 'ILIKE', $peerQuery)
+                        ->orWhere('first_name', 'ILIKE', $peerQuery)
+                        ->orWhere('last_name', 'ILIKE', $peerQuery)
+                        ->orWhere('company', 'ILIKE', $peerQuery)
+                        ->orWhere('company_name', 'ILIKE', $peerQuery)
+                        ->orWhere('business_name', 'ILIKE', $peerQuery)
+                        ->orWhere('organization', 'ILIKE', $peerQuery)
+                        ->orWhere('city', 'ILIKE', $peerQuery)
+                        ->orWhere('current_city', 'ILIKE', $peerQuery)
+                        ->orWhere('location_city', 'ILIKE', $peerQuery);
+                });
+            });
+        }
+
+        if (filled($content)) {
+            $query->where('posts.content_text', 'ILIKE', '%' . $content . '%');
+        }
+
+        if ($media === 'has') {
+            $query->where(function ($subQuery) {
+                $subQuery->whereNotNull('posts.media')
+                    ->whereRaw("NULLIF(TRIM(posts.media::text), '') IS NOT NULL")
+                    ->whereRaw("posts.media::text NOT IN ('[]', '{}', 'null')");
+            });
+        }
+
+        if ($media === 'none') {
+            $query->where(function ($subQuery) {
+                $subQuery->whereNull('posts.media')
+                    ->orWhereRaw("TRIM(posts.media::text) = ''")
+                    ->orWhereRaw("posts.media::text IN ('[]', '{}', 'null')");
             });
         }
 
@@ -98,6 +172,14 @@ class PostModerationController extends Controller
             'moderationStatuses' => $moderationStatuses,
             'circles' => $circles,
             'circleId' => $circleId,
+            'postId' => $postId,
+            'peer' => $peer,
+            'inlineVisibility' => $inlineVisibility,
+            'inlineModerationStatus' => $inlineModerationStatus,
+            'inlineActive' => $inlineActive,
+            'content' => $content,
+            'media' => $media,
+            'actions' => $actions,
         ]);
     }
 
