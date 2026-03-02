@@ -50,9 +50,15 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-12 col-md-2 d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">Apply Filters</button>
-                        <a href="{{ route('admin.post-reports.index') }}" class="btn btn-outline-secondary">Reset</a>
+                    <div class="col-12 col-md-2">
+                        <div class="d-flex align-items-end justify-content-end gap-2" style="flex-wrap:nowrap; white-space:nowrap;">
+                            <button type="submit" class="btn btn-sm btn-primary">
+                                Apply Filters
+                            </button>
+                            <a href="{{ route('admin.post-reports.index') }}" class="btn btn-sm btn-outline-secondary">
+                                Reset
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -73,12 +79,12 @@
                             <th>Actions</th>
                         </tr>
                         <tr class="bg-light">
-                            <th></th>
-                            <th><input type="text" name="post_id" class="form-control form-control-sm" value="{{ $postId ?? '' }}" placeholder="Post ID"></th>
-                            <th><input type="text" name="peer" class="form-control form-control-sm" value="{{ $peer ?? '' }}" placeholder="Peer Name"></th>
-                            <th><input type="text" name="reporter" class="form-control form-control-sm" value="{{ $reporter ?? '' }}" placeholder="Reporter Name"></th>
-                            <th><input type="text" name="reason_text" class="form-control form-control-sm" value="{{ $reasonText ?? '' }}" placeholder="Reason"></th>
-                            <th>
+                            <th class="py-2"></th>
+                            <th class="py-2"><input type="text" name="post_id" class="form-control form-control-sm" value="{{ $postId ?? '' }}" placeholder="Post ID"></th>
+                            <th class="py-2"><input type="text" name="peer" class="form-control form-control-sm" value="{{ $peer ?? '' }}" placeholder="Peer Name"></th>
+                            <th class="py-2"><input type="text" name="reporter" class="form-control form-control-sm" value="{{ $reporter ?? '' }}" placeholder="Reporter Name"></th>
+                            <th class="py-2"><input type="text" name="reason_text" class="form-control form-control-sm" value="{{ $reasonText ?? '' }}" placeholder="Reason"></th>
+                            <th class="py-2">
                                 <select name="status" class="form-select form-select-sm">
                                     <option value="any">Any</option>
                                     @foreach ($statuses as $status)
@@ -86,7 +92,7 @@
                                     @endforeach
                                 </select>
                             </th>
-                            <th>
+                            <th class="py-2">
                                 <select name="total_reports" class="form-select form-select-sm">
                                     <option value="any" @selected(($totalReports ?? 'any') === 'any')>Any</option>
                                     <option value="1" @selected(($totalReports ?? '') === '1')>1</option>
@@ -94,22 +100,22 @@
                                     <option value="6+" @selected(($totalReports ?? '') === '6+')>6+</option>
                                 </select>
                             </th>
-                            <th>
+                            <th class="py-2">
                                 <select name="post_active" class="form-select form-select-sm">
                                     <option value="any" @selected(($postActive ?? 'any') === 'any')>Any</option>
                                     <option value="yes" @selected(($postActive ?? '') === 'yes')>Yes</option>
                                     <option value="no" @selected(($postActive ?? '') === 'no')>No</option>
                                 </select>
                             </th>
-                            <th>
+                            <th class="py-2">
                                 <select name="media" class="form-select form-select-sm">
                                     <option value="any" @selected(($media ?? 'any') === 'any')>Any</option>
                                     <option value="has" @selected(($media ?? '') === 'has')>Has Media</option>
                                     <option value="none" @selected(($media ?? '') === 'none')>No Media</option>
                                 </select>
                             </th>
-                            <th style="white-space: nowrap;">
-                                <div class="d-flex justify-content-end gap-1">
+                            <th class="text-end py-2" style="white-space:nowrap;">
+                                <div class="d-inline-flex align-items-center gap-2" style="flex-wrap:nowrap;">
                                     <button type="submit" class="btn btn-sm btn-primary">Apply</button>
                                     <a href="{{ route('admin.post-reports.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
                                 </div>
@@ -169,28 +175,30 @@
                                 <td>{{ ucfirst($report->status) }}</td>
                                 <td>{{ $report->total_reports ?? 0 }}</td>
                                 <td>{{ $isPostActive ? 'Yes' : 'No' }}</td>
-                                <td>
+                                <td style="white-space:nowrap;">
                                     @if ($mediaUrl)
                                         <a class="btn btn-sm btn-outline-primary" target="_blank" href="{{ $mediaUrl }}">View</a>
                                     @else
-                                        None
+                                        <span class="text-muted">None</span>
                                     @endif
                                 </td>
-                                <td class="d-flex gap-2">
-                                    <a href="{{ route('admin.post-reports.show', $report) }}" class="btn btn-sm btn-outline-primary">View</a>
-                                    @if ($report->post)
-                                        @if ($isPostActive)
-                                            <form method="POST" action="{{ route('admin.posts.deactivate', $report->post) }}">
-                                                @csrf
-                                                <button type="submit" class="btn btn-sm btn-outline-danger">Deactivate</button>
-                                            </form>
-                                        @else
-                                            <form method="POST" action="{{ route('admin.posts.restore', $report->post) }}">
-                                                @csrf
-                                                <button type="submit" class="btn btn-sm btn-outline-success">Restore</button>
-                                            </form>
+                                <td class="text-end" style="white-space:nowrap;">
+                                    <div class="d-inline-flex align-items-center gap-2" style="flex-wrap:nowrap;">
+                                        <a href="{{ route('admin.post-reports.show', $report) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                        @if ($report->post)
+                                            @if ($isPostActive)
+                                                <form method="POST" action="{{ route('admin.posts.deactivate', $report->post) }}" class="m-0 p-0 d-inline">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Deactivate</button>
+                                                </form>
+                                            @else
+                                                <form method="POST" action="{{ route('admin.posts.restore', $report->post) }}" class="m-0 p-0 d-inline">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Restore this post report?')">Restore</button>
+                                                </form>
+                                            @endif
                                         @endif
-                                    @endif
+                                    </div>
                                 </td>
                             </tr>
                         @empty
