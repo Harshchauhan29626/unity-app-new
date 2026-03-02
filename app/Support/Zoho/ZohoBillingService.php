@@ -8,10 +8,12 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 class ZohoBillingService
 {
     private const FALLBACK_PHONE = '9999999999';
+    private const HOSTEDPAGE_NEW_SUBSCRIPTION_PATH = '/hostedpages/newsubscription';
 
     public function __construct(
         private readonly ZohoBillingClient $client,
@@ -70,19 +72,42 @@ class ZohoBillingService
         ]);
 
         $customer = $this->ensureCustomerForUser($user, $resolvedPhone);
-
-        $response = $this->client->request('post', '/hostedpages/newsubscription', [
+        $payload = [
             'customer_id' => $customer['customer_id'],
             'plan' => [
                 'plan_code' => $planCode,
             ],
-        ]);
+        ];
+
+        try {
+            $response = $this->client->request('post', self::HOSTEDPAGE_NEW_SUBSCRIPTION_PATH, $payload);
+        } catch (ZohoBillingException $exception) {
+            Log::error('Zoho hostedpage creation failed', [
+                'path' => self::HOSTEDPAGE_NEW_SUBSCRIPTION_PATH,
+                'status' => $exception->statusCode(),
+                'zoho_code' => $exception->zohoCode(),
+                'response' => $exception->payload(),
+            ]);
+
+            throw $exception;
+        }
 
         $hostedPage = Arr::get($response, 'hostedpage', []);
+        $hostedPageId = (string) ($hostedPage['hostedpage_id'] ?? '');
+        $checkoutUrl = (string) ($hostedPage['url'] ?? '');
+
+        if ($hostedPageId === '' || $checkoutUrl === '') {
+            Log::error('Zoho hostedpage response missing required fields', [
+                'path' => self::HOSTEDPAGE_NEW_SUBSCRIPTION_PATH,
+                'response' => $response,
+            ]);
+
+            throw new RuntimeException('Zoho hostedpage response did not include hostedpage_id or url.');
+        }
 
         return [
-            'hostedpage_id' => $hostedPage['hostedpage_id'] ?? null,
-            'checkout_url' => $hostedPage['url'] ?? null,
+            'hostedpage_id' => $hostedPageId,
+            'checkout_url' => $checkoutUrl,
             'expires_at' => $hostedPage['expire_time'] ?? null,
             'zoho_customer_id' => $customer['customer_id'],
             'hosted_page' => $hostedPage,
