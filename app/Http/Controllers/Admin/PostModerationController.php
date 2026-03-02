@@ -27,19 +27,18 @@ class PostModerationController extends Controller
     {
         $this->ensureGlobalAdmin();
 
+        $circleId = $request->query('circle_id', 'all');
+
         $filters = [
             'active' => $request->input('active', 'all'),
             'visibility' => $request->input('visibility'),
             'moderation_status' => $request->input('moderation_status'),
             'search' => $request->input('search'),
-            'circle_id' => $request->input('circle_id', 'all'),
         ];
 
         $query = Post::query()
-            ->with([
-                'user.profile',
-                'circle:id,name',
-            ]);
+            ->with(['user', 'circle'])
+            ->when($circleId !== 'all' && filled($circleId), fn ($q) => $q->where('circle_id', $circleId));
 
         if ($filters['active'] === 'active') {
             $query->where('posts.is_deleted', false)
@@ -61,10 +60,6 @@ class PostModerationController extends Controller
             $query->where('posts.moderation_status', $filters['moderation_status']);
         }
 
-        if ($filters['circle_id'] && $filters['circle_id'] !== 'all') {
-            $query->where('posts.circle_id', $filters['circle_id']);
-        }
-
         if ($filters['search']) {
             $search = '%' . $filters['search'] . '%';
 
@@ -80,8 +75,9 @@ class PostModerationController extends Controller
 
         $posts = $query
             ->orderByDesc('posts.created_at')
-            ->paginate(25)
-            ->withQueryString();
+            ->paginate(25);
+
+        $posts->appends($request->query());
 
         $visibilities = ['public', 'connections', 'private'];
         $moderationStatuses = Post::query()
@@ -90,6 +86,7 @@ class PostModerationController extends Controller
             ->orderBy('moderation_status')
             ->pluck('moderation_status')
             ->values();
+
         $circles = Circle::query()
             ->orderBy('name')
             ->get(['id', 'name']);
@@ -100,6 +97,7 @@ class PostModerationController extends Controller
             'visibilities' => $visibilities,
             'moderationStatuses' => $moderationStatuses,
             'circles' => $circles,
+            'circleId' => $circleId,
         ]);
     }
 

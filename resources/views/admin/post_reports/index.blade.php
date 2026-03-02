@@ -45,7 +45,7 @@
                     <select name="circle_id" class="form-select form-select-sm">
                         <option value="all">All Circles</option>
                         @foreach ($circles as $circle)
-                            <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
+                            <option value="{{ $circle->id }}" @selected(($circleId ?? 'all') == $circle->id)>{{ $circle->name }}</option>
                         @endforeach
                     </select>
                 </div>

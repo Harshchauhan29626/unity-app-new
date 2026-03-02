@@ -27,12 +27,13 @@ class PostReportsController extends Controller
     {
         $this->ensureGlobalAdmin();
 
+        $circleId = $request->query('circle_id', 'all');
+
         $filters = [
             'status' => $request->input('status'),
             'reason' => $request->input('reason'),
             'date_from' => $request->input('date_from'),
             'date_to' => $request->input('date_to'),
-            'circle_id' => $request->input('circle_id', 'all'),
         ];
 
         $query = PostReport::query()
@@ -45,11 +46,14 @@ class PostReportsController extends Controller
                 'total_reports'
             )
             ->with([
-                'post.user.profile',
-                'post.circle:id,name',
+                'post.user',
+                'post.circle',
                 'reporter:id,display_name,first_name,last_name',
                 'reasonOption:id,title',
-            ]);
+            ])
+            ->when($circleId !== 'all' && filled($circleId), function ($q) use ($circleId) {
+                $q->whereHas('post', fn ($postQuery) => $postQuery->where('circle_id', $circleId));
+            });
 
         if ($filters['status']) {
             $query->where('status', $filters['status']);
@@ -67,16 +71,11 @@ class PostReportsController extends Controller
             $query->whereDate('created_at', '<=', $filters['date_to']);
         }
 
-        if ($filters['circle_id'] && $filters['circle_id'] !== 'all') {
-            $query->whereHas('post', function ($postQuery) use ($filters) {
-                $postQuery->where('circle_id', $filters['circle_id']);
-            });
-        }
-
         $reports = $query
             ->orderByDesc('created_at')
-            ->paginate(25)
-            ->withQueryString();
+            ->paginate(25);
+
+        $reports->appends($request->query());
 
         $reasons = [
             'spam',
@@ -90,6 +89,7 @@ class PostReportsController extends Controller
         ];
 
         $statuses = ['open', 'reviewed', 'dismissed', 'resolved'];
+
         $circles = Circle::query()
             ->orderBy('name')
             ->get(['id', 'name']);
@@ -100,6 +100,7 @@ class PostReportsController extends Controller
             'reasons' => $reasons,
             'statuses' => $statuses,
             'circles' => $circles,
+            'circleId' => $circleId,
         ]);
     }
 
