@@ -52,10 +52,10 @@
                             <input type="text" name="founder" class="form-control form-control-sm" value="{{ $filters['founder'] }}" placeholder="Founder">
                         </th>
                         <th>
-                            <select name="city" class="form-select form-select-sm">
-                                <option value="">Any</option>
-                                @foreach ($cityOptions as $city)
-                                    <option value="{{ $city }}" @selected($filters['city'] === $city)>{{ $city }}</option>
+                            <select name="city_id" class="form-select form-select-sm">
+                                <option value="any" @selected(($filters['city_id'] ?? 'any') === 'any')>Any</option>
+                                @foreach ($cities as $c)
+                                    <option value="{{ $c->id }}" @selected(($filters['city_id'] ?? '') === (string) $c->id)>{{ $c->name }}</option>
                                 @endforeach
                             </select>
                         </th>
@@ -136,7 +136,7 @@
                         <tr>
                             <td class="fw-semibold">{{ $circle->name ?? '—' }}</td>
                             <td>{{ $circle->founder?->display_name ?? '—' }}</td>
-                            <td>{{ $circle->city ?? ($circle->cityRelation?->name ?? $circle->city?->name ?? '—') }}</td>
+                            <td>{{ $circle->city_name ?? '—' }}</td>
                             <td>{{ $circle->country ?? ($circle->city?->country ?? '—') }}</td>
                             <td>
                                 <span class="badge bg-light text-dark text-uppercase">
