@@ -46,11 +46,10 @@ class ZohoBillingClient
                     Log::error('ZOHO_NEW_SUBSCRIPTION_FAILED', [
                         'status' => $response->status(),
                         'body' => $body,
-                        'customer_id' => $payload['customer_id'] ?? null,
-                        'plan_payload' => $payload['plan'] ?? null,
+                        'payload' => $payload,
                     ]);
 
-                    $message = (string) (data_get($body, 'message') ?? (is_string($body) ? $body : 'Zoho API request failed.'));
+                    $message = (string) (data_get($body, 'message') ?? data_get($body, 'error.message') ?? (is_string($body) ? $body : 'Zoho API request failed.'));
                     throw new RuntimeException('Zoho newsubscription failed: ' . $message, $response->status());
                 }
 
@@ -69,11 +68,10 @@ class ZohoBillingClient
                 Log::error('ZOHO_NEW_SUBSCRIPTION_FAILED', [
                     'status' => optional($exception->response)->status(),
                     'body' => $failedBody,
-                    'customer_id' => $payload['customer_id'] ?? null,
-                    'plan_payload' => $payload['plan'] ?? null,
+                    'payload' => $payload,
                 ]);
 
-                $message = (string) (data_get($failedBody, 'message') ?? (is_string($failedBody) ? $failedBody : 'Zoho API request failed.'));
+                $message = (string) (data_get($failedBody, 'message') ?? data_get($failedBody, 'error.message') ?? (is_string($failedBody) ? $failedBody : 'Zoho API request failed.'));
                 throw new RuntimeException('Zoho newsubscription failed: ' . $message, $status, $exception);
             }
 

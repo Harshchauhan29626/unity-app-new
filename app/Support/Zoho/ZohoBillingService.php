@@ -133,11 +133,10 @@ class ZohoBillingService
             $zohoCode = data_get($response, 'code');
             $zohoMessage = data_get($response, 'message') ?? data_get($response, 'error.message');
 
-            Log::error('ZOHO_NEW_SUBSCRIPTION_INVALID_RESPONSE', [
+            Log::error('ZOHO_NEW_SUBSCRIPTION_NO_URL', [
                 'status' => null,
                 'body' => $response,
-                'customer_id' => $customerId,
-                'plan_payload' => $planPayload,
+                'payload' => $payload,
             ]);
 
             $zohoDetails = trim(($zohoCode ? $zohoCode . ' ' : '') . (string) ($zohoMessage ?? ''));
