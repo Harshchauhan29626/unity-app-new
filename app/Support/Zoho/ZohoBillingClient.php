@@ -40,6 +40,15 @@ class ZohoBillingClient
                 : $request->send(strtoupper($method), $url, ['json' => $payload]);
 
             if (! $response->successful()) {
+                if ($path === '/hostedpages/newsubscription') {
+                    Log::error('Zoho hostedpage newsubscription failed', [
+                        'status' => $response->status(),
+                        'body' => $response->json() ?? $response->body(),
+                        'customer_id' => $payload['customer_id'] ?? null,
+                        'plan_payload' => $payload['plan'] ?? null,
+                    ]);
+                }
+
                 $this->throwZohoException($response->status(), $response->json(), $response->body());
             }
 
@@ -48,6 +57,15 @@ class ZohoBillingClient
             $json = optional($exception->response)->json();
             $status = optional($exception->response)->status() ?? 500;
             $body = optional($exception->response)->body();
+
+            if ($path === '/hostedpages/newsubscription') {
+                Log::error('Zoho hostedpage newsubscription failed', [
+                    'status' => optional($exception->response)->status(),
+                    'body' => $json ?? $body,
+                    'customer_id' => $payload['customer_id'] ?? null,
+                    'plan_payload' => $payload['plan'] ?? null,
+                ]);
+            }
 
             $this->throwZohoException($status, $json, $body);
         }

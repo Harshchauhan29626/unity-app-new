@@ -112,26 +112,46 @@ class ZohoBillingService
     public function createHostedPageForSubscription(User $user, string $planCode): array
     {
         $customerId = $this->ensureCustomerForUser($user);
-
-        $response = $this->client->request('POST', '/hostedpages/newsubscription', [
+        $payload = [
             'customer_id' => $customerId,
             'plan' => [
                 'plan_code' => $planCode,
             ],
-        ]);
+        ];
+
+        try {
+            $response = $this->client->request('POST', '/hostedpages/newsubscription', $payload);
+        } catch (RuntimeException $exception) {
+            throw new RuntimeException('Failed to generate checkout URL. Zoho: ' . $exception->getMessage(), (int) $exception->getCode(), $exception);
+        }
+
+        if (! is_array($response)) {
+            Log::error('Zoho hosted page response invalid', [
+                'response_type' => get_debug_type($response),
+                'customer_id' => $customerId,
+                'plan_code' => $planCode,
+            ]);
+
+            throw new RuntimeException('Failed to generate checkout URL.');
+        }
 
         $hostedPage = $response['hostedpage'] ?? [];
         $hostedPageId = $hostedPage['hostedpage_id'] ?? null;
         $checkoutUrl = $hostedPage['url'] ?? null;
 
         if (! is_string($checkoutUrl) || $checkoutUrl === '' || ! is_string($hostedPageId) || $hostedPageId === '') {
+            $zohoCode = data_get($response, 'code');
+            $zohoMessage = data_get($response, 'message') ?? data_get($response, 'error.message');
+
             Log::error('Zoho hosted page response missing checkout details', [
                 'response' => $response,
                 'customer_id' => $customerId,
                 'plan_code' => $planCode,
             ]);
 
-            throw new RuntimeException('Failed to generate checkout URL.');
+            $zohoDetails = trim(($zohoCode ? $zohoCode . ' ' : '') . (string) ($zohoMessage ?? ''));
+
+            throw new RuntimeException('Failed to generate checkout URL.' . ($zohoDetails !== '' ? ' Zoho: ' . $zohoDetails : ''));
         }
 
         return [
