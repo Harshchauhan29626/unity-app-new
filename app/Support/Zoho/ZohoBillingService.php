@@ -112,11 +112,12 @@ class ZohoBillingService
     public function createHostedPageForSubscription(User $user, string $planCode): array
     {
         $customerId = $this->ensureCustomerForUser($user);
+        $planPayload = [
+            'plan_code' => $planCode,
+        ];
         $payload = [
             'customer_id' => $customerId,
-            'plan' => [
-                'plan_code' => $planCode,
-            ],
+            'plan' => $planPayload,
         ];
 
         try {
@@ -125,28 +126,18 @@ class ZohoBillingService
             throw new RuntimeException('Failed to generate checkout URL. Zoho: ' . $exception->getMessage(), (int) $exception->getCode(), $exception);
         }
 
-        if (! is_array($response)) {
-            Log::error('Zoho hosted page response invalid', [
-                'response_type' => get_debug_type($response),
-                'customer_id' => $customerId,
-                'plan_code' => $planCode,
-            ]);
-
-            throw new RuntimeException('Failed to generate checkout URL.');
-        }
-
-        $hostedPage = $response['hostedpage'] ?? [];
-        $hostedPageId = $hostedPage['hostedpage_id'] ?? null;
-        $checkoutUrl = $hostedPage['url'] ?? null;
+        $checkoutUrl = data_get($response, 'hostedpage.url') ?? data_get($response, 'url');
+        $hostedPageId = data_get($response, 'hostedpage.hostedpage_id') ?? data_get($response, 'hostedpage_id');
 
         if (! is_string($checkoutUrl) || $checkoutUrl === '' || ! is_string($hostedPageId) || $hostedPageId === '') {
             $zohoCode = data_get($response, 'code');
             $zohoMessage = data_get($response, 'message') ?? data_get($response, 'error.message');
 
-            Log::error('Zoho hosted page response missing checkout details', [
-                'response' => $response,
+            Log::error('ZOHO_NEW_SUBSCRIPTION_INVALID_RESPONSE', [
+                'status' => null,
+                'body' => $response,
                 'customer_id' => $customerId,
-                'plan_code' => $planCode,
+                'plan_payload' => $planPayload,
             ]);
 
             $zohoDetails = trim(($zohoCode ? $zohoCode . ' ' : '') . (string) ($zohoMessage ?? ''));

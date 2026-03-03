@@ -41,12 +41,17 @@ class ZohoBillingClient
 
             if (! $response->successful()) {
                 if ($path === '/hostedpages/newsubscription') {
-                    Log::error('Zoho hostedpage newsubscription failed', [
+                    $body = $response->json() ?? $response->body();
+
+                    Log::error('ZOHO_NEW_SUBSCRIPTION_FAILED', [
                         'status' => $response->status(),
-                        'body' => $response->json() ?? $response->body(),
+                        'body' => $body,
                         'customer_id' => $payload['customer_id'] ?? null,
                         'plan_payload' => $payload['plan'] ?? null,
                     ]);
+
+                    $message = (string) (data_get($body, 'message') ?? (is_string($body) ? $body : 'Zoho API request failed.'));
+                    throw new RuntimeException('Zoho newsubscription failed: ' . $message, $response->status());
                 }
 
                 $this->throwZohoException($response->status(), $response->json(), $response->body());
@@ -59,12 +64,17 @@ class ZohoBillingClient
             $body = optional($exception->response)->body();
 
             if ($path === '/hostedpages/newsubscription') {
-                Log::error('Zoho hostedpage newsubscription failed', [
+                $failedBody = $json ?? $body;
+
+                Log::error('ZOHO_NEW_SUBSCRIPTION_FAILED', [
                     'status' => optional($exception->response)->status(),
-                    'body' => $json ?? $body,
+                    'body' => $failedBody,
                     'customer_id' => $payload['customer_id'] ?? null,
                     'plan_payload' => $payload['plan'] ?? null,
                 ]);
+
+                $message = (string) (data_get($failedBody, 'message') ?? (is_string($failedBody) ? $failedBody : 'Zoho API request failed.'));
+                throw new RuntimeException('Zoho newsubscription failed: ' . $message, $status, $exception);
             }
 
             $this->throwZohoException($status, $json, $body);
