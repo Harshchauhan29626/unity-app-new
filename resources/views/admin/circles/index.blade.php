@@ -15,108 +15,161 @@
     <div class="alert alert-success">{{ session('success') }}</div>
 @endif
 
-<div class="card p-3 mb-3">
-    <form class="row g-2 align-items-end">
-        <div class="col-md-3">
-            <label class="form-label">Search</label>
-            <input type="text" name="q" value="{{ $filters['search'] }}" class="form-control" placeholder="Circle name">
-        </div>
-        <div class="col-md-2">
-            <label class="form-label">Status</label>
-            <select name="status" class="form-select">
-                <option value="">All</option>
-                @foreach ($statuses as $status)
-                    <option value="{{ $status }}" @selected($filters['status'] === $status)>{{ ucfirst($status) }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">City</label>
-            <select name="city_id" class="form-select">
-                <option value="">All</option>
-                @foreach ($cities as $city)
-                    <option value="{{ $city->id }}" @selected($filters['city_id'] == $city->id)>{{ $city->name }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label">Type</label>
-            <select name="type" class="form-select">
-                <option value="">All</option>
-                @foreach ($types as $type)
-                    <option value="{{ $type }}" @selected($filters['type'] === $type)>{{ ucfirst($type) }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="col-md-2 d-flex gap-2">
-            <button class="btn btn-primary w-100">Filter</button>
-            <a class="btn btn-outline-secondary w-100" href="{{ route('admin.circles.index') }}">Reset</a>
-        </div>
-    </form>
-</div>
-
-<div class="card p-3">
-    <div class="table-responsive" style="overflow-x: auto;">
-        <table class="table align-middle" style="white-space: nowrap;">
-            <thead>
-                <tr>
-                    <th>Circle</th>
-                    <th>Founder</th>
-                    <th>City</th>
-                    <th>Country</th>
-                    <th>Type</th>
-                    <th>Industry Tags</th>
-                    <th>Meeting Mode</th>
-                    <th>Meeting Frequency</th>
-                    <th>Launch Date</th>
-                    <th>Cover</th>
-                    <th>Director</th>
-                    <th>Industry Director</th>
-                    <th>DED</th>
-                    <th>Peers</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse ($circles as $circle)
+<form method="GET" action="{{ route('admin.circles.index') }}">
+    <div class="card p-3">
+        <div class="table-responsive" style="overflow-x: auto;">
+            <table class="table align-middle" style="white-space: nowrap;">
+                <thead>
                     <tr>
-                        <td class="fw-semibold">{{ $circle->name }}</td>
-                        <td>{{ $circle->founder?->display_name ?? '—' }}</td>
-                        <td>{{ $circle->city?->name ?? '—' }}</td>
-                        <td>{{ $circle->city?->country ?? '—' }}</td>
-                        <td><span class="badge bg-light text-dark text-uppercase">{{ $circle->type ?? '—' }}</span></td>
-                        <td>{{ $circle->industry_tags ? implode(', ', $circle->industry_tags) : '—' }}</td>
-                        <td>{{ $circle->meeting_mode ?? '—' }}</td>
-                        <td>{{ $circle->meeting_frequency ?? '—' }}</td>
-                        <td>{{ optional($circle->launch_date)->format('Y-m-d') ?? '—' }}</td>
-                        <td>@if($circle->cover_file_id)<img src="{{ url('/api/v1/files/' . $circle->cover_file_id) }}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;">@else — @endif</td>
-                        <td>{{ $circle->director?->display_name ?? '—' }}</td>
-                        <td>{{ $circle->industryDirector?->display_name ?? '—' }}</td>
-                        <td>{{ $circle->ded?->display_name ?? '—' }}</td>
-                        <td>{{ $circle->members_count ?? 0 }}</td>
-                        <td><span class="badge badge-soft-secondary text-uppercase">{{ $circle->status ?? 'pending' }}</span></td>
-                        <td>{{ optional($circle->created_at)->format('Y-m-d') }}</td>
-                        <td class="text-end">
-                            <div class="d-inline-flex gap-1">
-                                <a class="btn btn-sm btn-light" href="{{ route('admin.circles.show', $circle) }}">View</a>
-                                <form action="{{ route('admin.circles.destroy', $circle) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this circle? This is a soft delete and can be restored by admin.');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-                                </form>
-                            </div>
-                        </td>
+                        <th>Circle</th>
+                        <th>Founder</th>
+                        <th>City</th>
+                        <th>Country</th>
+                        <th>Type</th>
+                        <th>Industry Tags</th>
+                        <th>Meeting Mode</th>
+                        <th>Meeting Frequency</th>
+                        <th>Launch Date</th>
+                        <th>Cover</th>
+                        <th>Director</th>
+                        <th>Industry Director</th>
+                        <th>DED</th>
+                        <th>Peers</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th></th>
                     </tr>
-                @empty
-                    <tr><td colspan="18" class="text-center text-muted py-4">No circles found.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
+                    <tr class="bg-light align-middle">
+                        <th>
+                            <select name="circle_name" class="form-select form-select-sm">
+                                <option value="">All</option>
+                                @foreach ($circleNames as $circleName)
+                                    <option value="{{ $circleName }}" @selected($filters['circle_name'] === $circleName)>{{ $circleName }}</option>
+                                @endforeach
+                            </select>
+                        </th>
+                        <th>
+                            <input type="text" name="founder" class="form-control form-control-sm" value="{{ $filters['founder'] }}" placeholder="Founder">
+                        </th>
+                        <th>
+                            <select name="city" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                @foreach ($cityOptions as $city)
+                                    <option value="{{ $city }}" @selected($filters['city'] === $city)>{{ $city }}</option>
+                                @endforeach
+                            </select>
+                        </th>
+                        <th>
+                            <select name="country" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                @foreach ($countryOptions as $country)
+                                    <option value="{{ $country }}" @selected($filters['country'] === $country)>{{ $country }}</option>
+                                @endforeach
+                            </select>
+                        </th>
+                        <th>
+                            <select name="type" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                @foreach ($typeOptions as $type)
+                                    <option value="{{ $type }}" @selected($filters['type'] === $type)>{{ ucfirst($type) }}</option>
+                                @endforeach
+                            </select>
+                        </th>
+                        <th>
+                            <input type="text" name="industry_tags" class="form-control form-control-sm" value="{{ $filters['industry_tags'] }}" placeholder="Industry Tags">
+                        </th>
+                        <th>
+                            <select name="meeting_mode" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                @foreach ($meetingModeOptions as $meetingMode)
+                                    <option value="{{ $meetingMode }}" @selected($filters['meeting_mode'] === $meetingMode)>{{ ucfirst($meetingMode) }}</option>
+                                @endforeach
+                            </select>
+                        </th>
+                        <th>
+                            <select name="meeting_frequency" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                @foreach ($meetingFrequencyOptions as $meetingFrequency)
+                                    <option value="{{ $meetingFrequency }}" @selected($filters['meeting_frequency'] === $meetingFrequency)>{{ ucfirst($meetingFrequency) }}</option>
+                                @endforeach
+                            </select>
+                        </th>
+                        <th>
+                            <input type="date" name="launch_date" class="form-control form-control-sm" value="{{ $filters['launch_date'] }}">
+                        </th>
+                        <th>
+                            <input type="text" name="cover" class="form-control form-control-sm" value="{{ $filters['cover'] }}" placeholder="Cover">
+                        </th>
+                        <th>
+                            <input type="text" name="director" class="form-control form-control-sm" value="{{ $filters['director'] }}" placeholder="Director">
+                        </th>
+                        <th>
+                            <input type="text" name="industry_director" class="form-control form-control-sm" value="{{ $filters['industry_director'] }}" placeholder="Industry Director">
+                        </th>
+                        <th>
+                            <input type="text" name="ded" class="form-control form-control-sm" value="{{ $filters['ded'] }}" placeholder="DED">
+                        </th>
+                        <th>
+                            <input type="text" class="form-control form-control-sm" placeholder="—" disabled>
+                        </th>
+                        <th>
+                            <select name="status" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                @foreach ($statusOptions as $status)
+                                    <option value="{{ $status }}" @selected($filters['status'] === $status)>{{ ucfirst($status) }}</option>
+                                @endforeach
+                            </select>
+                        </th>
+                        <th>
+                            <input type="text" class="form-control form-control-sm" placeholder="—" disabled>
+                        </th>
+                        <th class="text-end">
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+                                <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.circles.index') }}">Reset</a>
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($circles as $circle)
+                        <tr>
+                            <td class="fw-semibold">{{ $circle->name }}</td>
+                            <td>{{ $circle->founder?->display_name ?? '—' }}</td>
+                            <td>{{ $circle->city?->name ?? '—' }}</td>
+                            <td>{{ $circle->city?->country ?? '—' }}</td>
+                            <td><span class="badge bg-light text-dark text-uppercase">{{ $circle->type ?? '—' }}</span></td>
+                            <td>{{ $circle->industry_tags ? implode(', ', $circle->industry_tags) : '—' }}</td>
+                            <td>{{ $circle->meeting_mode ?? '—' }}</td>
+                            <td>{{ $circle->meeting_frequency ?? '—' }}</td>
+                            <td>{{ optional($circle->launch_date)->format('Y-m-d') ?? '—' }}</td>
+                            <td>@if($circle->cover_file_id)<img src="{{ url('/api/v1/files/' . $circle->cover_file_id) }}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;">@else — @endif</td>
+                            <td>{{ $circle->director?->display_name ?? '—' }}</td>
+                            <td>{{ $circle->industryDirector?->display_name ?? '—' }}</td>
+                            <td>{{ $circle->ded?->display_name ?? '—' }}</td>
+                            <td>{{ $circle->members_count ?? 0 }}</td>
+                            <td><span class="badge badge-soft-secondary text-uppercase">{{ $circle->status ?? 'pending' }}</span></td>
+                            <td>{{ optional($circle->created_at)->format('Y-m-d') }}</td>
+                            <td class="text-end">
+                                <div class="d-inline-flex gap-1">
+                                    <a class="btn btn-sm btn-light" href="{{ route('admin.circles.show', $circle) }}">View</a>
+                                    <form action="{{ route('admin.circles.destroy', $circle) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this circle? This is a soft delete and can be restored by admin.');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="18" class="text-center text-muted py-4">No circles found.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-2">
+            {{ $circles->links() }}
+        </div>
     </div>
-    <div class="mt-2">
-        {{ $circles->links() }}
-    </div>
-</div>
+</form>
 @endsection
