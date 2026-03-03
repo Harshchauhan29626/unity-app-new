@@ -140,7 +140,7 @@
                         <select name="director_user_id" class="form-select">
                             <option value="">Select director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('director_user_id') === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
+                                <option value="{{ $user->id }}" @selected(old('director_user_id') === $user->id)>{{ trim((string) ($user->display_name ?? '')) !== '' ? trim((string) $user->display_name) : (trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? ''))) !== '' ? trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? ''))) : '—') }} — {{ (isset($user->company_name) && trim((string) $user->company_name) !== '') ? trim((string) $user->company_name) : ((isset($user->business_name) && trim((string) $user->business_name) !== '') ? trim((string) $user->business_name) : 'No Company') }} — {{ (isset($user->city) && trim((string) $user->city) !== '') ? trim((string) $user->city) : 'No City' }} — {{ (trim((string) optional($user->circleMembers->first()?->circle)->name) !== '') ? trim((string) optional($user->circleMembers->first()?->circle)->name) : 'No Circle' }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -149,7 +149,7 @@
                         <select name="industry_director_user_id" class="form-select">
                             <option value="">Select industry director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('industry_director_user_id') === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
+                                <option value="{{ $user->id }}" @selected(old('industry_director_user_id') === $user->id)>{{ trim((string) ($user->display_name ?? '')) !== '' ? trim((string) $user->display_name) : (trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? ''))) !== '' ? trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? ''))) : '—') }} — {{ (isset($user->company_name) && trim((string) $user->company_name) !== '') ? trim((string) $user->company_name) : ((isset($user->business_name) && trim((string) $user->business_name) !== '') ? trim((string) $user->business_name) : 'No Company') }} — {{ (isset($user->city) && trim((string) $user->city) !== '') ? trim((string) $user->city) : 'No City' }} — {{ (trim((string) optional($user->circleMembers->first()?->circle)->name) !== '') ? trim((string) optional($user->circleMembers->first()?->circle)->name) : 'No Circle' }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -158,7 +158,7 @@
                         <select name="ded_user_id" class="form-select">
                             <option value="">Select DED</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('ded_user_id') === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
+                                <option value="{{ $user->id }}" @selected(old('ded_user_id') === $user->id)>{{ trim((string) ($user->display_name ?? '')) !== '' ? trim((string) $user->display_name) : (trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? ''))) !== '' ? trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? ''))) : '—') }} — {{ (isset($user->company_name) && trim((string) $user->company_name) !== '') ? trim((string) $user->company_name) : ((isset($user->business_name) && trim((string) $user->business_name) !== '') ? trim((string) $user->business_name) : 'No Company') }} — {{ (isset($user->city) && trim((string) $user->city) !== '') ? trim((string) $user->city) : 'No City' }} — {{ (trim((string) optional($user->circleMembers->first()?->circle)->name) !== '') ? trim((string) optional($user->circleMembers->first()?->circle)->name) : 'No Circle' }}</option>
                             @endforeach
                         </select>
                     </div>

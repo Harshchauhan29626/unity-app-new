@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class CircleController extends Controller
@@ -312,6 +313,14 @@ class CircleController extends Controller
 
     private function allUsers()
     {
+        $columns = ['id', 'display_name', 'first_name', 'last_name', 'email', 'city'];
+
+        foreach (['company_name', 'business_name'] as $column) {
+            if (Schema::hasColumn('users', $column)) {
+                $columns[] = $column;
+            }
+        }
+
         return User::query()
             ->whereNull('deleted_at')
             ->with(['circleMembers' => function ($query) {
@@ -322,11 +331,40 @@ class CircleController extends Controller
             }])
             ->orderByRaw("COALESCE(NULLIF(display_name,''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)),''), email) ASC")
             ->limit(2000)
-            ->get(['id', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'company', 'business_name', 'city']);
+            ->get($columns);
     }
 
     private function founderLabel(?User $user): string
     {
-        return $user?->adminDisplayLabel() ?? '';
+        if (! $user) {
+            return '';
+        }
+
+        $peerName = trim((string) ($user->display_name ?? ''));
+
+        if ($peerName === '') {
+            $peerName = trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? '')));
+        }
+
+        if ($peerName === '') {
+            $peerName = '—';
+        }
+
+        $company = 'No Company';
+
+        if (isset($user->company_name) && trim((string) $user->company_name) !== '') {
+            $company = trim((string) $user->company_name);
+        } elseif (isset($user->business_name) && trim((string) $user->business_name) !== '') {
+            $company = trim((string) $user->business_name);
+        }
+
+        $city = (isset($user->city) && trim((string) $user->city) !== '')
+            ? trim((string) $user->city)
+            : 'No City';
+
+        $circle = (string) (optional($user->circleMembers->first()?->circle)->name ?? 'No Circle');
+        $circle = trim($circle) !== '' ? trim($circle) : 'No Circle';
+
+        return "{$peerName} — {$company} — {$city} — {$circle}";
     }
 }

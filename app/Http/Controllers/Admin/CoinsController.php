@@ -158,8 +158,16 @@ class CoinsController extends Controller
 
     public function create(): View
     {
+        $columns = ['id', 'display_name', 'first_name', 'last_name', 'email', 'city'];
+
+        foreach (['company_name', 'business_name'] as $column) {
+            if (Schema::hasColumn('users', $column)) {
+                $columns[] = $column;
+            }
+        }
+
         $usersQuery = User::query()
-            ->select(['id', 'email', 'first_name', 'last_name', 'display_name', 'company_name', 'company', 'business_name', 'city'])
+            ->select($columns)
             ->with(['circleMembers' => function ($query) {
                 $query->where('status', 'approved')
                     ->whereNull('deleted_at')

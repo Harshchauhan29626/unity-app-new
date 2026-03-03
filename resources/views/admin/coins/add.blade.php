@@ -22,8 +22,30 @@
                         <option value="">Select a member</option>
                         @foreach ($users as $user)
                             @php
-                                [$name, $company, $city, $circle] = $user->adminDisplayParts();
-                                $label = $user->adminDisplayInlineLabel();
+                                $name = trim((string) ($user->display_name ?? ''));
+                                if ($name === '') {
+                                    $name = trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? '')));
+                                }
+                                if ($name === '') {
+                                    $name = '—';
+                                }
+
+                                if (isset($user->company_name) && trim((string) $user->company_name) !== '') {
+                                    $company = trim((string) $user->company_name);
+                                } elseif (isset($user->business_name) && trim((string) $user->business_name) !== '') {
+                                    $company = trim((string) $user->business_name);
+                                } else {
+                                    $company = 'No Company';
+                                }
+
+                                $city = (isset($user->city) && trim((string) $user->city) !== '')
+                                    ? trim((string) $user->city)
+                                    : 'No City';
+
+                                $circle = (string) (optional($user->circleMembers->first()?->circle)->name ?? 'No Circle');
+                                $circle = trim($circle) !== '' ? trim($circle) : 'No Circle';
+
+                                $label = $name.' — '.$company.' — '.$city.' — '.$circle;
                             @endphp
                             <option
                                 value="{{ $user->id }}"
