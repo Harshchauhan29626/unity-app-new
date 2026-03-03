@@ -26,7 +26,6 @@ class CirclePeersController extends Controller
         $hasDisplayName = Schema::hasColumn('users', 'display_name');
         $hasCompanyName = Schema::hasColumn('users', 'company_name');
         $hasCompany = Schema::hasColumn('users', 'company');
-        $hasBusinessName = Schema::hasColumn('users', 'business_name');
         $hasCity = Schema::hasColumn('users', 'city');
 
         $nameExpr = $hasName
@@ -38,20 +37,11 @@ class CirclePeersController extends Controller
 
         $companyExpr = $hasCompanyName
             ? 'users.company_name'
-            : ($hasCompany
-                ? 'users.company'
-                : ($hasBusinessName ? 'users.business_name' : "''")
-            );
+            : ($hasCompany ? 'users.company' : "''");
 
         $cityExpr = $hasCity ? 'users.city' : "''";
 
         $rows = DB::table('users')
-            ->leftJoin('circle_members as cm2', function ($join): void {
-                $join->on('cm2.user_id', '=', 'users.id')
-                    ->where('cm2.status', '=', 'approved')
-                    ->whereNull('cm2.deleted_at');
-            })
-            ->leftJoin('circles as c2', 'c2.id', '=', 'cm2.circle_id')
             ->whereNull('users.deleted_at')
             ->whereNotIn('users.id', function ($subQuery) use ($circle): void {
                 $subQuery->select('user_id')
@@ -69,14 +59,20 @@ class CirclePeersController extends Controller
                         ->orWhereRaw("COALESCE({$cityExpr}, '') ILIKE ?", [$like]);
                 });
             })
-            ->groupBy('users.id')
             ->selectRaw(
                 "users.id,
                 {$nameExpr} as name,
-                users.email,
                 COALESCE({$companyExpr}, '') as company,
                 COALESCE({$cityExpr}, '') as city,
-                COALESCE(string_agg(DISTINCT c2.name, ' | ') FILTER (WHERE c2.name IS NOT NULL), '') as circles"
+                COALESCE((
+                    SELECT c.name
+                    FROM circle_members cm
+                    JOIN circles c ON c.id = cm.circle_id
+                    WHERE cm.user_id = users.id
+                      AND cm.deleted_at IS NULL
+                    ORDER BY cm.created_at DESC
+                    LIMIT 1
+                ), '') as circle"
             )
             ->orderByRaw("{$nameExpr} ASC")
             ->limit(20)
