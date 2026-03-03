@@ -33,9 +33,9 @@ class UserSearchController extends Controller
                     ->orderByDesc('joined_at')
                     ->with(['circle:id,name']);
             }])
-            ->orderBy('display_name')
+            ->orderByRaw("COALESCE(NULLIF(display_name,''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)),''), email) ASC")
             ->limit(10)
-            ->get(['id', 'name', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'company', 'business_name', 'city']);
+            ->get(['id', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'company', 'business_name', 'city']);
 
         $results = $users->map(function (User $user): array {
             [$name, $company, $city, $circle] = $user->adminDisplayParts();

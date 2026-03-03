@@ -320,9 +320,9 @@ class CircleController extends Controller
                     ->orderByDesc('joined_at')
                     ->with(['circle:id,name']);
             }])
-            ->orderBy('display_name')
+            ->orderByRaw("COALESCE(NULLIF(display_name,''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)),''), email) ASC")
             ->limit(2000)
-            ->get(['id', 'name', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'company', 'business_name', 'city']);
+            ->get(['id', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'company', 'business_name', 'city']);
     }
 
     private function founderLabel(?User $user): string

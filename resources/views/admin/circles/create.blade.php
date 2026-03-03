@@ -62,7 +62,7 @@
                                       data-default-id="{{ $founderId }}"
                                       data-default-label="{{ $founderLabel }}"
                                       autocomplete="off"
-                                      placeholder="Search by name, company, city, or email"
+                                      placeholder="Search by name, company, or city"
                                       style="white-space: pre-line;">{{ $founderLabel }}</textarea>
                             <input type="hidden" name="founder_user_id" id="founderUserId" value="{{ $founderId }}">
                             <div id="founderResults" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index: 1000;"></div>
@@ -140,7 +140,7 @@
                         <select name="director_user_id" class="form-select">
                             <option value="">Select director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('director_user_id') === $user->id)>{{ $user->display_name ?: trim($user->first_name . ' ' . ($user->last_name ?? '')) }}</option>
+                                <option value="{{ $user->id }}" @selected(old('director_user_id') === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -149,7 +149,7 @@
                         <select name="industry_director_user_id" class="form-select">
                             <option value="">Select industry director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('industry_director_user_id') === $user->id)>{{ $user->display_name ?: trim($user->first_name . ' ' . ($user->last_name ?? '')) }}</option>
+                                <option value="{{ $user->id }}" @selected(old('industry_director_user_id') === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -158,7 +158,7 @@
                         <select name="ded_user_id" class="form-select">
                             <option value="">Select DED</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('ded_user_id') === $user->id)>{{ $user->display_name ?: trim($user->first_name . ' ' . ($user->last_name ?? '')) }}</option>
+                                <option value="{{ $user->id }}" @selected(old('ded_user_id') === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
                             @endforeach
                         </select>
                     </div>

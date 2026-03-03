@@ -159,14 +159,14 @@ class CoinsController extends Controller
     public function create(): View
     {
         $usersQuery = User::query()
-            ->select(['id', 'name', 'email', 'first_name', 'last_name', 'display_name', 'company_name', 'company', 'business_name', 'city'])
+            ->select(['id', 'email', 'first_name', 'last_name', 'display_name', 'company_name', 'company', 'business_name', 'city'])
             ->with(['circleMembers' => function ($query) {
                 $query->where('status', 'approved')
                     ->whereNull('deleted_at')
                     ->orderByDesc('joined_at')
                     ->with(['circle:id,name']);
             }])
-            ->orderBy('display_name');
+            ->orderByRaw("COALESCE(NULLIF(display_name,''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)),''), email) ASC");
 
         $this->applyCircleScopeToUsersQuery($usersQuery, auth('admin')->user());
 

@@ -72,13 +72,10 @@
                 <tbody>
                     @forelse ($members as $member)
                         @php
-                            $memberName = $member->name ?? $member->display_name ?? trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? ''));
-                            $memberName = trim((string) $memberName) !== '' ? trim((string) $memberName) : '—';
-                            $company = $member->company_name ?? $member->company ?? $member->business_name ?? 'No Company';
-                            $company = trim((string) $company) !== '' ? trim((string) $company) : 'No Company';
-                            $city = $member->city ?? 'No City';
-                            $city = trim((string) $city) !== '' ? trim((string) $city) : 'No City';
-                            $circleName = optional($member->circleMembers->first()?->circle)->name ?? 'No Circle';
+                            $memberName = $member->adminName();
+                            $company = $member->adminCompany();
+                            $city = $member->adminCity();
+                            $circleName = $member->adminCircleName();
 
                             $coins = $coinsByUserId[$member->id] ?? null;
                             $totalCoins = $coins->total_coins ?? 0;
