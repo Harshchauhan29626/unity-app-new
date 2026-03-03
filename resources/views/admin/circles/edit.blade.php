@@ -73,7 +73,7 @@
                         <select name="founder_user_id" class="form-select" required>
                             <option value="">Select a member</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ $user->adminFounderOptionLabel() }}</option>
+                                <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ \App\Support\UserOptionLabel::make($user) }}</option>
                             @endforeach
                         </select>
                         <div class="form-text">Defaults to the logged-in admin user.</div>

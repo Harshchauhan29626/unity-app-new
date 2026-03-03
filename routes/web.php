@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\ActivitiesReferralsController;
 use App\Http\Controllers\Admin\ActivitiesRequirementsController;
 use App\Http\Controllers\Admin\ActivitiesTestimonialsController;
 use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
+use App\Http\Controllers\Admin\CirclePeersController;
 use App\Http\Controllers\Admin\CoinsController;
 use App\Http\Controllers\Admin\CollaborationPostController;
 use App\Http\Controllers\Admin\CoinClaimsController;
@@ -103,6 +104,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/circles/{circle}', [CircleController::class, 'update'])->name('circles.update');
         Route::delete('/circles/{circle}', [CircleController::class, 'destroy'])->name('circles.destroy');
         Route::post('/circles/{circle}/members', [CircleMemberController::class, 'store'])->name('circles.members.store');
+        Route::get('/circles/{circle}/peer-options', [CirclePeersController::class, 'peerOptions'])->name('circles.peer-options');
         Route::put('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'update'])->name('circles.members.update');
         Route::delete('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'destroy'])->name('circles.members.destroy');
         Route::get('/event-gallery', [EventGalleryController::class, 'index'])->name('event-gallery.index');

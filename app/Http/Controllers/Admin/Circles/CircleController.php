@@ -9,6 +9,7 @@ use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\User;
+use App\Support\UserOptionLabel;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -612,6 +613,6 @@ class CircleController extends Controller
             return '';
         }
 
-        return $user->adminDisplayInlineLabel();
+        return UserOptionLabel::make($user);
     }
 }
