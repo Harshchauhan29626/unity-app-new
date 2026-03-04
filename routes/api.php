@@ -55,6 +55,10 @@ use App\Http\Controllers\Api\V1\Billing\ZohoBillingWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
+use App\Http\Controllers\Api\V1\CircleFeesController;
+use App\Http\Controllers\Api\V1\CircleJoinCheckoutController;
+use App\Http\Controllers\Api\V1\Webhooks\ZohoCircleJoinWebhookController;
+use App\Http\Controllers\Admin\CircleFeesAdminController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -75,6 +79,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
 
     Route::get('/industries/tree', [IndustryController::class, 'tree']);
+    Route::get('/circles/{circle}/fees', [CircleFeesController::class, 'index']);
+    Route::post('/webhooks/zoho/circle-join', [ZohoCircleJoinWebhookController::class, 'handle']);
+
     Route::get('/collaboration-types', [CollaborationTypeController::class, 'index']);
 
     Route::middleware('auth:sanctum')->group(function () {
@@ -102,6 +109,16 @@ Route::prefix('v1')->group(function () {
         Route::get('/me/connections', [MemberController::class, 'myConnections']);
         Route::get('/me/connection-requests', [MemberController::class, 'myConnectionRequests']);
 
+
+        Route::post('/circles/{circle}/join/checkout', [CircleJoinCheckoutController::class, 'store']);
+
+        Route::prefix('admin')->middleware('api.admin')->group(function () {
+            Route::get('/circles/{circle}/fees', [CircleFeesAdminController::class, 'index']);
+            Route::post('/circles/{circle}/fees', [CircleFeesAdminController::class, 'store']);
+            Route::put('/circle-fees/{fee}', [CircleFeesAdminController::class, 'update']);
+            Route::delete('/circle-fees/{fee}', [CircleFeesAdminController::class, 'destroy']);
+            Route::post('/circles/{circle}/fees/sync-zoho', [CircleFeesAdminController::class, 'syncZoho']);
+        });
 
         // Collaborations
         Route::post('/collaborations', [CollaborationPostController::class, 'store']);

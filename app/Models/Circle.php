@@ -204,6 +204,12 @@ class Circle extends Model
         return $this->belongsTo(City::class, 'city_id');
     }
 
+
+    public function fees(): HasMany
+    {
+        return $this->hasMany(CircleFee::class, 'circle_id');
+    }
+
     public function members(): HasMany
     {
         return $this->hasMany(CircleMember::class, 'circle_id');

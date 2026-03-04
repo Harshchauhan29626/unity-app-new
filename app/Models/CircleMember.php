@@ -36,6 +36,10 @@ class CircleMember extends Model
         'role',
         'role_id',
         'status',
+        'joined_via',
+        'payment_id',
+        'paid_at',
+        'meta',
         'substitute_count',
         'joined_at',
         'left_at',
@@ -44,6 +48,8 @@ class CircleMember extends Model
     protected $casts = [
         'joined_at' => 'datetime',
         'left_at' => 'datetime',
+        'paid_at' => 'datetime',
+        'meta' => 'array',
     ];
 
     public static function roleOptions(): array
@@ -85,6 +91,11 @@ class CircleMember extends Model
     public function circle(): BelongsTo
     {
         return $this->belongsTo(Circle::class, 'circle_id');
+    }
+
+    public function payment(): BelongsTo
+    {
+        return $this->belongsTo(CircleJoinPayment::class, 'payment_id');
     }
 
     public function roleRef(): BelongsTo
