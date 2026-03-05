@@ -25,6 +25,7 @@ class CircleSubscriptionPrice extends Model
         'zoho_addon_id',
         'zoho_addon_code',
         'zoho_addon_name',
+        'zoho_addon_interval_unit',
         'payload',
     ];
 

@@ -10,7 +10,7 @@ use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\User;
 use App\Models\CircleSubscriptionPrice;
-use App\Services\Zoho\ZohoCircleAddonService;
+use App\Services\Zoho\CircleZohoAddonSyncService;
 use App\Support\UserOptionLabel;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,7 +29,7 @@ class CircleController extends Controller
         12 => 'subscription_yearly_price',
     ];
 
-    public function __construct(private readonly ZohoCircleAddonService $zohoCircleAddonService)
+    public function __construct(private readonly CircleZohoAddonSyncService $circleZohoAddonSyncService)
     {
     }
 
@@ -438,7 +438,7 @@ class CircleController extends Controller
             );
         }
 
-        $this->zohoCircleAddonService->ensureAddonsForCircle($circle->fresh());
+        $this->circleZohoAddonSyncService->syncCircleAddons($circle->fresh());
     }
 
     private function applyUserNameFilter($query, string $relation, string $search): void

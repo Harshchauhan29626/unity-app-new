@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Webhooks;
 use App\Http\Controllers\Controller;
 use App\Models\CircleMember;
 use App\Models\CircleMemberSubscription;
+use App\Models\CircleSubscriptionPrice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -21,6 +22,22 @@ class ZohoCircleSubscriptionWebhookController extends Controller
         }
 
         $payload = $request->all();
+
+        $addonCode = (string) (data_get($payload, 'addon.addon_code') ?? data_get($payload, 'data.addon.addon_code') ?? '');
+        if ($addonCode !== '') {
+            $price = CircleSubscriptionPrice::query()->where('zoho_addon_code', $addonCode)->first();
+
+            if ($price) {
+                $price->forceFill([
+                    'zoho_addon_id' => (string) (data_get($payload, 'addon.addon_id') ?? data_get($payload, 'data.addon.addon_id') ?? $price->zoho_addon_id),
+                    'zoho_addon_name' => (string) (data_get($payload, 'addon.name') ?? data_get($payload, 'data.addon.name') ?? $price->zoho_addon_name),
+                    'zoho_addon_interval_unit' => (string) (data_get($payload, 'addon.interval_unit') ?? data_get($payload, 'data.addon.interval_unit') ?? $price->zoho_addon_interval_unit),
+                    'payload' => $payload,
+                ])->save();
+
+                return response()->json(['success' => true, 'handled' => true]);
+            }
+        }
         $hostedPageId = (string) (data_get($payload, 'hostedpage.hostedpage_id')
             ?? data_get($payload, 'data.hostedpage.hostedpage_id')
             ?? data_get($payload, 'hostedpage_id')
