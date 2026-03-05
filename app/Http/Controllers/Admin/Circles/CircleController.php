@@ -16,6 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
@@ -272,7 +273,19 @@ class CircleController extends Controller
         $circle->save();
         $circle->refresh();
 
-        $this->syncCircleSubscriptionPrices($circle, $validated);
+        try {
+            $this->syncCircleSubscriptionPrices($circle, $validated);
+        } catch (\Throwable $throwable) {
+            Log::error('Zoho circle addon sync failed during circle create', [
+                'circle_id' => $circle->id,
+                'message' => $throwable->getMessage(),
+            ]);
+
+            return redirect()
+                ->route('admin.circles.edit', $circle)
+                ->withInput()
+                ->with('error', 'Zoho addon sync failed. Please try again.');
+        }
 
         Cache::forget('admin.circles.index');
         Cache::forget('admin.circles.filters');
@@ -376,7 +389,19 @@ class CircleController extends Controller
         $circle->save();
         $circle->refresh();
 
-        $this->syncCircleSubscriptionPrices($circle, $validated);
+        try {
+            $this->syncCircleSubscriptionPrices($circle, $validated);
+        } catch (\Throwable $throwable) {
+            Log::error('Zoho circle addon sync failed during circle update', [
+                'circle_id' => $circle->id,
+                'message' => $throwable->getMessage(),
+            ]);
+
+            return redirect()
+                ->route('admin.circles.edit', $circle)
+                ->withInput()
+                ->with('error', 'Zoho addon sync failed. Please try again.');
+        }
 
         Cache::forget('admin.circles.index');
         Cache::forget('admin.circles.filters');
