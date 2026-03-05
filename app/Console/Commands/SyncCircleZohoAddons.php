@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Circle;
-use App\Services\Zoho\CircleZohoAddonSyncService;
+use App\Services\Zoho\ZohoCircleAddonSyncService;
 use Illuminate\Console\Command;
 
 class SyncCircleZohoAddons extends Command
@@ -12,7 +12,7 @@ class SyncCircleZohoAddons extends Command
 
     protected $description = 'Sync Zoho addons for circle subscription durations.';
 
-    public function __construct(private readonly CircleZohoAddonSyncService $circleZohoAddonSyncService)
+    public function __construct(private readonly ZohoCircleAddonSyncService $circleZohoAddonSyncService)
     {
         parent::__construct();
     }

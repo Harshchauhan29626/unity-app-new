@@ -13,7 +13,7 @@ class ZohoCircleAddonService
         12 => 'Yearly',
     ];
 
-    public function __construct(private readonly CircleZohoAddonSyncService $circleZohoAddonSyncService)
+    public function __construct(private readonly ZohoCircleAddonSyncService $circleZohoAddonSyncService)
     {
     }
 

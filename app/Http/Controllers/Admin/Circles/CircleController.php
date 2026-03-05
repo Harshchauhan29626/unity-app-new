@@ -10,7 +10,7 @@ use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\User;
 use App\Models\CircleSubscriptionPrice;
-use App\Services\Zoho\CircleZohoAddonSyncService;
+use App\Services\Zoho\ZohoCircleAddonSyncService;
 use App\Support\UserOptionLabel;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,7 +29,7 @@ class CircleController extends Controller
         12 => 'subscription_yearly_price',
     ];
 
-    public function __construct(private readonly CircleZohoAddonSyncService $circleZohoAddonSyncService)
+    public function __construct(private readonly ZohoCircleAddonSyncService $circleZohoAddonSyncService)
     {
     }
 
