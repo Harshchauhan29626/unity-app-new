@@ -57,6 +57,8 @@ use App\Http\Controllers\Api\V1\Billing\ZohoBillingWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -297,7 +299,18 @@ Route::prefix('v1')->group(function () {
     Route::post('/webhooks/razorpay', [RazorpayWebhookController::class, 'handle']);
     Route::post('/zoho/webhook', [ZohoWebhookController::class, 'handle']);
     Route::post('/billing/zoho/webhook', [ZohoBillingWebhookController::class, 'handle']);
-    Route::post('/webhooks/zoho/circle-subscription', [ZohoCircleSubscriptionWebhookController::class, 'handle']);
+    Route::match(['GET', 'HEAD', 'POST'], '/webhooks/zoho/circle-subscription', function (Request $request) {
+        if ($request->isMethod('get') || $request->isMethod('head')) {
+            return response()->json(['ok' => true], 200);
+        }
+
+        Log::info('Zoho circle subscription webhook received', [
+            'headers' => $request->headers->all(),
+            'payload' => $request->all(),
+        ]);
+
+        return app(ZohoCircleSubscriptionWebhookController::class)->handle($request);
+    });
     Route::get('/billing/checkout/{hostedpage_id}/status', [BillingCheckoutController::class, 'status']);
     Route::get('/files/{id}', [FileController::class, 'show']);
     Route::get('/event-galleries', [EventGalleryApiController::class, 'index']);
