@@ -168,6 +168,27 @@
 
         <div class="col-12">
             <div class="card">
+                <div class="card-header fw-semibold">Circle</div>
+                <div class="card-body row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="circle_id">Select Circle</label>
+                        <select name="circle_id" id="circle_id" class="form-select @error('circle_id') is-invalid @enderror">
+                            <option value="">-- No Circle --</option>
+                            @foreach ($circles as $circle)
+                                <option value="{{ $circle->id }}" @selected(old('circle_id') === $circle->id)>{{ $circle->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('circle_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="col-12">
+            <div class="card">
                 <div class="card-header fw-semibold">Location</div>
                 <div class="card-body row g-3">
                     <div class="col-md-12">

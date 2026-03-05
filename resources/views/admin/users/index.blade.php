@@ -197,6 +197,14 @@
                                             ['label' => 'City (string)', 'value' => $user->city],
                                             ['label' => 'Membership Status', 'value' => $user->membership_status],
                                             ['label' => 'Membership Expiry', 'value' => $user->membership_expiry, 'type' => 'date'],
+                                            ['label' => 'Circles', 'value' => $user->circleMembers->pluck('circle.name')->filter()->implode(', ') ?: 'No Circle'],
+                                            ['label' => 'Zoho Customer ID', 'value' => $user->zoho_customer_id],
+                                            ['label' => 'Zoho Subscription ID', 'value' => $user->zoho_subscription_id],
+                                            ['label' => 'Zoho Plan Code', 'value' => $user->zoho_plan_code],
+                                            ['label' => 'Zoho Last Invoice ID', 'value' => $user->zoho_last_invoice_id],
+                                            ['label' => 'Membership Starts At', 'value' => $user->membership_starts_at, 'type' => 'membership_date'],
+                                            ['label' => 'Membership Ends At', 'value' => $user->membership_ends_at, 'type' => 'membership_date'],
+                                            ['label' => 'Last Payment At', 'value' => $user->last_payment_at, 'type' => 'membership_date'],
                                             ['label' => 'Coins Balance', 'value' => $user->coins_balance],
                                             ['label' => 'Introduced By', 'value' => $user->introduced_by],
                                             ['label' => 'Members Introduced Count', 'value' => $user->members_introduced_count],
@@ -240,6 +248,14 @@
                                                 $formatted = $isDate ? $value->format('Y-m-d H:i') : (string) $value;
                                                 $raw = $isDate && method_exists($value, 'toDateTimeString') ? $value->toDateTimeString() : (string) $value;
                                                 return e($formatted) . ' <span class="text-muted small">(' . e($raw) . ')</span>';
+                                            }
+
+                                            if ($type === 'membership_date') {
+                                                if (! $value) {
+                                                    return '—';
+                                                }
+
+                                                return e($value instanceof \DateTimeInterface ? $value->format('d-m-Y H:i') : (string) $value);
                                             }
 
                                             if ($type === 'json') {

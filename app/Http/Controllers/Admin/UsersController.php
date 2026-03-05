@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AdminUser;
 use App\Models\Circle;
+use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\Role;
 use App\Models\User;
@@ -56,11 +57,13 @@ class UsersController extends Controller
         $user = new User();
         $cities = City::query()->orderBy('name')->get();
         $membershipStatuses = $this->membershipStatuses();
+        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
 
         return view('admin.users.create', [
             'user' => $user,
             'cities' => $cities,
             'membershipStatuses' => $membershipStatuses,
+            'circles' => $circles,
         ]);
     }
 
@@ -102,6 +105,7 @@ class UsersController extends Controller
             'skills' => ['nullable', 'string', 'max:10000'],
             'interests' => ['nullable', 'string', 'max:10000'],
             'social_links' => ['nullable', 'string', 'max:10000'],
+            'circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
         ]);
 
         $csvFields = [
@@ -125,7 +129,35 @@ class UsersController extends Controller
         $validated['coins_balance'] = $validated['coins_balance'] ?? 0;
         $validated['password_hash'] = Hash::make(Str::random(32));
 
-        $user = User::create($validated);
+        $circleId = $validated['circle_id'] ?? null;
+        unset($validated['circle_id']);
+
+        $user = null;
+
+        DB::transaction(function () use (&$user, $validated, $circleId) {
+            $user = User::create($validated);
+
+            if (! $circleId) {
+                return;
+            }
+
+            $membershipAttributes = [
+                'role' => 'member',
+                'status' => 'approved',
+            ];
+
+            if (Schema::hasColumn('circle_members', 'joined_at')) {
+                $membershipAttributes['joined_at'] = now();
+            }
+
+            CircleMember::query()->updateOrCreate(
+                [
+                    'circle_id' => $circleId,
+                    'user_id' => $user->id,
+                ],
+                $membershipAttributes,
+            );
+        });
 
         return redirect()
             ->route('admin.users.index')
@@ -581,6 +613,13 @@ class UsersController extends Controller
                 'cover_photo_file_id',
                 'deleted_at',
                 'status',
+                'zoho_customer_id',
+                'zoho_subscription_id',
+                'zoho_plan_code',
+                'zoho_last_invoice_id',
+                'membership_starts_at',
+                'membership_ends_at',
+                'last_payment_at',
             ])
             ->with([
                 'city',
