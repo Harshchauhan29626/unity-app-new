@@ -46,22 +46,32 @@ class ZohoBillingClient
                 : $request->send(strtoupper($method), $url, ['json' => $payload]);
 
             if (! $response->successful()) {
+                $decodedBody = $response->json();
+
+                if (! is_array($decodedBody)) {
+                    $decodedBody = json_decode($response->body(), true);
+                }
+
+                if (! is_array($decodedBody)) {
+                    $decodedBody = $response->body();
+                }
+
                 if ($path === '/hostedpages/newsubscription') {
-                    $decodedBody = $response->json();
-
-                    if (! is_array($decodedBody)) {
-                        $decodedBody = json_decode($response->body(), true);
-                    }
-
-                    if (! is_array($decodedBody)) {
-                        $decodedBody = $response->body();
-                    }
-
                     Log::error('ZOHO_NEW_SUBSCRIPTION_FAILED', [
                         'status' => $response->status(),
                         'content_type' => $response->header('Content-Type'),
                         'body' => $decodedBody,
                         'payload_keys' => array_keys($payload),
+                    ]);
+                }
+
+                if (str_starts_with($path, '/addons')) {
+                    Log::error('ZOHO_ADDON_REQUEST_FAILED', [
+                        'status' => $response->status(),
+                        'content_type' => $response->header('Content-Type'),
+                        'body' => $decodedBody,
+                        'payload' => $payload,
+                        'path' => $path,
                     ]);
                 }
 

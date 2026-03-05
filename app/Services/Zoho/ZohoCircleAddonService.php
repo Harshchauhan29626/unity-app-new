@@ -20,7 +20,7 @@ class ZohoCircleAddonService
         12 => 'Yearly',
     ];
 
-    private const MAX_ZOHO_CREATE_ATTEMPTS = 10;
+    private const MAX_ZOHO_CREATE_ATTEMPTS = 5;
     private const MAX_DB_CODE_SCAN_ATTEMPTS = 500;
 
     public function __construct(private readonly ZohoBillingService $zohoBillingService)
@@ -98,10 +98,14 @@ class ZohoCircleAddonService
 
             $payload = [
                 'product_id' => $productId,
+                'addon_code' => $addonCode,
                 'name' => $addonName,
-                'code' => $addonCode,
-                'price' => (float) $price->price,
-                'type' => 'recurring',
+                'unit_name' => 'Unit',
+                'pricing_scheme' => 'unit',
+                'price_brackets' => [[
+                    'price' => (float) $price->price,
+                    'currency_code' => (string) ($price->currency ?: 'INR'),
+                ]],
             ];
 
             Log::info('Zoho addon create attempt', [
@@ -119,7 +123,7 @@ class ZohoCircleAddonService
                 DB::transaction(function () use ($price, $addon, $addonCode, $addonName, $response): void {
                     $price->forceFill([
                         'zoho_addon_id' => (string) (data_get($addon, 'addon_id') ?? data_get($addon, 'id') ?? ''),
-                        'zoho_addon_code' => (string) (data_get($addon, 'code') ?? $addonCode),
+                        'zoho_addon_code' => (string) (data_get($addon, 'addon_code') ?? data_get($addon, 'code') ?? $addonCode),
                         'zoho_addon_name' => (string) (data_get($addon, 'name') ?? $addonName),
                         'payload' => $response,
                     ])->save();
@@ -128,7 +132,7 @@ class ZohoCircleAddonService
                 Log::info('Zoho addon create success', [
                     'circle_id' => $circle->id,
                     'duration' => $price->duration_months,
-                    'addon_id' => $price->zoho_addon_id,
+                    'addon_id' => $price->fresh()->zoho_addon_id,
                     'code' => $addonCode,
                 ]);
 
@@ -146,26 +150,37 @@ class ZohoCircleAddonService
                 }
 
                 $codeNumber++;
+                usleep(200000);
             }
         }
     }
 
     private function syncExistingAddon(Circle $circle, CircleSubscriptionPrice $price, string $addonName): void
     {
+        $target = (string) ($price->zoho_addon_code ?: $price->zoho_addon_id);
+        if ($target === '') {
+            $this->createAddonWithRetry($circle, $price, $addonName);
+
+            return;
+        }
+
         $payload = [
             'name' => $addonName,
-            'code' => (string) $price->zoho_addon_code,
-            'price' => (float) $price->price,
-            'type' => 'recurring',
+            'unit_name' => 'Unit',
+            'pricing_scheme' => 'unit',
+            'price_brackets' => [[
+                'price' => (float) $price->price,
+                'currency_code' => (string) ($price->currency ?: 'INR'),
+            ]],
         ];
 
         try {
-            $response = $this->zohoBillingService->updateAddon((string) $price->zoho_addon_id, $payload);
+            $response = $this->zohoBillingService->updateAddon($target, $payload);
             $addon = data_get($response, 'addon', []);
 
             $price->forceFill([
                 'zoho_addon_id' => (string) (data_get($addon, 'addon_id') ?? data_get($addon, 'id') ?? $price->zoho_addon_id),
-                'zoho_addon_code' => (string) (data_get($addon, 'code') ?? $price->zoho_addon_code),
+                'zoho_addon_code' => (string) (data_get($addon, 'addon_code') ?? data_get($addon, 'code') ?? $price->zoho_addon_code),
                 'zoho_addon_name' => (string) (data_get($addon, 'name') ?? $addonName),
                 'payload' => $response,
             ])->save();
@@ -238,7 +253,7 @@ class ZohoCircleAddonService
             }
 
             foreach ($addons as $addon) {
-                $code = (string) data_get($addon, 'code', '');
+                $code = (string) (data_get($addon, 'addon_code') ?? data_get($addon, 'code') ?? '');
                 if ($code !== '') {
                     $codes[] = $code;
                 }
@@ -277,6 +292,6 @@ class ZohoCircleAddonService
     {
         $message = Str::lower($throwable->getMessage());
 
-        return Str::contains($message, ['invalid value passed for code', 'code already exists', 'duplicate', 'invalid code', 'code']);
+        return Str::contains($message, ['invalid value passed for code', 'code already exists', 'duplicate', 'invalid code', 'addon_code', 'code']);
     }
 }
