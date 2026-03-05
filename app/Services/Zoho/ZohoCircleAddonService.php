@@ -5,9 +5,9 @@ namespace App\Services\Zoho;
 use App\Models\Circle;
 use App\Models\CircleSubscriptionPrice;
 use App\Support\Zoho\ZohoBillingService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use RuntimeException;
 use Throwable;
 
 class ZohoCircleAddonService
@@ -19,7 +19,8 @@ class ZohoCircleAddonService
         12 => 'Yearly',
     ];
 
-    private const MAX_ZOHO_CREATE_ATTEMPTS = 5;
+    private const MAX_ZOHO_CREATE_ATTEMPTS = 10;
+    private const MAX_DB_CODE_SCAN_ATTEMPTS = 500;
 
     public function __construct(private readonly ZohoBillingService $zohoBillingService)
     {
@@ -63,13 +64,17 @@ class ZohoCircleAddonService
             ->selectRaw('COALESCE(MAX(CAST(zoho_addon_code AS INT)), 0) as max_code')
             ->value('max_code') ?? 0);
 
-        $next = max(10, $maxUsed + 1);
+        $next = max(1, $maxUsed + 1);
 
-        while ($this->addonCodeExists($next)) {
+        for ($i = 0; $i < self::MAX_DB_CODE_SCAN_ATTEMPTS; $i++) {
+            if (! $this->addonCodeExists($next)) {
+                return $this->formatNumericCode($next);
+            }
+
             $next++;
         }
 
-        return $this->formatNumericCode($next);
+        throw new \RuntimeException('Unable to generate unique numeric Zoho addon code within scan limit.');
     }
 
     private function createAddonWithRetry(Circle $circle, CircleSubscriptionPrice $price, string $addonName): void
@@ -77,9 +82,7 @@ class ZohoCircleAddonService
         $codeNumber = $this->resolveInitialCodeNumber($circle, $price);
 
         for ($attempt = 1; $attempt <= self::MAX_ZOHO_CREATE_ATTEMPTS; $attempt++) {
-            while ($this->addonCodeExists($codeNumber, $price->id)) {
-                $codeNumber++;
-            }
+            $codeNumber = $this->nextFreeCodeNumber($codeNumber, $price->id);
 
             $addonCode = $this->formatNumericCode($codeNumber);
             $payload = [
@@ -94,18 +97,21 @@ class ZohoCircleAddonService
                 'duration_months' => $price->duration_months,
                 'attempt' => $attempt,
                 'addon_code' => $addonCode,
+                'payload' => $payload,
             ]);
 
             try {
                 $response = $this->zohoBillingService->createAddon($payload);
                 $addon = data_get($response, 'addon', []);
 
-                $price->forceFill([
-                    'zoho_addon_id' => (string) (data_get($addon, 'addon_id') ?? data_get($addon, 'id') ?? ''),
-                    'zoho_addon_code' => (string) (data_get($addon, 'code') ?? $addonCode),
-                    'zoho_addon_name' => (string) (data_get($addon, 'name') ?? $addonName),
-                    'payload' => $response,
-                ])->save();
+                DB::transaction(function () use ($price, $addon, $addonCode, $addonName, $response): void {
+                    $price->forceFill([
+                        'zoho_addon_id' => (string) (data_get($addon, 'addon_id') ?? data_get($addon, 'id') ?? ''),
+                        'zoho_addon_code' => (string) (data_get($addon, 'code') ?? $addonCode),
+                        'zoho_addon_name' => (string) (data_get($addon, 'name') ?? $addonName),
+                        'payload' => $response,
+                    ])->save();
+                });
 
                 return;
             } catch (Throwable $throwable) {
@@ -129,9 +135,7 @@ class ZohoCircleAddonService
     private function syncExistingAddon(Circle $circle, CircleSubscriptionPrice $price, string $addonName): void
     {
         $codeNumber = $this->resolveInitialCodeNumber($circle, $price);
-        while ($this->addonCodeExists($codeNumber, $price->id)) {
-            $codeNumber++;
-        }
+        $codeNumber = $this->nextFreeCodeNumber($codeNumber, $price->id);
 
         $addonCode = $this->formatNumericCode($codeNumber);
 
@@ -184,11 +188,24 @@ class ZohoCircleAddonService
 
     private function formatNumericCode(int $number): string
     {
-        if ($number < 1000) {
-            return str_pad((string) $number, 3, '0', STR_PAD_LEFT);
+        if ($number < 100) {
+            return str_pad((string) $number, 2, '0', STR_PAD_LEFT);
         }
 
         return (string) $number;
+    }
+
+    private function nextFreeCodeNumber(int $codeNumber, ?string $ignoreId = null): int
+    {
+        for ($i = 0; $i < self::MAX_DB_CODE_SCAN_ATTEMPTS; $i++) {
+            if (! $this->addonCodeExists($codeNumber, $ignoreId)) {
+                return $codeNumber;
+            }
+
+            $codeNumber++;
+        }
+
+        throw new \RuntimeException('Unable to resolve free numeric Zoho addon code within scan limit.');
     }
 
     private function addonCodeExists(int $codeNumber, ?string $ignoreId = null): bool
@@ -205,13 +222,21 @@ class ZohoCircleAddonService
 
     private function isValidAddonCode(string $code): bool
     {
-        return (bool) preg_match('/^[0-9]+$/', $code);
+        if (! preg_match('/^[0-9]+$/', $code)) {
+            return false;
+        }
+
+        if (strlen($code) >= 3 && str_starts_with($code, '0')) {
+            return false;
+        }
+
+        return true;
     }
 
     private function isCodeRelatedZohoError(Throwable $throwable): bool
     {
         $message = Str::lower($throwable->getMessage());
 
-        return Str::contains($message, ['invalid value passed for code', 'code already exists', 'duplicate', 'invalid code']);
+        return Str::contains($message, ['invalid value passed for code', 'code already exists', 'duplicate', 'invalid code', 'code']);
     }
 }

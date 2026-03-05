@@ -26,13 +26,19 @@ class ZohoBillingClient
                 'X-com-zoho-subscriptions-organizationid' => (string) config('zoho_billing.org_id'),
             ]);
 
-        Log::info('Zoho Billing request', [
+        $logContext = [
             'method' => strtoupper($method),
             'path' => $path,
             'final_url' => $url,
             'query_keys' => $asQuery ? array_keys($payload) : [],
             'body_keys' => $asQuery ? [] : array_keys($payload),
-        ]);
+        ];
+
+        if (! $asQuery && strtoupper($method) === 'POST' && $path === '/addons') {
+            $logContext['body'] = $payload;
+        }
+
+        Log::info('Zoho Billing request', $logContext);
 
         try {
             $response = $asQuery
