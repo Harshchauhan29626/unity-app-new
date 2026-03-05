@@ -19,7 +19,6 @@ class ZohoCircleAddonService
         12 => 'Yearly',
     ];
 
-    private const MAX_DB_CODE_ATTEMPTS = 10;
     private const MAX_ZOHO_CREATE_ATTEMPTS = 5;
 
     public function __construct(private readonly ZohoBillingService $zohoBillingService)
@@ -58,34 +57,31 @@ class ZohoCircleAddonService
 
     public function generateUniqueAddonCode(Circle $circle, int $durationMonths): string
     {
-        for ($attempt = 1; $attempt <= self::MAX_DB_CODE_ATTEMPTS; $attempt++) {
-            $random = Str::upper(Str::random(12));
-            $candidate = sprintf('CIR_%dM_%s', $durationMonths, preg_replace('/[^A-Z0-9]/', '', $random));
-            $candidate = substr($candidate, 0, 40);
+        $maxUsed = (int) (CircleSubscriptionPrice::query()
+            ->whereNotNull('zoho_addon_code')
+            ->whereRaw("zoho_addon_code ~ '^[0-9]+$'")
+            ->selectRaw('COALESCE(MAX(CAST(zoho_addon_code AS INT)), 0) as max_code')
+            ->value('max_code') ?? 0);
 
-            $exists = CircleSubscriptionPrice::query()
-                ->where('zoho_addon_code', $candidate)
-                ->exists();
+        $next = max(10, $maxUsed + 1);
 
-            if (! $exists) {
-                return $candidate;
-            }
+        while ($this->addonCodeExists($next)) {
+            $next++;
         }
 
-        throw new RuntimeException('Unable to generate unique Zoho addon code.');
+        return $this->formatNumericCode($next);
     }
 
     private function createAddonWithRetry(Circle $circle, CircleSubscriptionPrice $price, string $addonName): void
     {
-        $fallbackCode = $this->isValidAddonCode((string) $price->zoho_addon_code)
-            ? (string) $price->zoho_addon_code
-            : null;
+        $codeNumber = $this->resolveInitialCodeNumber($circle, $price);
 
         for ($attempt = 1; $attempt <= self::MAX_ZOHO_CREATE_ATTEMPTS; $attempt++) {
-            $addonCode = $attempt === 1 && $fallbackCode
-                ? $fallbackCode
-                : $this->generateUniqueAddonCode($circle, (int) $price->duration_months);
+            while ($this->addonCodeExists($codeNumber, $price->id)) {
+                $codeNumber++;
+            }
 
+            $addonCode = $this->formatNumericCode($codeNumber);
             $payload = [
                 'name' => $addonName,
                 'code' => $addonCode,
@@ -116,15 +112,28 @@ class ZohoCircleAddonService
                 if (! $this->isCodeRelatedZohoError($throwable) || $attempt === self::MAX_ZOHO_CREATE_ATTEMPTS) {
                     throw $throwable;
                 }
+
+                Log::warning('Zoho circle addon create retry due to code issue', [
+                    'circle_id' => $circle->id,
+                    'duration_months' => $price->duration_months,
+                    'attempt' => $attempt,
+                    'addon_code' => $addonCode,
+                    'message' => $throwable->getMessage(),
+                ]);
+
+                $codeNumber++;
             }
         }
     }
 
     private function syncExistingAddon(Circle $circle, CircleSubscriptionPrice $price, string $addonName): void
     {
-        $addonCode = $this->isValidAddonCode((string) $price->zoho_addon_code)
-            ? (string) $price->zoho_addon_code
-            : $this->generateUniqueAddonCode($circle, (int) $price->duration_months);
+        $codeNumber = $this->resolveInitialCodeNumber($circle, $price);
+        while ($this->addonCodeExists($codeNumber, $price->id)) {
+            $codeNumber++;
+        }
+
+        $addonCode = $this->formatNumericCode($codeNumber);
 
         $payload = [
             'name' => $addonName,
@@ -164,13 +173,39 @@ class ZohoCircleAddonService
         }
     }
 
-    private function isValidAddonCode(string $code): bool
+    private function resolveInitialCodeNumber(Circle $circle, CircleSubscriptionPrice $price): int
     {
-        if ($code === '') {
-            return false;
+        if ($this->isValidAddonCode((string) $price->zoho_addon_code)) {
+            return (int) $price->zoho_addon_code;
         }
 
-        return (bool) preg_match('/^[A-Z0-9_]{5,40}$/', $code);
+        return (int) $this->generateUniqueAddonCode($circle, (int) $price->duration_months);
+    }
+
+    private function formatNumericCode(int $number): string
+    {
+        if ($number < 1000) {
+            return str_pad((string) $number, 3, '0', STR_PAD_LEFT);
+        }
+
+        return (string) $number;
+    }
+
+    private function addonCodeExists(int $codeNumber, ?string $ignoreId = null): bool
+    {
+        $query = CircleSubscriptionPrice::query()
+            ->where('zoho_addon_code', $this->formatNumericCode($codeNumber));
+
+        if ($ignoreId) {
+            $query->where('id', '!=', $ignoreId);
+        }
+
+        return $query->exists();
+    }
+
+    private function isValidAddonCode(string $code): bool
+    {
+        return (bool) preg_match('/^[0-9]+$/', $code);
     }
 
     private function isCodeRelatedZohoError(Throwable $throwable): bool
