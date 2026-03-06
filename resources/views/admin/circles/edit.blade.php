@@ -223,13 +223,12 @@
                         @forelse($meetings as $rowIndex => $meeting)
                             @php
                                 $rowFrequency = strtolower((string) data_get($meeting, 'frequency', ''));
-                                $rowDay = (string) data_get($meeting, 'day_of_week', '');
+                                $rowDay = strtolower((string) data_get($meeting, 'day_of_week', ''));
                                 $rowTime = (string) data_get($meeting, 'default_meet_time', '');
                             @endphp
 
-                            <div class="border rounded p-3 meeting-row" data-index="{{ $rowIndex }}">
+                            <div class="border rounded p-3 meeting-row mb-3" data-index="{{ $rowIndex }}">
                                 <div class="row g-3 align-items-end">
-
                                     <div class="col-md-4">
                                         <label class="form-label">Frequency</label>
                                         <select name="meetings[{{ $rowIndex }}][frequency]" class="form-select">
@@ -243,13 +242,13 @@
                                         <label class="form-label">Day of Week</label>
                                         <select name="meetings[{{ $rowIndex }}][day_of_week]" class="form-select">
                                             <option value="">Select Day</option>
-                                            <option value="monday" {{ strtolower($rowDay) === 'monday' ? 'selected' : '' }}>Monday</option>
-                                            <option value="tuesday" {{ strtolower($rowDay) === 'tuesday' ? 'selected' : '' }}>Tuesday</option>
-                                            <option value="wednesday" {{ strtolower($rowDay) === 'wednesday' ? 'selected' : '' }}>Wednesday</option>
-                                            <option value="thursday" {{ strtolower($rowDay) === 'thursday' ? 'selected' : '' }}>Thursday</option>
-                                            <option value="friday" {{ strtolower($rowDay) === 'friday' ? 'selected' : '' }}>Friday</option>
-                                            <option value="saturday" {{ strtolower($rowDay) === 'saturday' ? 'selected' : '' }}>Saturday</option>
-                                            <option value="sunday" {{ strtolower($rowDay) === 'sunday' ? 'selected' : '' }}>Sunday</option>
+                                            <option value="monday" {{ $rowDay === 'monday' ? 'selected' : '' }}>Monday</option>
+                                            <option value="tuesday" {{ $rowDay === 'tuesday' ? 'selected' : '' }}>Tuesday</option>
+                                            <option value="wednesday" {{ $rowDay === 'wednesday' ? 'selected' : '' }}>Wednesday</option>
+                                            <option value="thursday" {{ $rowDay === 'thursday' ? 'selected' : '' }}>Thursday</option>
+                                            <option value="friday" {{ $rowDay === 'friday' ? 'selected' : '' }}>Friday</option>
+                                            <option value="saturday" {{ $rowDay === 'saturday' ? 'selected' : '' }}>Saturday</option>
+                                            <option value="sunday" {{ $rowDay === 'sunday' ? 'selected' : '' }}>Sunday</option>
                                         </select>
                                     </div>
 
@@ -266,23 +265,14 @@
                                     <div class="col-md-1">
                                         <button type="button" class="btn btn-outline-danger remove-meeting-row">Remove</button>
                                     </div>
-
                                 </div>
                             </div>
                         @empty
-                            @php
-                                $rowIndex = 0;
-                                $rowFrequency = '';
-                                $rowDay = '';
-                                $rowTime = '';
-                            @endphp
-
-                            <div class="border rounded p-3 meeting-row" data-index="{{ $rowIndex }}">
+                            <div class="border rounded p-3 meeting-row mb-3" data-index="0">
                                 <div class="row g-3 align-items-end">
-
                                     <div class="col-md-4">
                                         <label class="form-label">Frequency</label>
-                                        <select name="meetings[{{ $rowIndex }}][frequency]" class="form-select">
+                                        <select name="meetings[0][frequency]" class="form-select">
                                             <option value="">Select Frequency</option>
                                             <option value="weekly">Weekly</option>
                                             <option value="monthly">Monthly</option>
@@ -291,7 +281,7 @@
 
                                     <div class="col-md-4">
                                         <label class="form-label">Day of Week</label>
-                                        <select name="meetings[{{ $rowIndex }}][day_of_week]" class="form-select">
+                                        <select name="meetings[0][day_of_week]" class="form-select">
                                             <option value="">Select Day</option>
                                             <option value="monday">Monday</option>
                                             <option value="tuesday">Tuesday</option>
@@ -307,7 +297,7 @@
                                         <label class="form-label">Default Meet Time</label>
                                         <input
                                             type="time"
-                                            name="meetings[{{ $rowIndex }}][default_meet_time]"
+                                            name="meetings[0][default_meet_time]"
                                             class="form-control"
                                             value=""
                                         >
@@ -316,7 +306,6 @@
                                     <div class="col-md-1">
                                         <button type="button" class="btn btn-outline-danger remove-meeting-row">Remove</button>
                                     </div>
-
                                 </div>
                             </div>
                         @endforelse
