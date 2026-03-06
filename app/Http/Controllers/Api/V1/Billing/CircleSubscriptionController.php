@@ -21,14 +21,33 @@ class CircleSubscriptionController extends BaseApiController
     public function package(Circle $circle)
     {
         $addonCode = trim((string) ($circle->zoho_addon_code ?? ''));
+        $amount = $circle->circle_price_amount;
+        $currency = $circle->circle_price_currency;
+
+        if ($addonCode !== '' && ($amount === null || $currency === null || $currency === '')) {
+            $addon = $this->zohoBillingService->findCirclePackageAddonByCodeOrId($addonCode, false);
+
+            if (is_array($addon)) {
+                $amount = $amount ?? ($addon['amount'] ?? null);
+                $currency = $currency ?: ($addon['currency_code'] ?? null);
+
+                Log::info('circle package response addon fallback applied', [
+                    'circle_id' => $circle->id,
+                    'addon_code' => $addonCode,
+                    'addon_payload' => $addon['raw'] ?? $addon,
+                    'resolved_amount' => $amount,
+                    'resolved_currency' => $currency,
+                ]);
+            }
+        }
 
         return $this->success([
             'circle_id' => $circle->id,
             'circle_name' => $circle->name,
             'addon_code' => $circle->zoho_addon_code,
             'addon_name' => $circle->zoho_addon_name,
-            'amount' => $circle->circle_price_amount,
-            'currency' => $circle->circle_price_currency,
+            'amount' => $amount,
+            'currency' => $currency,
             'duration_months' => (int) ($circle->circle_duration_months ?: 12),
             'joinable' => $addonCode !== '',
         ]);

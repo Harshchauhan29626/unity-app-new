@@ -9,6 +9,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
+use Throwable;
 
 class ZohoBillingService
 {
@@ -60,11 +61,8 @@ class ZohoBillingService
                     'addon_id' => (string) ($addon['addon_id'] ?? ''),
                     'addon_code' => (string) ($addon['addon_code'] ?? ''),
                     'name' => (string) ($addon['name'] ?? ''),
-                    'amount' => $addon['price']
-                        ?? $addon['rate']
-                        ?? data_get($addon, 'addon_price')
-                        ?? null,
-                    'currency_code' => (string) ($addon['currency_code'] ?? ''),
+                    'amount' => $this->resolveAddonAmount($addon),
+                    'currency_code' => $this->resolveAddonCurrency($addon),
                     'billing_frequency' => $addon['billing_frequency'] ?? null,
                     'status' => strtolower((string) ($addon['status'] ?? '')),
                     'raw' => $addon,
@@ -94,11 +92,23 @@ class ZohoBillingService
             return null;
         }
 
-        return collect($this->listCirclePackageAddons($activeOnly))
+        $matchedAddon = collect($this->listCirclePackageAddons($activeOnly))
             ->first(function (array $addon) use ($needle) {
                 return (string) ($addon['addon_id'] ?? '') === $needle
                     || (string) ($addon['addon_code'] ?? '') === $needle;
             });
+
+        if (is_array($matchedAddon)) {
+            Log::info('circle package addon matched', [
+                'addon_code' => $matchedAddon['addon_code'] ?? null,
+                'addon_id' => $matchedAddon['addon_id'] ?? null,
+                'amount' => $matchedAddon['amount'] ?? null,
+                'currency_code' => $matchedAddon['currency_code'] ?? null,
+                'raw_selected_addon_payload' => $matchedAddon['raw'] ?? null,
+            ]);
+        }
+
+        return $matchedAddon;
     }
 
     public function createHostedPageForCircleAddon(User $user, Circle $circle): array
@@ -112,18 +122,48 @@ class ZohoBillingService
         }
 
         $customerId = $this->ensureCustomerForUser($user);
+        $planCode = (string) config('zoho_billing.circle_plan_code', config('zoho_billing.default_plan_code', '013'));
+        $referenceId = 'CIR' . now()->format('YmdHis') . random_int(100, 999);
 
-        $response = $this->client->request('POST', '/hostedpages/newsubscription', [
-            'customer_id' => $customerId,
-            'plan' => [
-                'plan_code' => (string) config('zoho_billing.circle_plan_code', config('zoho_billing.default_plan_code', '013')),
-            ],
-            'addons' => [[
-                'addon_code' => $addonCode,
-                'quantity' => 1,
-            ]],
-            'reference_id' => sprintf('circle:%s:user:%s', $circle->id, $user->id),
+        Log::info('circle hosted page request payload', [
+            'user_id' => $user->id,
+            'circle_id' => $circle->id,
+            'addon_code' => $addonCode,
+            'plan_code' => $planCode,
+            'reference_id' => $referenceId,
         ]);
+
+        try {
+            $response = $this->client->request('POST', '/hostedpages/newsubscription', [
+                'customer_id' => $customerId,
+                'plan' => [
+                    'plan_code' => $planCode,
+                ],
+                'addons' => [[
+                    'addon_code' => $addonCode,
+                    'quantity' => 1,
+                ]],
+                'reference_id' => $referenceId,
+            ]);
+
+            Log::info('circle hosted page response payload', [
+                'user_id' => $user->id,
+                'circle_id' => $circle->id,
+                'reference_id' => $referenceId,
+                'response' => $response,
+            ]);
+        } catch (Throwable $throwable) {
+            Log::error('circle hosted page request failed', [
+                'user_id' => $user->id,
+                'circle_id' => $circle->id,
+                'addon_code' => $addonCode,
+                'plan_code' => $planCode,
+                'reference_id' => $referenceId,
+                'error' => $throwable->getMessage(),
+            ]);
+
+            throw $throwable;
+        }
 
         return [
             'hostedpage_id' => (string) data_get($response, 'hostedpage.hostedpage_id', ''),
@@ -131,6 +171,31 @@ class ZohoBillingService
             'customer_id' => $customerId,
             'raw' => $response,
         ];
+    }
+
+
+    private function resolveAddonAmount(array $addon): mixed
+    {
+        return $addon['amount']
+            ?? $addon['price']
+            ?? $addon['rate']
+            ?? $addon['recurring_price']
+            ?? data_get($addon, 'addon_price')
+            ?? data_get($addon, 'price')
+            ?? data_get($addon, 'rate')
+            ?? data_get($addon, 'recurring_price');
+    }
+
+    private function resolveAddonCurrency(array $addon): ?string
+    {
+        $currency = $addon['currency_code']
+            ?? $addon['currency']
+            ?? data_get($addon, 'currency_code')
+            ?? data_get($addon, 'currency');
+
+        $currency = is_string($currency) ? trim($currency) : (string) $currency;
+
+        return $currency !== '' ? $currency : null;
     }
 
     public function getOrganization(): array
