@@ -240,6 +240,10 @@ class CircleController extends Controller
             'purpose' => $validated['purpose'] ?? null,
             'announcement' => $validated['announcement'] ?? null,
             'industry_tags' => $this->normalizeIndustryTags($validated['industry_tags'] ?? null),
+            'price_monthly' => $validated['price_monthly'] ?? null,
+            'price_quarterly' => $validated['price_quarterly'] ?? null,
+            'price_half_yearly' => $validated['price_half_yearly'] ?? null,
+            'price_yearly' => $validated['price_yearly'] ?? null,
         ];
 
         if (empty($payload['status'])) {
@@ -328,6 +332,10 @@ class CircleController extends Controller
             'description',
             'purpose',
             'announcement',
+            'price_monthly',
+            'price_quarterly',
+            'price_half_yearly',
+            'price_yearly',
         ] as $column) {
             if (Schema::hasColumn('circles', $column) && array_key_exists($column, $validated)) {
                 $allowed[$column] = $validated[$column];
