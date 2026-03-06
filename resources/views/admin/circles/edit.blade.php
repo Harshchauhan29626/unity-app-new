@@ -245,6 +245,40 @@
                 </div>
             </div>
         </div>
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-semibold">Circle Payment Details</div>
+                <div class="card-body row g-3">
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input type="hidden" name="circle_payment_enabled" value="0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="circlePaymentEnabled" name="circle_payment_enabled" value="1" @checked((bool) old('circle_payment_enabled', $circle->circle_payment_enabled))>
+                            <label class="form-check-label" for="circlePaymentEnabled">Enable Circle Payment</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Monthly Price</label>
+                        <input type="number" step="0.01" min="0" name="monthly_price" class="form-control js-circle-price" value="{{ old('monthly_price', $circle->monthly_price) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Quarterly Price</label>
+                        <input type="number" step="0.01" min="0" name="quarterly_price" class="form-control js-circle-price" value="{{ old('quarterly_price', $circle->quarterly_price) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">6 Months Price</label>
+                        <input type="number" step="0.01" min="0" name="half_yearly_price" class="form-control js-circle-price" value="{{ old('half_yearly_price', $circle->half_yearly_price) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Yearly Price</label>
+                        <input type="number" step="0.01" min="0" name="yearly_price" class="form-control js-circle-price" value="{{ old('yearly_price', $circle->yearly_price) }}">
+                    </div>
+                    <div class="col-12">
+                        <div class="form-text">These prices are used for paid circle joining plans and Zoho addon sync.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
 <div class="col-12">
             <div class="card">
                 <div class="card-header fw-semibold">Location</div>
@@ -423,6 +457,19 @@
     meetingRows?.querySelectorAll('.meeting-row').forEach((row) => bindMeetingRow(row));
     addMeetingBtn?.addEventListener('click', createMeetingRow);
 
+
+    const circlePaymentToggle = document.getElementById('circlePaymentEnabled');
+    const circlePriceInputs = document.querySelectorAll('.js-circle-price');
+
+    const toggleCirclePaymentPrices = () => {
+        const enabled = !!circlePaymentToggle?.checked;
+        circlePriceInputs.forEach((input) => {
+            input.disabled = !enabled;
+        });
+    };
+
+    circlePaymentToggle?.addEventListener('change', toggleCirclePaymentPrices);
+    toggleCirclePaymentPrices();
 
 </script>
 @endpush

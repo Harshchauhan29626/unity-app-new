@@ -48,6 +48,7 @@ class Circle extends Model
         'visitor_count',
         'type',
         'country',
+        'circle_payment_enabled',
         'payment_enabled',
         'is_payment_enabled',
         'is_paid',
@@ -71,6 +72,11 @@ class Circle extends Model
         'industry_tags' => 'array',
         'meeting_repeat' => 'array',
         'launch_date' => 'date',
+        'circle_payment_enabled' => 'boolean',
+        'monthly_price' => 'decimal:2',
+        'quarterly_price' => 'decimal:2',
+        'half_yearly_price' => 'decimal:2',
+        'yearly_price' => 'decimal:2',
     ];
 
     protected $appends = ['cover_image_url', 'city_display'];

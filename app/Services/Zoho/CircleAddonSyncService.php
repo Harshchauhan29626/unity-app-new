@@ -149,7 +149,7 @@ class CircleAddonSyncService
 
     public function isPaymentEnabled(Circle $circle): bool
     {
-        foreach (['payment_enabled', 'is_payment_enabled', 'is_paid', 'paid_enabled'] as $column) {
+        foreach (['circle_payment_enabled', 'payment_enabled', 'is_payment_enabled', 'is_paid', 'paid_enabled'] as $column) {
             if (Schema::hasColumn('circles', $column)) {
                 return (bool) data_get($circle, $column, false);
             }

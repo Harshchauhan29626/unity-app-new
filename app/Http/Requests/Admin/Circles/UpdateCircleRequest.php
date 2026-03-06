@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UpdateCircleRequest extends FormRequest
 {
@@ -43,28 +44,39 @@ class UpdateCircleRequest extends FormRequest
             'calendar_meetings.*.default_meet_time' => ['nullable', 'date_format:H:i'],
             'calendar_meetings.*.monthly_rule' => ['nullable', Rule::in(['first', 'second', 'third', 'fourth', 'last'])],
 
-            'payment_enabled' => ['sometimes', 'boolean'],
-            'is_payment_enabled' => ['sometimes', 'boolean'],
-            'is_paid' => ['sometimes', 'boolean'],
-            'paid_enabled' => ['sometimes', 'boolean'],
-            'monthly_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'quarterly_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'half_yearly_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'yearly_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'monthly_price' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'quarterly_price' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'half_yearly_price' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'yearly_price' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'price_monthly' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'price_quarterly' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'price_half_yearly' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'price_yearly' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'circle_payment_enabled' => ['nullable', 'boolean'],
+            'monthly_price' => ['nullable', 'numeric', 'min:0'],
+            'quarterly_price' => ['nullable', 'numeric', 'min:0'],
+            'half_yearly_price' => ['nullable', 'numeric', 'min:0'],
+            'yearly_price' => ['nullable', 'numeric', 'min:0'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if (! $this->boolean('circle_payment_enabled')) {
+                return;
+            }
+
+            $prices = [
+                (float) ($this->input('monthly_price') ?? 0),
+                (float) ($this->input('quarterly_price') ?? 0),
+                (float) ($this->input('half_yearly_price') ?? 0),
+                (float) ($this->input('yearly_price') ?? 0),
+            ];
+
+            if (collect($prices)->every(static fn (float $value) => $value <= 0)) {
+                $validator->errors()->add('circle_payment_enabled', 'When circle payment is enabled, at least one price must be greater than 0.');
+            }
+        });
     }
 
     protected function prepareForValidation(): void
     {
-        $payload = [];
+        $payload = [
+            'circle_payment_enabled' => $this->boolean('circle_payment_enabled'),
+        ];
 
         if ($this->filled('industry_tags') && is_string($this->input('industry_tags'))) {
             $payload['industry_tags'] = array_values(array_filter(array_map('trim', explode(',', $this->input('industry_tags')))));
@@ -77,9 +89,7 @@ class UpdateCircleRequest extends FormRequest
             }
         }
 
-        if ($payload !== []) {
-            $this->merge($payload);
-        }
+        $this->merge($payload);
 
         if ($this->filled('founder_user_id')) {
             return;

@@ -250,7 +250,7 @@ class CircleController extends Controller
         ];
 
         foreach ([
-            'payment_enabled', 'is_payment_enabled', 'is_paid', 'paid_enabled',
+            'circle_payment_enabled',
             'monthly_amount', 'quarterly_amount', 'half_yearly_amount', 'yearly_amount',
             'monthly_price', 'quarterly_price', 'half_yearly_price', 'yearly_price',
             'price_monthly', 'price_quarterly', 'price_half_yearly', 'price_yearly',
@@ -358,7 +358,7 @@ class CircleController extends Controller
             'description',
             'purpose',
             'announcement',
-            'payment_enabled', 'is_payment_enabled', 'is_paid', 'paid_enabled',
+            'circle_payment_enabled',
             'monthly_amount', 'quarterly_amount', 'half_yearly_amount', 'yearly_amount',
             'monthly_price', 'quarterly_price', 'half_yearly_price', 'yearly_price',
             'price_monthly', 'price_quarterly', 'price_half_yearly', 'price_yearly',
