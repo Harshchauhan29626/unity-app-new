@@ -95,6 +95,21 @@
                             @endforeach
                         </select>
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Circle Package</label>
+                        <select name="circle_package" class="form-select">
+                            <option value="">Select package</option>
+                            @foreach ($circlePackages as $package)
+                                @php
+                                    $packageValue = $package['addon_code'] ?: $package['addon_id'];
+                                @endphp
+                                <option value="{{ $packageValue }}" @selected(old('circle_package', $circle->zoho_addon_code ?: $circle->zoho_addon_id) === $packageValue)>
+                                    {{ $package['name'] }} ({{ $package['addon_code'] }}) - {{ $package['amount'] }} {{ $package['currency_code'] }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">Only active Zoho addons with code starting with <code>Package-</code> are listed.</div>
+                    </div>
                     <div class="col-md-12">
                         <label class="form-label">Description</label>
                         <textarea name="description" class="form-control" rows="2">{{ old('description', $circle->description) }}</textarea>
@@ -199,47 +214,105 @@
                     <button type="button" class="btn btn-sm btn-outline-primary" id="addMeetingBtn">+ Add Meeting</button>
                 </div>
                 <div class="card-body">
-                    <div id="meetingRows" class="d-flex flex-column gap-3">
-                        @foreach ($calendarMeetings as $index => $meeting)
+                    @php
+                        $meetings = old('meetings', $circle->meetings ?? []);
+                        if (!is_array($meetings)) {
+                            $meetings = [];
+                        }
+                    @endphp
+
+                    <div id="meetingRows">
+                        @forelse($meetings as $rowIndex => $meeting)
                             @php
                                 $rowFrequency = strtolower((string) data_get($meeting, 'frequency', ''));
-                                $rowDay = (string) data_get($meeting, 'day_of_week', '');
+                                $rowDay = strtolower((string) data_get($meeting, 'day_of_week', ''));
                                 $rowTime = (string) data_get($meeting, 'default_meet_time', '');
-                                                            @endphp
-                            <div class="border rounded p-3 meeting-row" data-index="{{ $index }}">
+                            @endphp
+
+                            <div class="border rounded p-3 meeting-row mb-3" data-index="{{ $rowIndex }}">
                                 <div class="row g-3 align-items-end">
-                                    <div class="col-md-3">
+                                    <div class="col-md-4">
                                         <label class="form-label">Frequency</label>
-                                        <select class="form-select js-meeting-frequency" name="meeting_schedule_frequency[]">
-                                            <option value="">Select frequency</option>
-                                            <option value="weekly" @selected($rowFrequency === 'weekly')>Weekly</option>
-                                            <option value="monthly" @selected($rowFrequency === 'monthly')>Monthly</option>
-                                            <option value="quarterly" @selected($rowFrequency === 'quarterly')>Quarterly</option>
+                                        <select name="meetings[{{ $rowIndex }}][frequency]" class="form-select js-meeting-frequency">
+                                            <option value="">Select Frequency</option>
+                                            <option value="weekly" {{ $rowFrequency === 'weekly' ? 'selected' : '' }}>Weekly</option>
+                                            <option value="monthly" {{ $rowFrequency === 'monthly' ? 'selected' : '' }}>Monthly</option>
                                         </select>
                                     </div>
+
+                                    <div class="col-md-4 js-meeting-day-wrap">
+                                        <label class="form-label">Day of Week</label>
+                                        <select name="meetings[{{ $rowIndex }}][day_of_week]" class="form-select js-meeting-day">
+                                            <option value="">Select Day</option>
+                                            <option value="monday" {{ $rowDay === 'monday' ? 'selected' : '' }}>Monday</option>
+                                            <option value="tuesday" {{ $rowDay === 'tuesday' ? 'selected' : '' }}>Tuesday</option>
+                                            <option value="wednesday" {{ $rowDay === 'wednesday' ? 'selected' : '' }}>Wednesday</option>
+                                            <option value="thursday" {{ $rowDay === 'thursday' ? 'selected' : '' }}>Thursday</option>
+                                            <option value="friday" {{ $rowDay === 'friday' ? 'selected' : '' }}>Friday</option>
+                                            <option value="saturday" {{ $rowDay === 'saturday' ? 'selected' : '' }}>Saturday</option>
+                                            <option value="sunday" {{ $rowDay === 'sunday' ? 'selected' : '' }}>Sunday</option>
+                                        </select>
+                                    </div>
+
                                     <div class="col-md-3 js-meeting-time-wrap">
                                         <label class="form-label">Default Meet Time</label>
-                                        <input type="time" class="form-control js-meeting-time" name="meeting_schedule_default_meet_time[]" value="{{ $rowTime }}">
+                                        <input
+                                            type="time"
+                                            name="meetings[{{ $rowIndex }}][default_meet_time]"
+                                            class="form-control js-meeting-time"
+                                            value="{{ $rowTime }}"
+                                        >
                                     </div>
-                                    <div class="col-md-3 js-meeting-day-wrap">
-                                        <label class="form-label">Day of Week</label>
-                                        <select class="form-select js-meeting-day" name="meeting_schedule_day_of_week[]">
-                                            <option value="">Select day</option>
-                                            @foreach (['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] as $day)
-                                                <option value="{{ $day }}" @selected($rowDay === $day)>{{ $day }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-md-1 text-end">
-                                        <button type="button" class="btn btn-sm btn-outline-danger js-remove-meeting" @if($index===0) disabled @endif>Remove</button>
-                                    </div>
-                                    <div class="col-12">
-                                        <div class="small text-muted">Preview: <span class="js-meeting-preview">—</span></div>
-                                        <div class="small text-muted">Weekly: day + time. Monthly/Quarterly: week rule + day + time.</div>
+
+                                    <div class="col-md-1">
+                                        <button type="button" class="btn btn-outline-danger js-remove-meeting">Remove</button>
                                     </div>
                                 </div>
+                                <div class="mt-2 small text-muted">Preview: <span class="js-meeting-preview">—</span></div>
                             </div>
-                        @endforeach
+                        @empty
+                            <div class="border rounded p-3 meeting-row mb-3" data-index="0">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Frequency</label>
+                                        <select name="meetings[0][frequency]" class="form-select js-meeting-frequency">
+                                            <option value="">Select Frequency</option>
+                                            <option value="weekly">Weekly</option>
+                                            <option value="monthly">Monthly</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-4 js-meeting-day-wrap">
+                                        <label class="form-label">Day of Week</label>
+                                        <select name="meetings[0][day_of_week]" class="form-select js-meeting-day">
+                                            <option value="">Select Day</option>
+                                            <option value="monday">Monday</option>
+                                            <option value="tuesday">Tuesday</option>
+                                            <option value="wednesday">Wednesday</option>
+                                            <option value="thursday">Thursday</option>
+                                            <option value="friday">Friday</option>
+                                            <option value="saturday">Saturday</option>
+                                            <option value="sunday">Sunday</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-3 js-meeting-time-wrap">
+                                        <label class="form-label">Default Meet Time</label>
+                                        <input
+                                            type="time"
+                                            name="meetings[0][default_meet_time]"
+                                            class="form-control js-meeting-time"
+                                            value=""
+                                        >
+                                    </div>
+
+                                    <div class="col-md-1">
+                                        <button type="button" class="btn btn-outline-danger js-remove-meeting">Remove</button>
+                                    </div>
+                                </div>
+                                <div class="mt-2 small text-muted">Preview: <span class="js-meeting-preview">—</span></div>
+                            </div>
+                        @endforelse
                     </div>
                     <input type="hidden" name="calendar_timezone" value="Asia/Kolkata">
                 </div>
@@ -293,7 +366,7 @@
     });
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-    const uploadUrl = '{{ route('admin.files.upload') }}';
+    const uploadUrl = @json(route('admin.files.upload'));
 
     document.getElementById('coverFileInput')?.addEventListener('change', async (event) => {
         const file = event.target.files?.[0];
@@ -390,7 +463,7 @@
             row.querySelectorAll('select, input').forEach((el) => {
                 const name = el.getAttribute('name');
                 if (!name) return;
-                el.setAttribute('name', name);
+                el.setAttribute('name', name.replace(/meetings\[\d+\]/, `meetings[${index}]`));
             });
 
             const removeBtn = row.querySelector('.js-remove-meeting');

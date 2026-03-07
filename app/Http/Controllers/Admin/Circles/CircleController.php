@@ -10,15 +10,21 @@ use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\User;
 use App\Support\UserOptionLabel;
+use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
+use Throwable;
 
 class CircleController extends Controller
 {
+    public function __construct(private readonly ZohoBillingService $zohoBillingService)
+    {
+    }
+
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('search', ''));
@@ -223,12 +229,14 @@ class CircleController extends Controller
             'meetingModes' => Circle::MEETING_MODE_OPTIONS,
             'meetingFrequencies' => Circle::MEETING_FREQUENCY_OPTIONS,
             'allUsers' => $this->allUsers(),
+            'circlePackages' => $this->circlePackageOptions(),
         ]);
     }
 
     public function store(StoreCircleRequest $request): RedirectResponse
     {
         $validated = $request->validated();
+        $circlePackage = $this->resolveCirclePackage($validated['circle_package'] ?? null);
 
         $payload = [
             'name' => $validated['name'] ?? null,
@@ -246,6 +254,7 @@ class CircleController extends Controller
             unset($payload['status']);
         }
 
+        $payload = array_merge($payload, $this->buildCirclePackagePayload($circlePackage));
         $payload = $this->pruneEmptyPayload($payload);
 
         $circle = new Circle();
@@ -308,12 +317,15 @@ class CircleController extends Controller
             'meetingModes' => Circle::MEETING_MODE_OPTIONS,
             'meetingFrequencies' => Circle::MEETING_FREQUENCY_OPTIONS,
             'allUsers' => $this->allUsers(),
+            'circlePackages' => $this->circlePackageOptions(),
         ]);
     }
 
     public function update(UpdateCircleRequest $request, Circle $circle): RedirectResponse
     {
         $validated = $request->validated();
+
+        $circlePackage = $this->resolveCirclePackage($validated['circle_package'] ?? null);
 
         $allowed = [];
         foreach ([
@@ -338,6 +350,7 @@ class CircleController extends Controller
             $allowed['industry_tags'] = $this->normalizeIndustryTags($validated['industry_tags'] ?? null);
         }
 
+        $allowed = array_merge($allowed, $this->buildCirclePackagePayload($circlePackage));
         $allowed = $this->pruneEmptyPayload($allowed);
 
         if (Schema::hasColumn('circles', 'country') && ! array_key_exists('country', $allowed)) {
@@ -467,6 +480,67 @@ class CircleController extends Controller
         }
 
         return $payload;
+    }
+
+
+    private function circlePackageOptions(): array
+    {
+        try {
+            return $this->zohoBillingService->listCirclePackageAddons(true);
+        } catch (Throwable $throwable) {
+            report($throwable);
+            session()->flash('error', 'Unable to load Circle Package addons from Zoho Billing right now.');
+
+            return [];
+        }
+    }
+
+    private function resolveCirclePackage(?string $selection): ?array
+    {
+        $selection = trim((string) $selection);
+
+        if ($selection === '') {
+            return null;
+        }
+
+        try {
+            $addon = $this->zohoBillingService->findCirclePackageAddonByCodeOrId($selection, true);
+        } catch (Throwable $throwable) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'circle_package' => 'Failed to fetch selected Circle Package from Zoho Billing.',
+            ]);
+        }
+
+        if (! is_array($addon)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'circle_package' => 'Selected Circle Package is invalid or inactive.',
+            ]);
+        }
+
+        return $addon;
+    }
+
+    private function buildCirclePackagePayload(?array $circlePackage): array
+    {
+        if (! is_array($circlePackage)) {
+            return [
+                'zoho_addon_code' => null,
+                'zoho_addon_id' => null,
+                'zoho_addon_name' => null,
+                'circle_price_amount' => null,
+                'circle_price_currency' => null,
+                'circle_duration_months' => null,
+            ];
+        }
+
+        return [
+            'zoho_addon_code' => $circlePackage['addon_code'] ?? null,
+            'zoho_addon_id' => $circlePackage['addon_id'] ?? null,
+            'zoho_addon_name' => $circlePackage['name'] ?? null,
+            'circle_price_amount' => $circlePackage['amount'] ?? null,
+            'circle_price_currency' => $circlePackage['currency_code'] ?? null,
+            'circle_duration_months' => 12,
+        ];
     }
 
     private function countriesList()

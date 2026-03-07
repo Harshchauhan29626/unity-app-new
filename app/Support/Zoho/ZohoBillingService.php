@@ -2,12 +2,14 @@
 
 namespace App\Support\Zoho;
 
+use App\Models\Circle;
 use App\Models\User;
 use App\Support\Membership\MembershipUpdater;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
+use Throwable;
 
 class ZohoBillingService
 {
@@ -40,6 +42,245 @@ class ZohoBillingService
             ])
             ->values()
             ->all();
+    }
+
+
+    public function listAddons(bool $activeOnly = true): array
+    {
+        $response = $this->client->request('GET', '/addons', [
+            'page' => 1,
+            'per_page' => 200,
+        ], true);
+
+        $addons = $response['addons'] ?? [];
+
+        $normalized = collect($addons)
+            ->filter(fn ($addon) => is_array($addon))
+            ->map(function (array $addon) {
+                return [
+                    'addon_id' => (string) ($addon['addon_id'] ?? ''),
+                    'addon_code' => (string) ($addon['addon_code'] ?? ''),
+                    'name' => (string) ($addon['name'] ?? ''),
+                    'amount' => $this->resolveAddonAmount($addon),
+                    'currency_code' => $this->resolveAddonCurrency($addon),
+                    'billing_frequency' => $addon['billing_frequency'] ?? null,
+                    'status' => strtolower((string) ($addon['status'] ?? '')),
+                    'raw' => $addon,
+                ];
+            });
+
+        if ($activeOnly) {
+            $normalized = $normalized->filter(fn (array $addon) => $addon['status'] === 'active');
+        }
+
+        return $normalized->values()->all();
+    }
+
+    public function listCirclePackageAddons(bool $activeOnly = true): array
+    {
+        return collect($this->listAddons($activeOnly))
+            ->filter(fn (array $addon) => str_starts_with((string) ($addon['addon_code'] ?? ''), 'Package-'))
+            ->values()
+            ->all();
+    }
+
+    public function findCirclePackageAddonByCodeOrId(string $addonCodeOrId, bool $activeOnly = true): ?array
+    {
+        $needle = trim($addonCodeOrId);
+
+        if ($needle === '') {
+            return null;
+        }
+
+        $matchedAddon = collect($this->listCirclePackageAddons($activeOnly))
+            ->first(function (array $addon) use ($needle) {
+                return (string) ($addon['addon_id'] ?? '') === $needle
+                    || (string) ($addon['addon_code'] ?? '') === $needle;
+            });
+
+        if (is_array($matchedAddon)) {
+            Log::info('circle package addon matched', [
+                'addon_code' => $matchedAddon['addon_code'] ?? null,
+                'addon_id' => $matchedAddon['addon_id'] ?? null,
+                'amount' => $matchedAddon['amount'] ?? null,
+                'currency_code' => $matchedAddon['currency_code'] ?? null,
+                'raw_selected_addon_payload' => $matchedAddon['raw'] ?? null,
+            ]);
+        }
+
+        return $matchedAddon;
+    }
+
+    public function createHostedPageForCircleAddon(User $user, Circle $circle): array
+    {
+        $addonCode = trim((string) ($circle->zoho_addon_code ?? ''));
+
+        if ($addonCode === '') {
+            throw ValidationException::withMessages([
+                'circle' => 'Selected circle does not have a package configured.',
+            ]);
+        }
+
+        $customerId = $this->ensureCustomerForUser($user);
+        $activeSubscription = $this->resolveActiveBaseSubscription($user, $customerId);
+
+        if (! is_array($activeSubscription)) {
+            Log::warning('existing zoho subscription not found for circle checkout', [
+                'user_id' => $user->id,
+                'circle_id' => $circle->id,
+                'customer_id' => $customerId,
+                'addon_code' => $addonCode,
+            ]);
+
+            throw ValidationException::withMessages([
+                'subscription' => 'Active Unity subscription is required before purchasing a circle package.',
+            ]);
+        }
+
+        $subscriptionId = (string) ($activeSubscription['subscription_id'] ?? '');
+
+        if ($subscriptionId === '') {
+            throw ValidationException::withMessages([
+                'subscription' => 'Active Unity subscription is required before purchasing a circle package.',
+            ]);
+        }
+
+        Log::info('existing zoho subscription found for circle checkout', [
+            'user_id' => $user->id,
+            'circle_id' => $circle->id,
+            'customer_id' => $customerId,
+            'subscription_id' => $subscriptionId,
+            'addon_code' => $addonCode,
+        ]);
+
+        $referenceId = 'CIR' . now()->format('YmdHis') . random_int(100, 999);
+        $payload = [
+            'subscription_id' => $subscriptionId,
+            'addons' => [[
+                'addon_code' => $addonCode,
+                'quantity' => 1,
+            ]],
+            'prorate' => false,
+            'reference_id' => $referenceId,
+        ];
+
+        Log::info('circle hosted page request payload', [
+            'user_id' => $user->id,
+            'circle_id' => $circle->id,
+            'addon_code' => $addonCode,
+            'subscription_id' => $subscriptionId,
+            'reference_id' => $referenceId,
+            'payload' => $payload,
+        ]);
+
+        try {
+            $response = $this->client->request('POST', '/hostedpages/updatesubscription', $payload);
+
+            Log::info('circle hosted page response payload', [
+                'user_id' => $user->id,
+                'circle_id' => $circle->id,
+                'subscription_id' => $subscriptionId,
+                'reference_id' => $referenceId,
+                'response' => $response,
+            ]);
+        } catch (Throwable $throwable) {
+            Log::error('circle hosted page request failed', [
+                'user_id' => $user->id,
+                'circle_id' => $circle->id,
+                'addon_code' => $addonCode,
+                'subscription_id' => $subscriptionId,
+                'reference_id' => $referenceId,
+                'payload' => $payload,
+                'error' => $throwable->getMessage(),
+            ]);
+
+            throw $throwable;
+        }
+
+        return [
+            'hostedpage_id' => (string) data_get($response, 'hostedpage.hostedpage_id', ''),
+            'checkout_url' => (string) data_get($response, 'hostedpage.url', ''),
+            'customer_id' => $customerId,
+            'subscription_id' => $subscriptionId,
+            'raw' => $response,
+        ];
+    }
+
+    private function resolveActiveBaseSubscription(User $user, string $customerId): ?array
+    {
+        $activeStatuses = ['live', 'active', 'non_renewing', 'trial'];
+
+        $candidateSubscriptionId = trim((string) ($user->zoho_subscription_id ?? ''));
+
+        if ($candidateSubscriptionId !== '') {
+            try {
+                $single = $this->getSubscription($candidateSubscriptionId);
+                $singleSubscription = is_array($single['subscription'] ?? null) ? $single['subscription'] : $single;
+                $singleStatus = strtolower((string) ($singleSubscription['status'] ?? ''));
+
+                if (in_array($singleStatus, $activeStatuses, true)) {
+                    return $singleSubscription;
+                }
+            } catch (Throwable $throwable) {
+                Log::warning('failed to fetch user zoho subscription for circle checkout', [
+                    'user_id' => $user->id,
+                    'subscription_id' => $candidateSubscriptionId,
+                    'message' => $throwable->getMessage(),
+                ]);
+            }
+        }
+
+        $list = $this->listSubscriptionsByCustomer($customerId);
+        $subscriptions = data_get($list, 'subscriptions', []);
+
+        if (! is_array($subscriptions)) {
+            return null;
+        }
+
+        return collect($subscriptions)
+            ->filter(fn ($subscription) => is_array($subscription))
+            ->first(function (array $subscription) use ($activeStatuses, $user) {
+                $status = strtolower((string) ($subscription['status'] ?? ''));
+                $planCode = (string) (data_get($subscription, 'plan.plan_code') ?? $subscription['plan_code'] ?? '');
+
+                if (! in_array($status, $activeStatuses, true)) {
+                    return false;
+                }
+
+                if ((string) ($user->zoho_plan_code ?? '') === '') {
+                    return true;
+                }
+
+                return $planCode === (string) $user->zoho_plan_code;
+            });
+    }
+
+
+    private function resolveAddonAmount(array $addon): mixed
+    {
+        return data_get($addon, 'price_brackets.0.price')
+            ?? $addon['price']
+            ?? $addon['amount']
+            ?? $addon['rate']
+            ?? $addon['recurring_price']
+            ?? data_get($addon, 'addon_price')
+            ?? data_get($addon, 'price')
+            ?? data_get($addon, 'amount')
+            ?? data_get($addon, 'rate')
+            ?? data_get($addon, 'recurring_price');
+    }
+
+    private function resolveAddonCurrency(array $addon): ?string
+    {
+        $currency = $addon['currency_code']
+            ?? $addon['currency']
+            ?? data_get($addon, 'currency_code')
+            ?? data_get($addon, 'currency')
+            ?? 'INR';
+
+        $currency = is_string($currency) ? trim($currency) : (string) $currency;
+
+        return $currency !== '' ? $currency : 'INR';
     }
 
     public function getOrganization(): array

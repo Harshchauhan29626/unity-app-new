@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'zoho' => [
+        'webhook_token' => env('ZOHO_WEBHOOK_TOKEN'),
+    ],
+
 ];

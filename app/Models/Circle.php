@@ -48,6 +48,12 @@ class Circle extends Model
         'visitor_count',
         'type',
         'country',
+        'zoho_addon_code',
+        'zoho_addon_id',
+        'zoho_addon_name',
+        'circle_price_amount',
+        'circle_price_currency',
+        'circle_duration_months',
     ];
 
     protected $casts = [
@@ -55,6 +61,8 @@ class Circle extends Model
         'industry_tags' => 'array',
         'meeting_repeat' => 'array',
         'launch_date' => 'date',
+        'circle_price_amount' => 'decimal:2',
+        'circle_duration_months' => 'integer',
     ];
 
     protected $appends = ['cover_image_url', 'city_display'];
@@ -266,6 +274,11 @@ class Circle extends Model
     public function memberships(): HasMany
     {
         return $this->hasMany(CircleMember::class);
+    }
+
+    public function circleSubscriptions(): HasMany
+    {
+        return $this->hasMany(CircleSubscription::class, 'circle_id');
     }
 
 

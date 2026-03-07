@@ -79,6 +79,19 @@
                             @endforeach
                         </select>
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Circle Package</label>
+                        <select name="circle_package" class="form-select">
+                            <option value="">Select package</option>
+                            @foreach ($circlePackages as $package)
+                                @php($packageValue = $package['addon_code'] ?: $package['addon_id'])
+                                <option value="{{ $packageValue }}" @selected(old('circle_package') === $packageValue)>
+                                    {{ $package['name'] }} ({{ $package['addon_code'] }}) - {{ $package['amount'] }} {{ $package['currency_code'] }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">Only active Zoho addons with code starting with <code>Package-</code> are listed.</div>
+                    </div>
                     <div class="col-md-12">
                         <label class="form-label">Description</label>
                         <textarea name="description" class="form-control" rows="2">{{ old('description') }}</textarea>

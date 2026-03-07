@@ -51,6 +51,7 @@ use App\Http\Controllers\Api\V1\RequirementController as V1RequirementController
 use App\Http\Controllers\Api\V1\RequirementInterestController;
 use App\Http\Controllers\Api\V1\TimelineRequirementController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
+use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
 use App\Http\Controllers\Api\V1\Billing\ZohoBillingWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
@@ -286,6 +287,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/billing/checkout', [BillingCheckoutController::class, 'checkout']);
         Route::get('/billing/checkout/{hostedpage_id}', [BillingCheckoutController::class, 'status']);
         Route::get('/billing/hostedpages/{hostedpageId}/sync', [BillingCheckoutController::class, 'syncHostedPage']);
+        Route::get('/circles/{circle}/package', [CircleSubscriptionController::class, 'package']);
+        Route::post('/billing/circle-checkout/{circle}', [CircleSubscriptionController::class, 'checkout']);
     });
 
     Route::get('/membership-plans', [MembershipPlanController::class, 'index']);
@@ -293,6 +296,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/webhooks/razorpay', [RazorpayWebhookController::class, 'handle']);
     Route::post('/zoho/webhook', [ZohoWebhookController::class, 'handle']);
     Route::post('/billing/zoho/webhook', [ZohoBillingWebhookController::class, 'handle']);
+    Route::post('/webhooks/zoho/circle-subscription', [ZohoBillingWebhookController::class, 'handleCircleSubscription']);
     Route::get('/billing/checkout/{hostedpage_id}/status', [BillingCheckoutController::class, 'status']);
     Route::get('/files/{id}', [FileController::class, 'show']);
     Route::get('/event-galleries', [EventGalleryApiController::class, 'index']);

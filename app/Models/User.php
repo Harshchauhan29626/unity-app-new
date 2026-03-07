@@ -77,6 +77,12 @@ class User extends Authenticatable
         'membership_starts_at',
         'membership_ends_at',
         'last_payment_at',
+        'active_circle_subscription_id',
+        'circle_joined_at',
+        'circle_expires_at',
+        'active_circle_id',
+        'active_circle_addon_code',
+        'active_circle_addon_name',
     ];
 
     protected $hidden = [
@@ -99,6 +105,8 @@ class User extends Authenticatable
         'membership_starts_at' => 'datetime',
         'membership_ends_at' => 'datetime',
         'last_payment_at' => 'datetime',
+        'circle_joined_at' => 'datetime',
+        'circle_expires_at' => 'datetime',
         'dob' => 'date',
         'skills' => 'array',
         'interests' => 'array',
@@ -186,6 +194,22 @@ class User extends Authenticatable
     public function circleMemberships(): HasMany
     {
         return $this->hasMany(CircleMember::class, 'user_id');
+    }
+
+
+    public function circleSubscriptions(): HasMany
+    {
+        return $this->hasMany(CircleSubscription::class, 'user_id');
+    }
+
+    public function activeCircle(): BelongsTo
+    {
+        return $this->belongsTo(Circle::class, 'active_circle_id');
+    }
+
+    public function activeCircleSubscription(): BelongsTo
+    {
+        return $this->belongsTo(CircleSubscription::class, 'active_circle_subscription_id');
     }
 
     public function circles(): BelongsToMany
