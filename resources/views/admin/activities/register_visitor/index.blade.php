@@ -3,6 +3,9 @@
 @section('title', 'Register A Visitor')
 
 @section('content')
+    <style>
+        .peer-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; display: block; }
+    </style>
     @php
         $displayName = function (?string $display, ?string $first, ?string $last): string {
             if ($display) {
@@ -26,28 +29,16 @@
         <span class="badge bg-light text-dark border">Total: {{ number_format($items->total()) }}</span>
     </div>
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <form method="GET" class="row g-2 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label small text-muted">Search</label>
-                    <input type="text" name="search" value="{{ $filters['search'] }}" class="form-control" placeholder="Peer name/phone or visitor details">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">Status</label>
-                    <select name="status" class="form-select">
-                        @foreach ($statusOptions as $option)
-                            <option value="{{ $option }}" @selected($filters['status'] === $option)>{{ ucfirst($option) }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-2 d-flex flex-column gap-2">
-                    <button type="submit" class="btn btn-primary">Apply</button>
-                    <a href="{{ route('admin.activities.register-visitor.index') }}" class="btn btn-outline-secondary">Reset</a>
-                </div>
-            </form>
-        </div>
-    </div>
+    <form id="adminactivitiesregister-visitorindexFiltersForm" method="GET" action="{{ route('admin.activities.register-visitor.index') }}">
+    @include('admin.components.activity-filter-bar-v2', [
+        'actionUrl' => route('admin.activities.register-visitor.index'),
+        'resetUrl' => route('admin.activities.register-visitor.index'),
+        'filters' => $filters,
+        'circles' => $circles ?? collect(),
+        'showExport' => false,
+        'renderFormTag' => false,
+        'formId' => 'adminactivitiesregister-visitorindexFiltersForm',
+    ])
 
     <div class="card shadow-sm">
         <div class="table-responsive">
@@ -69,18 +60,44 @@
                         <th class="text-end">Actions</th>
                         <th>Created At</th>
                     </tr>
+                    <tr>
+                        <th class="text-muted">—</th>
+                        <th><input type="text" name="peer_name" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="peer_phone" value="{{ $filters['peer_phone'] ?? '' }}" placeholder="Peer Phone" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="event_type" value="{{ $filters['event_type'] ?? '' }}" placeholder="Event Type" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="event_name" value="{{ $filters['event_name'] ?? '' }}" placeholder="Event Name" class="form-control form-control-sm"></th>
+                        <th><input type="date" name="event_date" value="{{ $filters['event_date'] ?? '' }}" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="visitor_name" value="{{ $filters['visitor_name'] ?? '' }}" placeholder="Visitor Name" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="visitor_mobile" value="{{ $filters['visitor_mobile'] ?? '' }}" placeholder="Visitor Mobile" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="visitor_city" value="{{ $filters['visitor_city'] ?? '' }}" placeholder="Visitor City" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="visitor_business" value="{{ $filters['visitor_business'] ?? '' }}" placeholder="Visitor Business" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="status" value="{{ $filters['status'] ?? '' }}" placeholder="Status" class="form-control form-control-sm"></th>
+                        <th><input type="number" name="coins_awarded" value="{{ $filters['coins_awarded'] ?? '' }}" placeholder="Coins" class="form-control form-control-sm"></th>
+                        <th class="text-end">
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                                <a href="{{ route('admin.activities.register-visitor.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                            </div>
+                        </th>
+                        <th class="text-muted">—</th>
+                    </tr>
                 </thead>
                 <tbody>
                     @forelse ($items as $item)
                         @php
-                            $peer = $item->user;
-                            $peerName = $displayName($peer->display_name ?? null, $peer->first_name ?? null, $peer->last_name ?? null);
+                            $peerName = $item->peer_name ?? '—';
                             $visitorSearch = $item->visitor_mobile ? ['search' => $item->visitor_mobile] : [];
                         @endphp
                         <tr>
                             <td>{{ $formatDateTime($item->created_at ?? null) }}</td>
-                            <td>{{ $peerName }}</td>
-                            <td>{{ $peer->phone ?? '—' }}</td>
+                            <td>
+                                @include('admin.components.peer-card', [
+                                    'name' => $peerName,
+                                    'company' => $item->peer_company ?? '',
+                                    'city' => $item->peer_city ?? '',
+                                ])
+                            </td>
+                            <td>{{ $item->peer_phone ?? '—' }}</td>
                             <td>{{ ucfirst($item->event_type ?? '—') }}</td>
                             <td>{{ $item->event_name ?? '—' }}</td>
                             <td>{{ $formatDate($item->event_date ?? null) }}</td>
@@ -110,6 +127,8 @@
             </table>
         </div>
     </div>
+
+    </form>
 
     <div class="mt-3">
         {{ $items->links() }}

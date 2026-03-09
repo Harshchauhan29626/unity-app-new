@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Circle;
 use App\Models\CoinLedger;
 use App\Models\User;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -32,37 +34,86 @@ class CoinsController extends Controller
 
     public function index(Request $request): View
     {
-        $search = trim((string) $request->query('q', $request->query('search', '')));
+        $q = trim((string) $request->query('q', $request->query('search', '')));
+        $circleId = (string) $request->query('circle_id', 'all');
         $membership = $request->query('membership_status');
         $perPage = $request->integer('per_page') ?: 20;
         $perPage = in_array($perPage, [10, 20, 25, 50, 100], true) ? $perPage : 20;
 
-        $query = User::query()->select([
-            'id',
-            'email',
-            'first_name',
-            'last_name',
-            'display_name',
-            'membership_status',
-        ]);
+        $hasUsersName = Schema::hasColumn('users', 'name');
+        $hasUsersCompany = Schema::hasColumn('users', 'company');
+        $hasUsersBusinessName = Schema::hasColumn('users', 'business_name');
+
+        $totalCoinsSubQuery = DB::table('coins_ledger as cl')
+            ->selectRaw('cl.user_id, COALESCE(SUM(cl.amount),0) as total_coins')
+            ->groupBy('cl.user_id');
+
+        $query = User::query()
+            ->select([
+                'users.id',
+                'users.email',
+                'users.first_name',
+                'users.last_name',
+                'users.display_name',
+                'users.membership_status',
+                'users.company_name',
+                'users.city',
+            ])
+            ->leftJoinSub($totalCoinsSubQuery, 'coins_totals', fn ($join) => $join->on('coins_totals.user_id', '=', 'users.id'))
+            ->addSelect(DB::raw('COALESCE(coins_totals.total_coins, 0) as total_coins_sort'))
+            ->with(['circleMembers' => function ($circleMembersQuery) {
+                $circleMembersQuery
+                    ->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->orderByDesc('joined_at')
+                    ->with(['circle:id,name']);
+            }]);
 
         $this->applyCircleScopeToUsersQuery($query, auth('admin')->user());
 
-        if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $like = "%{$search}%";
-                $q->where('display_name', 'ILIKE', $like)
-                    ->orWhere('first_name', 'ILIKE', $like)
-                    ->orWhere('last_name', 'ILIKE', $like)
-                    ->orWhere('email', 'ILIKE', $like);
+        if ($q !== '') {
+            $query->where(function ($searchQuery) use ($q, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                $like = "%{$q}%";
+
+                $searchQuery->where('users.display_name', 'ILIKE', $like)
+                    ->orWhere('users.first_name', 'ILIKE', $like)
+                    ->orWhere('users.last_name', 'ILIKE', $like)
+                    ->orWhere('users.company_name', 'ILIKE', $like)
+                    ->orWhere('users.city', 'ILIKE', $like);
+
+                if ($hasUsersName) {
+                    $searchQuery->orWhere('users.name', 'ILIKE', $like);
+                }
+
+                if ($hasUsersCompany) {
+                    $searchQuery->orWhere('users.company', 'ILIKE', $like);
+                }
+
+                if ($hasUsersBusinessName) {
+                    $searchQuery->orWhere('users.business_name', 'ILIKE', $like);
+                }
+            });
+        }
+
+        if ($circleId !== '' && $circleId !== 'all') {
+            $query->whereHas('circleMembers', function ($circleMembersQuery) use ($circleId) {
+                $circleMembersQuery
+                    ->where('circle_id', $circleId)
+                    ->where('status', 'approved')
+                    ->whereNull('deleted_at');
             });
         }
 
         if ($membership && $membership !== 'all') {
-            $query->where('membership_status', $membership);
+            $query->where('users.membership_status', $membership);
         }
 
-        $members = $query->orderBy('display_name')->paginate($perPage)->withQueryString();
+        $members = $query
+            ->orderByDesc('total_coins_sort')
+            ->orderBy('users.display_name')
+            ->paginate($perPage)
+            ->appends($request->query());
+
         $memberIds = $members->pluck('id')->all();
 
         $coinsByUserId = DB::table('coins_ledger as cl')
@@ -88,23 +139,42 @@ class CoinsController extends Controller
             ->sort()
             ->values();
 
+        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+
         return view('admin.coins.index', [
             'members' => $members,
             'filters' => [
-                'search' => $search,
+                'q' => $q,
+                'search' => $q,
+                'circle_id' => $circleId,
                 'membership_status' => $membership,
                 'per_page' => $perPage,
             ],
             'membershipStatuses' => $membershipStatuses,
             'coinsByUserId' => $coinsByUserId,
+            'circles' => $circles,
         ]);
     }
 
     public function create(): View
     {
+        $columns = ['id', 'display_name', 'first_name', 'last_name', 'email', 'city'];
+
+        foreach (['company_name', 'business_name'] as $column) {
+            if (Schema::hasColumn('users', $column)) {
+                $columns[] = $column;
+            }
+        }
+
         $usersQuery = User::query()
-            ->select(['id', 'email', 'first_name', 'last_name', 'display_name'])
-            ->orderBy('display_name');
+            ->select($columns)
+            ->with(['circleMembers' => function ($query) {
+                $query->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->orderByDesc('joined_at')
+                    ->with(['circle:id,name']);
+            }])
+            ->orderByRaw("COALESCE(NULLIF(display_name,''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)),''), email) ASC");
 
         $this->applyCircleScopeToUsersQuery($usersQuery, auth('admin')->user());
 

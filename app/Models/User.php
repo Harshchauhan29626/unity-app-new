@@ -11,6 +11,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
+use Throwable;
 
 class User extends Authenticatable
 {
@@ -70,6 +71,19 @@ class User extends Authenticatable
         'last_login_at',
         'profile_photo_file_id',
         'cover_photo_file_id',
+        'zoho_customer_id',
+        'zoho_subscription_id',
+        'zoho_plan_code',
+        'zoho_last_invoice_id',
+        'membership_starts_at',
+        'membership_ends_at',
+        'last_payment_at',
+        'active_circle_subscription_id',
+        'circle_joined_at',
+        'circle_expires_at',
+        'active_circle_id',
+        'active_circle_addon_code',
+        'active_circle_addon_name',
     ];
 
     protected $hidden = [
@@ -89,6 +103,11 @@ class User extends Authenticatable
         'gdpr_deleted_at' => 'datetime',
         'anonymized_at' => 'datetime',
         'last_login_at' => 'datetime',
+        'membership_starts_at' => 'datetime',
+        'membership_ends_at' => 'datetime',
+        'last_payment_at' => 'datetime',
+        'circle_joined_at' => 'datetime',
+        'circle_expires_at' => 'datetime',
         'dob' => 'date',
         'skills' => 'array',
         'interests' => 'array',
@@ -171,6 +190,163 @@ class User extends Authenticatable
     public function circleMembers(): HasMany
     {
         return $this->hasMany(CircleMember::class);
+    }
+
+    public function circleMemberships(): HasMany
+    {
+        return $this->hasMany(CircleMember::class, 'user_id');
+    }
+
+
+    public function circleSubscriptions(): HasMany
+    {
+        return $this->hasMany(CircleSubscription::class, 'user_id');
+    }
+
+    public function activeCircle(): BelongsTo
+    {
+        return $this->belongsTo(Circle::class, 'active_circle_id');
+    }
+
+    public function activeCircleSubscription(): BelongsTo
+    {
+        return $this->belongsTo(CircleSubscription::class, 'active_circle_subscription_id');
+    }
+
+    public function circles(): BelongsToMany
+    {
+        return $this->belongsToMany(Circle::class, 'circle_members', 'user_id', 'circle_id')
+            ->withPivot(['status', 'joined_at', 'deleted_at'])
+            ->wherePivot('status', 'approved')
+            ->wherePivotNull('deleted_at')
+            ->orderByPivot('joined_at', 'desc');
+    }
+
+    public function adminDisplayName(): string
+    {
+        $displayName = trim((string) ($this->display_name ?? ''));
+
+        if ($displayName !== '') {
+            return $displayName;
+        }
+
+        $fullName = trim(trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? '')));
+        $fullName = trim(trim((string) ($this->first_name ?? '')).' '.trim((string) ($this->last_name ?? '')));
+
+        return $fullName !== '' ? $fullName : 'Unknown';
+    }
+
+    public function adminCompanyLabel(): string
+    {
+        $company = trim((string) ($this->company_name ?? ''));
+
+        if ($company !== '') {
+            return $company;
+        }
+
+        $businessName = trim((string) ($this->business_name ?? ''));
+
+        return $businessName !== '' ? $businessName : 'No Company';
+    }
+
+    public function adminCityLabel(): string
+    {
+        $city = trim((string) ($this->city ?? ''));
+
+        return $city !== '' ? $city : 'No City';
+    }
+
+    public function adminCircleLabel(): string
+    {
+        if ($this->relationLoaded('circleMembers')) {
+            $name = trim((string) optional($this->circleMembers->first()?->circle)->name);
+            return $name !== '' ? $name : 'No Circle';
+        }
+
+        if ($this->relationLoaded('circles')) {
+            $name = trim((string) optional($this->circles->first())->name);
+            return $name !== '' ? $name : 'No Circle';
+        }
+
+        try {
+            $member = $this->circleMembers()
+                ->where('status', 'approved')
+                ->whereNull('deleted_at')
+                ->with(['circle:id,name'])
+                ->orderByDesc('joined_at')
+                ->first();
+
+            $name = trim((string) optional($member?->circle)->name);
+
+            return $name !== '' ? $name : 'No Circle';
+        } catch (\Throwable $e) {
+            return 'No Circle';
+        }
+    }
+
+    public function adminFounderOptionLabel(): string
+    {
+        return implode(PHP_EOL, [
+            $this->adminDisplayName(),
+            $this->adminCompanyLabel(),
+            $this->adminCityLabel(),
+            $this->adminCircleLabel(),
+        ]);
+    }
+
+    public function adminName(): string
+    {
+        $displayName = trim((string) ($this->display_name ?? ''));
+
+        if ($displayName !== '') {
+            return $displayName;
+        }
+
+        $fullName = trim(
+            trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? ''))
+            trim((string) ($this->first_name ?? '')).' '.trim((string) ($this->last_name ?? ''))
+        );
+
+        if ($fullName !== '') {
+            return $fullName;
+        }
+
+        return $this->adminDisplayName();
+    }
+
+    public function adminCompany(): string
+    {
+        return $this->adminCompanyLabel();
+    }
+
+    public function adminCity(): string
+    {
+        return $this->adminCityLabel();
+    }
+
+    public function adminCircleName(): string
+    {
+        return $this->adminCircleLabel();
+    }
+
+    public function adminDisplayParts(): array
+    {
+        return [
+            $this->adminName(),
+            $this->adminCompany(),
+            $this->adminCity(),
+            $this->adminCircleName(),
+        ];
+    }
+
+    public function adminDisplayLabel(): string
+    {
+        return implode(PHP_EOL, $this->adminDisplayParts());
+    }
+
+    public function adminDisplayInlineLabel(): string
+    {
+        return implode(' — ', $this->adminDisplayParts());
     }
 
     public function requestedConnections(): HasMany
@@ -326,4 +502,49 @@ class User extends Authenticatable
 
         return url('/api/v1/files/' . $this->profile_photo_file_id);
     }
+
+    public function isFreeMember(): bool
+    {
+        return (string) $this->membership_status === 'free_peer';
+    }
+
+    public function isPaidMember(): bool
+    {
+        return ! $this->isFreeMember();
+    }
+
+    public function publicProfileArray(): array
+    {
+        $name = (string) ($this->getAttribute('name')
+            ?? $this->display_name
+            ?? trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? '')));
+
+        $companyName = (string) ($this->getAttribute('company_name') ?? '');
+        $city = (string) ($this->getAttribute('city') ?? '');
+        $industry = (string) ($this->getAttribute('industry') ?? '');
+
+        if ((blank($companyName) || blank($city) || blank($industry)) && method_exists($this, 'profile')) {
+            try {
+                $profile = $this->relationLoaded('profile')
+                    ? $this->getRelation('profile')
+                    : $this->profile()->first();
+
+                $companyName = blank($companyName) ? (string) ($profile->company_name ?? '') : $companyName;
+                $city = blank($city) ? (string) ($profile->city ?? '') : $city;
+                $industry = blank($industry) ? (string) ($profile->industry ?? '') : $industry;
+            } catch (Throwable $e) {
+                // Relation is optional in this project scope.
+            }
+        }
+
+        return [
+            'id' => (string) $this->id,
+            'name' => $name,
+            'company_name' => $companyName,
+            'email' => (string) ($this->email ?? ''),
+            'city' => $city,
+            'industry' => $industry,
+        ];
+    }
+}
 }

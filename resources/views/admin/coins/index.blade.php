@@ -39,10 +39,15 @@
                                     name="q"
                                     form="coinsFiltersForm"
                                     class="form-control form-control-sm"
-                                    placeholder="Name or email"
-                                    value="{{ request('q', $filters['search']) }}"
-                                    oninput="this.form.search.value = this.value"
+                                    placeholder="Peer/Company/City"
+                                    value="{{ $filters['q'] }}"
                                 >
+                                <select name="circle_id" form="coinsFiltersForm" class="form-select form-select-sm">
+                                    <option value="all">All Circles</option>
+                                    @foreach ($circles as $circle)
+                                        <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
+                                    @endforeach
+                                </select>
                                 <select name="membership_status" form="coinsFiltersForm" class="form-select form-select-sm">
                                     <option value="">Any</option>
                                     @foreach ($membershipStatuses as $status)
@@ -58,7 +63,6 @@
                         <th><input type="text" class="form-control form-control-sm" placeholder="—" disabled></th>
                         <th class="text-end">
                             <form id="coinsFiltersForm" method="GET" class="d-flex justify-content-end gap-2">
-                                <input type="hidden" name="search" value="{{ request('q', $filters['search']) }}">
                                 <button type="submit" class="btn btn-sm btn-primary">Apply</button>
                                 <a href="{{ route('admin.coins.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
                             </form>
@@ -68,7 +72,11 @@
                 <tbody>
                     @forelse ($members as $member)
                         @php
-                            $memberName = $member->display_name ?? trim($member->first_name . ' ' . $member->last_name);
+                            $memberName = $member->adminName();
+                            $company = $member->adminCompany();
+                            $city = $member->adminCity();
+                            $circleName = $member->adminCircleName();
+
                             $coins = $coinsByUserId[$member->id] ?? null;
                             $totalCoins = $coins->total_coins ?? 0;
                             $testimonialCoins = $coins->testimonial_coins ?? 0;
@@ -79,8 +87,17 @@
                         @endphp
                         <tr>
                             <td>
-                                <div class="fw-semibold">{{ $memberName ?: 'Unnamed Peer' }}</div>
-                                <div class="text-muted small">{{ $member->email }}</div>
+                                <div class="d-flex align-items-start gap-2">
+                                    <div class="rounded-circle border d-flex align-items-center justify-content-center bg-light text-muted fw-semibold" style="width:36px;height:36px;">
+                                        {{ strtoupper(mb_substr($memberName, 0, 1)) }}
+                                    </div>
+                                    <div class="d-flex flex-column">
+                                        <div class="fw-semibold">{{ $memberName }}</div>
+                                        <div class="text-muted small">{{ $company }}</div>
+                                        <div class="text-muted small">{{ $city }}</div>
+                                        <div class="text-muted small">{{ $circleName }}</div>
+                                    </div>
+                                </div>
                             </td>
                             <td>
                                 <a href="{{ route('admin.coins.ledger', $member) }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">{{ $totalCoins }}</a>
@@ -103,15 +120,29 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center text-muted">No peers found.</td>
+                            <td colspan="7" class="text-center text-muted py-4">No members found.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
+        <div class="p-3">
+            {{ $members->links() }}
+        </div>
     </div>
 
-    <div class="mt-3">
-        {{ $members->links() }}
-    </div>
+    @push('scripts')
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const perPage = document.getElementById('perPage');
+                const form = document.getElementById('coinsFiltersForm');
+
+                if (perPage && form) {
+                    perPage.addEventListener('change', function () {
+                        form.submit();
+                    });
+                }
+            });
+        </script>
+    @endpush
 @endsection

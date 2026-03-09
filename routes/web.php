@@ -16,7 +16,10 @@ use App\Http\Controllers\Admin\ActivitiesReferralsController;
 use App\Http\Controllers\Admin\ActivitiesRequirementsController;
 use App\Http\Controllers\Admin\ActivitiesTestimonialsController;
 use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
+use App\Http\Controllers\Admin\CirclePeersController;
 use App\Http\Controllers\Admin\CoinsController;
+use App\Http\Controllers\Admin\CollaborationPostController;
+use App\Http\Controllers\Admin\CoinClaimsController;
 use App\Http\Controllers\Admin\EventGalleryController;
 use App\Http\Controllers\Admin\LoginHistoryController;
 use App\Http\Controllers\Admin\MembershipPlanController;
@@ -60,6 +63,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/activities/become-a-leader', [ActivitiesLeaderInterestController::class, 'index'])->name('activities.become-a-leader.index');
         Route::get('/activities/recommend-peer', [ActivitiesPeerRecommendationController::class, 'index'])->name('activities.recommend-peer.index');
         Route::get('/activities/register-visitor', [ActivitiesVisitorRegistrationController::class, 'index'])->name('activities.register-visitor.index');
+        Route::get('/collaborations', [CollaborationPostController::class, 'index'])->name('collaborations.index');
+        Route::get('/collaborations/export', [CollaborationPostController::class, 'export'])->name('collaborations.export');
+        Route::get('/collaborations/{id}', [CollaborationPostController::class, 'show'])->name('collaborations.show');
         Route::get('/activities/{peer}/become-a-leader', [ActivitiesLeaderInterestController::class, 'show'])
             ->whereUuid('peer')
             ->name('activities.become-a-leader.show');
@@ -98,6 +104,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/circles/{circle}', [CircleController::class, 'update'])->name('circles.update');
         Route::delete('/circles/{circle}', [CircleController::class, 'destroy'])->name('circles.destroy');
         Route::post('/circles/{circle}/members', [CircleMemberController::class, 'store'])->name('circles.members.store');
+        Route::get('/circles/{circle}/peer-options', [CirclePeersController::class, 'peerOptions'])->name('circles.peer-options');
         Route::put('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'update'])->name('circles.members.update');
         Route::delete('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'destroy'])->name('circles.members.destroy');
         Route::get('/event-gallery', [EventGalleryController::class, 'index'])->name('event-gallery.index');
@@ -120,5 +127,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/visitor-registrations/{id}/reject', [VisitorRegistrationsController::class, 'reject'])
             ->whereUuid('id')
             ->name('visitor-registrations.reject');
+        Route::get('/coin-claims', [CoinClaimsController::class, 'index'])->name('coin-claims.index');
+        Route::get('/coin-claims/{id}', [CoinClaimsController::class, 'show'])->whereUuid('id')->name('coin-claims.show');
+        Route::post('/coin-claims/{id}/approve', [CoinClaimsController::class, 'approve'])->whereUuid('id')->name('coin-claims.approve');
+        Route::post('/coin-claims/{id}/reject', [CoinClaimsController::class, 'reject'])->whereUuid('id')->name('coin-claims.reject');
     });
 });

@@ -34,9 +34,8 @@
         @csrf
         <input type="hidden" name="q" value="{{ $filters['search'] }}">
         <input type="hidden" name="membership_status" value="{{ $filters['membership_status'] ?? '' }}">
-        <input type="hidden" name="city_id" value="{{ $filters['city_id'] ?? '' }}">
+        <input type="hidden" name="circle_id" value="{{ $filters['circle_id'] ?? 'all' }}">
         <input type="hidden" name="phone" value="{{ $filters['phone'] ?? '' }}">
-        <input type="hidden" name="company_name" value="{{ $filters['company_name'] ?? '' }}">
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
     </form>
@@ -56,9 +55,7 @@
                         </a>
                     </th>
                     <th>Phone</th>
-                    <th>Company</th>
                     <th>Membership</th>
-                    <th>City</th>
                     <th>
                         <a href="{{ route('admin.users.index', array_merge(request()->query(), ['sort' => 'coins_balance', 'dir' => $filters['sort'] === 'coins_balance' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
                             Coins
@@ -81,27 +78,24 @@
                 <tr class="bg-light align-middle">
                     <th></th>
                     <th>
-                        <input type="text" name="q" form="usersFiltersForm" class="form-control form-control-sm" placeholder="Name, email, company, or city" value="{{ $filters['search'] }}">
+                        <div class="d-flex flex-column gap-2" style="min-width:220px;">
+                            <input type="text" name="q" form="usersFiltersForm" value="{{ $q ?? '' }}" class="form-control form-control-sm" placeholder="Peer/Company/City">
+                            <select name="circle_id" form="usersFiltersForm" class="form-select form-select-sm">
+                                <option value="all">All Circles</option>
+                                @foreach($circles as $c)
+                                    <option value="{{ $c->id }}" @selected(($circleId ?? 'all') == $c->id)>{{ $c->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </th>
                     <th>
                         <input type="text" name="phone" form="usersFiltersForm" class="form-control form-control-sm" placeholder="Phone" value="{{ $filters['phone'] }}">
-                    </th>
-                    <th>
-                        <input type="text" name="company_name" form="usersFiltersForm" class="form-control form-control-sm" placeholder="Company" value="{{ $filters['company_name'] }}">
                     </th>
                     <th>
                         <select name="membership_status" form="usersFiltersForm" class="form-select form-select-sm">
                             <option value="all">All</option>
                             @foreach ($membershipStatuses as $status)
                                 <option value="{{ $status }}" @selected($filters['membership_status'] === $status)>{{ ucfirst($status) }}</option>
-                            @endforeach
-                        </select>
-                    </th>
-                    <th>
-                        <select name="city_id" form="usersFiltersForm" class="form-select form-select-sm">
-                            <option value="all">All</option>
-                            @foreach ($cities as $city)
-                                <option value="{{ $city->id }}" @selected($filters['city_id'] == $city->id)>{{ $city->name }}</option>
                             @endforeach
                         </select>
                     </th>
@@ -127,9 +121,11 @@
             <tbody>
                 @forelse ($users as $user)
                     @php
-                        $name = $user->display_name ?? trim($user->first_name . ' ' . $user->last_name);
+                        $name = $user->name ?? trim((($user->first_name ?? '') . ' ' . ($user->last_name ?? '')));
                         $avatar = $user->profile_photo_url ?? ($user->profile_photo_file_id ? url('/api/v1/files/' . $user->profile_photo_file_id) : null);
-                        $cityName = $user->city->name ?? $user->city ?? '—';
+                        $cityName = $user->city->name ?? $user->city ?? 'No City';
+                        $company = $user->company_name ?? $user->company ?? $user->business_name ?? 'No Company';
+                        $circleName = optional($user->circleMembers->first()?->circle)->name ?? 'No Circle';
                         $statusValue = $user->status ?? 'active';
                         $isActive = $statusValue === 'active';
                         $detailsId = 'details-' . $user->id;
@@ -147,18 +143,18 @@
                                         <span class="text-muted">{{ strtoupper(substr($name, 0, 1)) }}</span>
                                     @endif
                                 </div>
-                                <div>
-                                    <div class="fw-semibold">{{ $name ?: 'Unnamed Peer' }}</div>
-                                    <div class="text-muted small">{{ $user->email }}</div>
+                                <div class="d-flex flex-column">
+                                    <div class="fw-semibold text-dark">{{ $name !== '' ? $name : '—' }}</div>
+                                    <div class="text-muted small">{{ $company }}</div>
+                                    <div class="text-muted small">{{ $cityName }}</div>
+                                    <div class="text-muted small">{{ $circleName }}</div>
                                 </div>
                             </div>
                         </td>
                         <td>{{ $user->phone ?? '—' }}</td>
-                        <td>{{ $user->company_name ?? '—' }}</td>
                         <td>
                             <span class="badge bg-primary-subtle text-primary text-uppercase">{{ $user->membership_status ?? 'Free' }}</span>
                         </td>
-                        <td>{{ $cityName }}</td>
                         <td>{{ number_format($user->coins_balance ?? 0) }}</td>
                         <td>{{ optional($user->last_login_at)->format('Y-m-d H:i') ?? '—' }}</td>
                         <td>
@@ -176,10 +172,14 @@
                         </td>
                     </tr>
                     <tr class="collapse-row">
-                        <td colspan="10" class="p-0 border-0">
+                        <td colspan="8" class="p-0 border-0">
                             <div class="collapse" id="{{ $detailsId }}">
                                 <div class="p-3 bg-light border-top">
                                     @php
+                                        $joinedCircle = $user->circleMembers->first()?->circle;
+                                        $joinedCircleName = $joinedCircle?->name;
+                                        $joinedCircleId = $joinedCircle?->id;
+
                                         $fields = [
                                             ['label' => 'ID', 'value' => $user->id],
                                             ['label' => 'Email', 'value' => $user->email],
@@ -201,6 +201,14 @@
                                             ['label' => 'City (string)', 'value' => $user->city],
                                             ['label' => 'Membership Status', 'value' => $user->membership_status],
                                             ['label' => 'Membership Expiry', 'value' => $user->membership_expiry, 'type' => 'date'],
+                                            ['label' => 'Circles', 'value' => $joinedCircleName ?: 'No Circle', 'circle_id' => $joinedCircleId],
+                                            ['label' => 'Zoho Customer ID', 'value' => $user->zoho_customer_id],
+                                            ['label' => 'Zoho Subscription ID', 'value' => $user->zoho_subscription_id],
+                                            ['label' => 'Zoho Plan Code', 'value' => $user->zoho_plan_code],
+                                            ['label' => 'Zoho Last Invoice ID', 'value' => $user->zoho_last_invoice_id],
+                                            ['label' => 'Membership Starts At', 'value' => $user->membership_starts_at, 'type' => 'membership_date'],
+                                            ['label' => 'Membership Ends At', 'value' => $user->membership_ends_at, 'type' => 'membership_date'],
+                                            ['label' => 'Last Payment At', 'value' => $user->last_payment_at, 'type' => 'membership_date'],
                                             ['label' => 'Coins Balance', 'value' => $user->coins_balance],
                                             ['label' => 'Introduced By', 'value' => $user->introduced_by],
                                             ['label' => 'Members Introduced Count', 'value' => $user->members_introduced_count],
@@ -246,6 +254,14 @@
                                                 return e($formatted) . ' <span class="text-muted small">(' . e($raw) . ')</span>';
                                             }
 
+                                            if ($type === 'membership_date') {
+                                                if (! $value) {
+                                                    return '—';
+                                                }
+
+                                                return e($value instanceof \DateTimeInterface ? $value->format('d-m-Y H:i') : (string) $value);
+                                            }
+
                                             if ($type === 'json') {
                                                 if (is_null($value)) {
                                                     return '—';
@@ -278,7 +294,16 @@
                                                     @foreach ($chunk as $field)
                                                         <tr>
                                                             <th class="w-50 text-muted">{{ $field['label'] }}</th>
-                                                            <td class="text-break">{!! $renderValue($field['value'], $field['type'] ?? 'text') !!}</td>
+                                                            <td class="text-break">
+                                                                @if (($field['label'] ?? null) === 'Circles' && ! empty($field['circle_id']))
+                                                                    <div class="d-flex align-items-center gap-2">
+                                                                        <span>{{ $field['value'] }}</span>
+                                                                        <a href="{{ route('admin.circles.edit', $field['circle_id']) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                                                    </div>
+                                                                @else
+                                                                    {!! $renderValue($field['value'], $field['type'] ?? 'text') !!}
+                                                                @endif
+                                                            </td>
                                                         </tr>
                                                     @endforeach
                                                 </table>
@@ -290,7 +315,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="9" class="text-center text-muted py-4">No users found.</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted py-4">No users found.</td></tr>
                 @endforelse
             </tbody>
         </table>

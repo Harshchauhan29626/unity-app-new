@@ -28,7 +28,6 @@
         $industryTagsValue = implode(', ', $industryTagsValue);
     }
     $founderId = old('founder_user_id', $defaultFounder?->id);
-    $founderLabel = old('founder_search', $defaultFounderLabel);
     $oldMeetings = old('calendar_meetings', []);
     $calendarMeetings = is_array($oldMeetings) && $oldMeetings !== []
         ? array_values($oldMeetings)
@@ -54,19 +53,12 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Circle Founder</label>
-                        <div class="position-relative">
-                            <input type="text"
-                                   name="founder_search"
-                                   id="founderSearch"
-                                   class="form-control"
-                                   value="{{ $founderLabel }}"
-                                   data-default-id="{{ $founderId }}"
-                                   data-default-label="{{ $founderLabel }}"
-                                   autocomplete="off"
-                                   placeholder="Search by name or email">
-                            <input type="hidden" name="founder_user_id" id="founderUserId" value="{{ $founderId }}">
-                            <div id="founderResults" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index: 1000;"></div>
-                        </div>
+                        <select name="founder_user_id" class="form-select" required>
+                            <option value="">Select a member</option>
+                            @foreach ($allUsers as $user)
+                                <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ \App\Support\UserOptionLabel::make($user) }}</option>
+                            @endforeach
+                        </select>
                         <div class="form-text">Defaults to the logged-in admin user.</div>
                     </div>
                     <div class="col-md-3">
@@ -86,6 +78,19 @@
                                 <option value="{{ $status }}" @selected(old('status') === $status)>{{ ucfirst($status) }}</option>
                             @endforeach
                         </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Circle Package</label>
+                        <select name="circle_package" class="form-select">
+                            <option value="">Select package</option>
+                            @foreach ($circlePackages as $package)
+                                @php($packageValue = $package['addon_code'] ?: $package['addon_id'])
+                                <option value="{{ $packageValue }}" @selected(old('circle_package') === $packageValue)>
+                                    {{ $package['name'] }} ({{ $package['addon_code'] }}) - {{ $package['amount'] }} {{ $package['currency_code'] }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">Only active Zoho addons with code starting with <code>Package-</code> are listed.</div>
                     </div>
                     <div class="col-md-12">
                         <label class="form-label">Description</label>
@@ -140,7 +145,7 @@
                         <select name="director_user_id" class="form-select">
                             <option value="">Select director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('director_user_id') === $user->id)>{{ $user->display_name ?: trim($user->first_name . ' ' . ($user->last_name ?? '')) }}</option>
+                                <option value="{{ $user->id }}" @selected(old('director_user_id') === $user->id)>{{ trim((string) ($user->display_name ?? '')) !== '' ? trim((string) $user->display_name) : (trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? ''))) !== '' ? trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? ''))) : '—') }} — {{ (isset($user->company_name) && trim((string) $user->company_name) !== '') ? trim((string) $user->company_name) : ((isset($user->business_name) && trim((string) $user->business_name) !== '') ? trim((string) $user->business_name) : 'No Company') }} — {{ (isset($user->city) && trim((string) $user->city) !== '') ? trim((string) $user->city) : 'No City' }} — {{ (trim((string) optional($user->circleMembers->first()?->circle)->name) !== '') ? trim((string) optional($user->circleMembers->first()?->circle)->name) : 'No Circle' }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -149,7 +154,7 @@
                         <select name="industry_director_user_id" class="form-select">
                             <option value="">Select industry director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('industry_director_user_id') === $user->id)>{{ $user->display_name ?: trim($user->first_name . ' ' . ($user->last_name ?? '')) }}</option>
+                                <option value="{{ $user->id }}" @selected(old('industry_director_user_id') === $user->id)>{{ trim((string) ($user->display_name ?? '')) !== '' ? trim((string) $user->display_name) : (trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? ''))) !== '' ? trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? ''))) : '—') }} — {{ (isset($user->company_name) && trim((string) $user->company_name) !== '') ? trim((string) $user->company_name) : ((isset($user->business_name) && trim((string) $user->business_name) !== '') ? trim((string) $user->business_name) : 'No Company') }} — {{ (isset($user->city) && trim((string) $user->city) !== '') ? trim((string) $user->city) : 'No City' }} — {{ (trim((string) optional($user->circleMembers->first()?->circle)->name) !== '') ? trim((string) optional($user->circleMembers->first()?->circle)->name) : 'No Circle' }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -158,7 +163,7 @@
                         <select name="ded_user_id" class="form-select">
                             <option value="">Select DED</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('ded_user_id') === $user->id)>{{ $user->display_name ?: trim($user->first_name . ' ' . ($user->last_name ?? '')) }}</option>
+                                <option value="{{ $user->id }}" @selected(old('ded_user_id') === $user->id)>{{ trim((string) ($user->display_name ?? '')) !== '' ? trim((string) $user->display_name) : (trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? ''))) !== '' ? trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? ''))) : '—') }} — {{ (isset($user->company_name) && trim((string) $user->company_name) !== '') ? trim((string) $user->company_name) : ((isset($user->business_name) && trim((string) $user->business_name) !== '') ? trim((string) $user->business_name) : 'No Company') }} — {{ (isset($user->city) && trim((string) $user->city) !== '') ? trim((string) $user->city) : 'No City' }} — {{ (trim((string) optional($user->circleMembers->first()?->circle)->name) !== '') ? trim((string) optional($user->circleMembers->first()?->circle)->name) : 'No Circle' }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -241,7 +246,7 @@
                 <div class="card-body row g-3">
                     <div class="col-md-4">
                         <label class="form-label">Country</label>
-                        <select name="country" id="countrySelect" class="form-select">
+                        <select name="country" id="countrySelect" class="form-select" required>
                             @foreach ($countries as $country)
                                 <option value="{{ $country }}" @selected(old('country', $selectedCountry) === $country)>{{ $country }}</option>
                             @endforeach
@@ -406,84 +411,7 @@
     meetingRows?.querySelectorAll('.meeting-row').forEach((row) => bindMeetingRow(row));
     addMeetingBtn?.addEventListener('click', createMeetingRow);
 
-    (() => {
-        const input = document.getElementById('founderSearch');
-        const hidden = document.getElementById('founderUserId');
-        const results = document.getElementById('founderResults');
-        if (!input || !hidden || !results) {
-            return;
-        }
 
-        const defaultId = input.dataset.defaultId || '';
-        const defaultLabel = input.dataset.defaultLabel || '';
-        let timer = null;
 
-        const clearResults = () => {
-            results.innerHTML = '';
-            results.classList.add('d-none');
-        };
-
-        const setSelection = (id, label) => {
-            hidden.value = id || '';
-            input.value = label || '';
-        };
-
-        const restoreDefault = () => {
-            if (defaultId) {
-                setSelection(defaultId, defaultLabel);
-            } else {
-                setSelection('', '');
-            }
-        };
-
-        const renderResults = (items) => {
-            results.innerHTML = '';
-            if (!items.length) {
-                const empty = document.createElement('div');
-                empty.className = 'list-group-item small text-muted';
-                empty.textContent = 'No users found';
-                results.appendChild(empty);
-            } else {
-                items.forEach((item) => {
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.className = 'list-group-item list-group-item-action';
-                    button.textContent = item.label;
-                    button.addEventListener('click', () => {
-                        setSelection(item.id, item.label);
-                        clearResults();
-                    });
-                    results.appendChild(button);
-                });
-            }
-            results.classList.remove('d-none');
-        };
-
-        const fetchResults = (query) => {
-            fetch(`{{ route('admin.users.search') }}?q=${encodeURIComponent(query)}`, {
-                headers: { 'Accept': 'application/json' },
-            })
-                .then((response) => response.json())
-                .then((data) => renderResults(Array.isArray(data) ? data : []))
-                .catch(() => clearResults());
-        };
-
-        input.addEventListener('input', () => {
-            const query = input.value.trim();
-            if (!query) {
-                restoreDefault();
-                clearResults();
-                return;
-            }
-            clearTimeout(timer);
-            timer = window.setTimeout(() => fetchResults(query), 300);
-        });
-
-        document.addEventListener('click', (event) => {
-            if (!results.contains(event.target) && event.target !== input) {
-                clearResults();
-            }
-        });
-    })();
 </script>
 @endpush

@@ -177,37 +177,18 @@
     <div class="card-body">
         @php
             $calendar = is_array($circle->calendar) ? $circle->calendar : null;
-            $meetings = is_array(data_get($calendar, 'meetings')) && data_get($calendar, 'meetings') !== []
-                ? array_values(data_get($calendar, 'meetings'))
-                : (filled(data_get($calendar, 'frequency'))
-                    ? [[
-                        'frequency' => data_get($calendar, 'frequency'),
-                        'default_meet_day' => data_get($calendar, 'default_meet_day'),
-                        'default_meet_time' => data_get($calendar, 'default_meet_time'),
-                        'monthly_rule' => data_get($calendar, 'monthly_rule'),
-                    ]]
-                    : []);
+            $meetings = is_array(data_get($calendar, 'meeting_schedule')) && data_get($calendar, 'meeting_schedule') !== []
+                ? array_values(data_get($calendar, 'meeting_schedule'))
+                : [];
             $timezone = data_get($calendar, 'timezone', 'Asia/Kolkata');
 
             $formatMeeting = static function (array $meeting): string {
                 $frequency = strtolower((string) ($meeting['frequency'] ?? ''));
-                $day = ucfirst((string) ($meeting['default_meet_day'] ?? ''));
+                $day = (string) ($meeting['day_of_week'] ?? '');
                 $time = (string) ($meeting['default_meet_time'] ?? '');
-                $rule = ucfirst((string) ($meeting['monthly_rule'] ?? ''));
 
-                if ($frequency === 'weekly' && $day !== '' && $time !== '') {
-                    return "Every {$day} at {$time}";
-                }
-
-                if (in_array($frequency, ['monthly', 'quarterly'], true) && $rule !== '' && $day !== '' && $time !== '') {
-                    $summary = "{$rule} {$day} at {$time}";
-                    if ($frequency === 'quarterly') {
-                        $summary .= ' (Quarterly)';
-                    } else {
-                        $summary .= ' (Monthly)';
-                    }
-
-                    return $summary;
+                if ($frequency !== '' && $day !== '' && $time !== '') {
+                    return "{$day} at {$time} (" . ucfirst($frequency) . ")";
                 }
 
                 return '—';
@@ -236,20 +217,7 @@
             @csrf
             <div class="col-md-6">
                 <label class="form-label">Select Peer</label>
-                <select id="userSelect" name="user_id" class="form-select" required>
-                    <option value="">Select peer</option>
-                    @foreach ($allUsers as $userOption)
-                        @php
-                            $optionName = $userOption->display_name
-                                ?? trim($userOption->first_name . ' ' . ($userOption->last_name ?? ''));
-                            $optionLabel = trim($optionName);
-                            if ($userOption->email) {
-                                $optionLabel = $optionLabel !== '' ? $optionLabel . ' - ' . $userOption->email : $userOption->email;
-                            }
-                        @endphp
-                        <option value="{{ $userOption->id }}">{{ $optionLabel }}</option>
-                    @endforeach
-                </select>
+                <select id="peer_select" name="user_id" class="form-select" required></select>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Role</label>
@@ -332,10 +300,21 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        if (window.$ && $('#userSelect').length) {
-            $('#userSelect').select2({
+        const CIRCLE_ID = @json($circle->id);
+
+        if (window.$ && $('#peer_select').length) {
+            $('#peer_select').select2({
                 width: '100%',
                 placeholder: 'Select peer',
+                allowClear: true,
+                ajax: {
+                    url: `/admin/circles/${CIRCLE_ID}/peer-options`,
+                    dataType: 'json',
+                    delay: 250,
+                    data: params => ({ q: params.term }),
+                    processResults: data => ({ results: data.results ?? [] }),
+                    cache: true,
+                },
             });
         }
     });

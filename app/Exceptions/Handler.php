@@ -24,8 +24,16 @@ class Handler extends ExceptionHandler
 
     public function register(): void
     {
-        $this->reportable(function (Throwable $e) {
-            //
+        $this->reportable(function (\Throwable $e) {
+            \Log::error('UNCAUGHT EXCEPTION', [
+                'message' => $e->getMessage(),
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'url' => request()?->fullUrl(),
+                'method' => request()?->method(),
+                'user_id' => optional(request()?->user())->id,
+            ]);
         });
     }
 

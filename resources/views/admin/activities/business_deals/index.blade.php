@@ -3,6 +3,9 @@
 @section('title', 'Business Deals')
 
 @section('content')
+    <style>
+        .peer-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; display: block; }
+    </style>
     @php
         $displayName = function (?string $display, ?string $first, ?string $last): string {
             if ($display) {
@@ -40,32 +43,20 @@
         <h1 class="h4 mb-0">Business Deals</h1>
         <div class="d-flex gap-2 align-items-center">
             <span class="badge bg-light text-dark border">Total Deals: {{ number_format($total) }}</span>
-            <a href="{{ route('admin.activities.business-deals.export', request()->query()) }}" class="btn btn-outline-primary">Export</a>
         </div>
     </div>
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <form method="GET" class="row g-2 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label small text-muted">Search created by</label>
-                    <input type="text" name="search" value="{{ $filters['search'] }}" class="form-control" placeholder="Name, email, company, or city">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">From</label>
-                    <input type="date" name="from" value="{{ $filters['from'] }}" class="form-control">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">To</label>
-                    <input type="date" name="to" value="{{ $filters['to'] }}" class="form-control">
-                </div>
-                <div class="col-md-2 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary w-100">Apply</button>
-                    <a href="{{ route('admin.activities.business-deals.index') }}" class="btn btn-outline-secondary w-100">Reset</a>
-                </div>
-            </form>
-        </div>
-    </div>
+    <form id="businessDealsFiltersForm" method="GET" action="{{ route('admin.activities.business-deals.index') }}">
+    @include('admin.components.activity-filter-bar-v2', [
+        'actionUrl' => route('admin.activities.business-deals.index'),
+        'resetUrl' => route('admin.activities.business-deals.index'),
+        'filters' => $filters,
+        'circles' => $circles ?? collect(),
+        'showExport' => true,
+        'exportUrl' => route('admin.activities.business-deals.export', request()->query()),
+        'renderFormTag' => false,
+        'formId' => 'businessDealsFiltersForm',
+    ])
 
     <div class="card shadow-sm mb-3">
         <div class="card-header bg-white">
@@ -85,8 +76,12 @@
                         <tr>
                             <td>{{ $index + 1 }}</td>
                             <td>
-                                <div>{{ $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}</div>
-                                <div class="text-muted small">{{ $member->email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null),
+                                    'company' => $member->peer_company ?? '',
+                                    'city' => $member->peer_city ?? '',
+                                    'maxWidth' => 260,
+                                ])
                             </td>
                             <td>{{ $member->total_count ?? 0 }}</td>
                         </tr>
@@ -114,32 +109,70 @@
                         <th>Media</th>
                         <th>Created At</th>
                     </tr>
+                    <tr>
+                        <th><input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="to_user" value="{{ $filters['to_user'] ?? '' }}" placeholder="To" class="form-control form-control-sm"></th>
+                        <th><input type="date" name="deal_date" value="{{ $filters['deal_date'] ?? '' }}" class="form-control form-control-sm" placeholder="dd-mm-yyyy"></th>
+                        <th><input type="number" step="0.01" name="deal_amount" value="{{ $filters['deal_amount'] ?? '' }}" placeholder="Deal Amount" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="business_type" value="{{ $filters['business_type'] ?? '' }}" placeholder="Business Type" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="comment" value="{{ $filters['comment'] ?? '' }}" placeholder="Comment" class="form-control form-control-sm"></th>
+                        <th>
+                            <select name="has_media" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                <option value="yes" @selected(($filters['has_media'] ?? '') === 'yes')>Yes</option>
+                                <option value="no" @selected(($filters['has_media'] ?? '') === 'no')>No</option>
+                            </select>
+                        </th>
+                        <th>
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                                <a href="{{ route('admin.activities.business-deals.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                            </div>
+                        </th>
+                    </tr>
                 </thead>
                 <tbody>
                     @forelse ($items as $deal)
                         @php
+                            $mediaValue = $deal->media_reference ?? null;
+                            $hasMedia = false;
+
+                            if (is_string($mediaValue)) {
+                                $trim = trim($mediaValue);
+                                $hasMedia = ($trim !== '' && $trim !== 'null' && $trim !== '[]' && $trim !== '{}');
+                            } elseif (is_array($mediaValue)) {
+                                $hasMedia = count($mediaValue) > 0;
+                            } elseif (! is_null($mediaValue)) {
+                                $hasMedia = true;
+                            }
+
                             $actorName = $displayName($deal->actor_display_name ?? null, $deal->actor_first_name ?? null, $deal->actor_last_name ?? null);
                             $peerName = $displayName($deal->peer_display_name ?? null, $deal->peer_first_name ?? null, $deal->peer_last_name ?? null);
-                            $mediaInfo = $mediaSummary($deal->media ?? null);
                         @endphp
                         <tr>
                             <td>
-                                <div>{{ $actorName }}</div>
-                                <div class="text-muted small">{{ $deal->actor_email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $deal->from_user_name ?? $actorName,
+                                    'company' => $deal->from_company ?? '',
+                                    'city' => $deal->from_city ?? '',
+                                ])
                             </td>
                             <td>
-                                <div>{{ $peerName }}</div>
-                                <div class="text-muted small">{{ $deal->peer_email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $deal->to_user_name ?? $peerName,
+                                    'company' => $deal->to_company ?? '',
+                                    'city' => $deal->to_city ?? '',
+                                ])
                             </td>
                             <td>{{ $formatDate($deal->deal_date ?? null) }}</td>
                             <td>{{ $deal->deal_amount ?? '—' }}</td>
                             <td>{{ $deal->business_type ?? '—' }}</td>
                             <td class="text-muted">{{ $deal->comment ?? '—' }}</td>
                             <td>
-                                @if ($mediaInfo['has'])
-                                    <span class="badge bg-success">Yes ({{ $mediaInfo['count'] }})</span>
+                                @if ($hasMedia)
+                                    <span class="badge bg-success">Yes</span>
                                     <button type="button" class="btn btn-sm btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#mediaViewerModal" data-media-source="media-json-{{ $deal->id }}">View</button>
-                                    <script type="application/json" id="media-json-{{ $deal->id }}">{{ e(json_encode(is_string($deal->media ?? null) ? json_decode($deal->media ?? '[]', true) : ($deal->media ?? []))) }}</script>
+                                    <script type="application/json" id="media-json-{{ $deal->id }}">{{ e(json_encode(is_string($deal->media_reference ?? null) ? json_decode($deal->media_reference ?? '[]', true) : ($deal->media_reference ?? []))) }}</script>
                                 @else
                                     <span class="text-muted">No</span>
                                 @endif
@@ -155,6 +188,8 @@
             </table>
         </div>
     </div>
+
+    </form>
 
     <div class="mt-3">
         {{ $items->links() }}

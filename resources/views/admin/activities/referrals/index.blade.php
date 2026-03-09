@@ -3,6 +3,13 @@
 @section('title', 'Referrals')
 
 @section('content')
+    <style>
+        .peer-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
     @php
         $displayName = function (?string $display, ?string $first, ?string $last): string {
             if ($display) {
@@ -19,57 +26,26 @@
         $formatDate = function ($value): string {
             return $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d') : '—';
         };
-
-        $mediaSummary = function ($media): array {
-            if (! $media) {
-                return ['has' => false, 'count' => 0];
-            }
-
-            $decoded = is_string($media) ? json_decode($media, true) : $media;
-
-            if (is_array($decoded)) {
-                $count = count($decoded);
-                return ['has' => $count > 0, 'count' => $count];
-            }
-
-            return ['has' => true, 'count' => 1];
-        };
     @endphp
 
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
         <h1 class="h4 mb-0">Referrals</h1>
         <div class="d-flex gap-2 align-items-center">
             <span class="badge bg-light text-dark border">Total Referrals: {{ number_format($total) }}</span>
-            <a href="{{ route('admin.activities.referrals.export', request()->query()) }}" class="btn btn-outline-primary">Export</a>
         </div>
     </div>
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <form method="GET" class="row g-2 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label small text-muted">Search created by</label>
-                    <input type="text" name="search" value="{{ $filters['search'] }}" class="form-control" placeholder="Name, email, company, or city">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">Referral type</label>
-                    <input type="text" name="referral_type" value="{{ $filters['referral_type'] }}" class="form-control" placeholder="Type">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small text-muted">From</label>
-                    <input type="date" name="from" value="{{ $filters['from'] }}" class="form-control">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small text-muted">To</label>
-                    <input type="date" name="to" value="{{ $filters['to'] }}" class="form-control">
-                </div>
-                <div class="col-md-1 d-flex flex-column gap-2">
-                    <button type="submit" class="btn btn-primary">Apply</button>
-                    <a href="{{ route('admin.activities.referrals.index') }}" class="btn btn-outline-secondary">Reset</a>
-                </div>
-            </form>
-        </div>
-    </div>
+    <form id="referralsFiltersForm" method="GET" action="{{ route('admin.activities.referrals.index') }}">
+    @include('admin.components.activity-filter-bar-v2', [
+        'actionUrl' => route('admin.activities.referrals.index'),
+        'resetUrl' => route('admin.activities.referrals.index'),
+        'filters' => $filters,
+        'circles' => $circles ?? collect(),
+        'showExport' => true,
+        'exportUrl' => route('admin.activities.referrals.export', request()->query()),
+        'renderFormTag' => false,
+        'formId' => 'referralsFiltersForm',
+    ])
 
     <div class="card shadow-sm mb-3">
         <div class="card-header bg-white">
@@ -89,8 +65,12 @@
                         <tr>
                             <td>{{ $index + 1 }}</td>
                             <td>
-                                <div>{{ $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}</div>
-                                <div class="text-muted small">{{ $member->email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null),
+                                    'company' => $member->peer_company ?? '',
+                                    'city' => $member->peer_city ?? '',
+                                    'maxWidth' => 260,
+                                ])
                             </td>
                             <td>{{ $member->total_count ?? 0 }}</td>
                         </tr>
@@ -122,22 +102,59 @@
                         <th>Media</th>
                         <th>Created At</th>
                     </tr>
+                    <tr>
+                        <th><input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="to_user" value="{{ $filters['to_user'] ?? '' }}" placeholder="To" class="form-control form-control-sm"></th>
+                        <th>
+                            <select name="type" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                @foreach (($types ?? collect()) as $type)
+                                    <option value="{{ $type }}" @selected(($filters['type'] ?? '') === $type || ($filters['referral_type'] ?? '') === $type)>{{ $type }}</option>
+                                @endforeach
+                            </select>
+                        </th>
+                        <th><input type="date" name="referral_date" value="{{ $filters['referral_date'] ?? '' }}" class="form-control form-control-sm" placeholder="dd-mm-yyyy"></th>
+                        <th><input type="text" name="referral_of" value="{{ $filters['referral_of'] ?? '' }}" placeholder="Referral Of" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="phone" value="{{ $filters['phone'] ?? '' }}" placeholder="Phone" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="email" value="{{ $filters['email'] ?? '' }}" placeholder="Email" class="form-control form-control-sm"></th>
+                        <th class="text-muted">—</th>
+                        <th><input type="number" name="hot_value" value="{{ $filters['hot_value'] ?? '' }}" placeholder="Hot" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="remarks" value="{{ $filters['remarks'] ?? '' }}" placeholder="Remarks" class="form-control form-control-sm"></th>
+                        <th>
+                            <select name="has_media" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                <option value="1" @selected(($filters['has_media'] ?? '') === '1')>Yes</option>
+                                <option value="0" @selected(($filters['has_media'] ?? '') === '0')>No</option>
+                            </select>
+                        </th>
+                        <th>
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                                <a href="{{ route('admin.activities.referrals.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                            </div>
+                        </th>
+                    </tr>
                 </thead>
                 <tbody>
                     @forelse ($items as $referral)
                         @php
                             $actorName = $displayName($referral->actor_display_name ?? null, $referral->actor_first_name ?? null, $referral->actor_last_name ?? null);
                             $peerName = $displayName($referral->peer_display_name ?? null, $referral->peer_first_name ?? null, $referral->peer_last_name ?? null);
-                            $mediaInfo = $mediaSummary($referral->media ?? null);
                         @endphp
                         <tr>
                             <td>
-                                <div>{{ $actorName }}</div>
-                                <div class="text-muted small">{{ $referral->actor_email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $referral->from_user_name ?? $actorName,
+                                    'company' => $referral->from_company ?? '',
+                                    'city' => $referral->from_city ?? '',
+                                ])
                             </td>
                             <td>
-                                <div>{{ $peerName }}</div>
-                                <div class="text-muted small">{{ $referral->peer_email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $referral->to_user_name ?? $peerName,
+                                    'company' => $referral->to_company ?? '',
+                                    'city' => $referral->to_city ?? '',
+                                ])
                             </td>
                             <td>{{ $referral->referral_type ?? '—' }}</td>
                             <td>{{ $formatDate($referral->referral_date ?? null) }}</td>
@@ -148,10 +165,17 @@
                             <td>{{ $referral->hot_value ?? '—' }}</td>
                             <td class="text-muted">{{ $referral->remarks ?? '—' }}</td>
                             <td>
-                                @if ($mediaInfo['has'])
-                                    <span class="badge bg-success">Yes ({{ $mediaInfo['count'] }})</span>
-                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#mediaViewerModal" data-media-source="media-json-{{ $referral->id }}">View</button>
-                                    <script type="application/json" id="media-json-{{ $referral->id }}">{{ e(json_encode(is_string($referral->media ?? null) ? json_decode($referral->media ?? '[]', true) : ($referral->media ?? []))) }}</script>
+                                @if ((int) ($referral->has_media ?? 0) === 1)
+                                    <span class="badge bg-success">Yes</span>
+                                    @if (!empty($referral->media_reference))
+                                        @php
+                                            $mediaReference = (string) $referral->media_reference;
+                                            $mediaUrl = str_starts_with($mediaReference, 'http://') || str_starts_with($mediaReference, 'https://')
+                                                ? $mediaReference
+                                                : url('/api/v1/files/' . $mediaReference);
+                                        @endphp
+                                        <a href="{{ $mediaUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary ms-2">View</a>
+                                    @endif
                                 @else
                                     <span class="text-muted">No</span>
                                 @endif
@@ -168,90 +192,9 @@
         </div>
     </div>
 
+    </form>
+
     <div class="mt-3">
         {{ $items->links() }}
     </div>
-
-    <div class="modal fade" id="mediaViewerModal" tabindex="-1" aria-labelledby="mediaViewerModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="mediaViewerModalLabel">Media</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body" data-media-container>
-                    <p class="text-muted mb-0">No media available.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        document.querySelectorAll('[data-media-source]').forEach((button) => {
-            button.addEventListener('click', () => {
-                const modal = document.getElementById('mediaViewerModal');
-                const container = modal.querySelector('[data-media-container]');
-                const sourceId = button.getAttribute('data-media-source');
-                const scriptTag = document.getElementById(sourceId);
-                let items = [];
-
-                if (scriptTag) {
-                    try {
-                        items = JSON.parse(scriptTag.textContent || '[]');
-                    } catch (error) {
-                        items = [];
-                    }
-                }
-
-                container.innerHTML = '';
-
-                if (!Array.isArray(items) || items.length === 0) {
-                    container.innerHTML = '<p class="text-muted mb-0">No media available.</p>';
-                    return;
-                }
-
-                items.forEach((item, index) => {
-                    let url = null;
-
-                    if (typeof item === 'string') {
-                        url = item;
-                    } else if (item && typeof item === 'object') {
-                        url = item.url || item.id || null;
-                    }
-
-                    if (!url) {
-                        return;
-                    }
-
-                    if (!url.startsWith('http') && /^[0-9a-fA-F-]{36}$/.test(url)) {
-                        url = `/api/v1/files/${url}`;
-                    }
-
-                    const wrapper = document.createElement('div');
-                    wrapper.classList.add('border', 'rounded', 'p-2', 'mb-3');
-
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.target = '_blank';
-                    link.rel = 'noopener';
-                    link.textContent = `Media ${index + 1}`;
-                    link.classList.add('d-block', 'mb-2');
-
-                    wrapper.appendChild(link);
-
-                    if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) {
-                        const img = document.createElement('img');
-                        img.src = url;
-                        img.alt = `Media ${index + 1}`;
-                        img.classList.add('img-thumbnail');
-                        img.style.maxWidth = '200px';
-                        img.style.maxHeight = '200px';
-                        wrapper.appendChild(img);
-                    }
-
-                    container.appendChild(wrapper);
-                });
-            });
-        });
-    </script>
 @endsection

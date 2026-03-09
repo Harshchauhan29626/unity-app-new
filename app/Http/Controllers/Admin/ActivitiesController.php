@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ActivitiesExportRequest;
 use App\Models\BusinessDeal;
@@ -23,126 +24,226 @@ use Illuminate\View\View;
 // NOTE: After deploy run `php artisan optimize:clear` (optional) `composer dump-autoload`.
 class ActivitiesController extends Controller
 {
+
     public function index(Request $request): View
     {
-        $search = trim((string) $request->query('search', ''));
-        $membership = $request->query('membership_status');
-        $perPage = $request->integer('per_page') ?: 20;
-        $perPage = in_array($perPage, [10, 20, 25, 50, 100], true) ? $perPage : 20;
+        $filters = $this->buildFilters($request);
+
         $admin = auth('admin')->user();
 
-        $query = User::query()->select([
-            'id',
-            'email',
-            'first_name',
-            'last_name',
-            'display_name',
-            'membership_status',
-        ]);
+        $summaryQuery = $this->buildPeerSummaryQuery($filters, $admin);
 
-        $this->applyCircleScopeToUsersQuery($query, $admin);
+        $members = (clone $summaryQuery)
+            ->orderByDesc('p2p_completed_count')
+            ->orderByDesc('testimonials_count')
+            ->orderByDesc('referrals_count')
+            ->orderBy('peer_name')
+            ->paginate($filters['per_page'])
+            ->withQueryString();
 
-        if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $like = "%{$search}%";
-                $q->where('display_name', 'ILIKE', $like)
-                    ->orWhere('first_name', 'ILIKE', $like)
-                    ->orWhere('last_name', 'ILIKE', $like)
-                    ->orWhere('email', 'ILIKE', $like)
-                    ->orWhere('company_name', 'ILIKE', $like)
-                    ->orWhere('city', 'ILIKE', $like)
-                    ->orWhereHas('city', function ($cityQuery) use ($like) {
-                        $cityQuery->where('name', 'ILIKE', $like);
-                    });
-            });
-        }
-
-        if ($membership && $membership !== 'all') {
-            $query->where('membership_status', $membership);
-        }
-
-        $members = $query->orderBy('display_name')->paginate($perPage)->withQueryString();
-
-        $memberIds = $members->pluck('id')->all();
-
-        if ($memberIds === []) {
-            $testimonialCounts = [];
-            $referralCounts = [];
-            $businessDealCounts = [];
-            $p2pMeetingCounts = [];
-            $requirementCounts = [];
-            $leaderInterestCounts = [];
-            $peerRecommendationCounts = [];
-            $visitorRegistrationCounts = [];
-        } else {
-            $testimonialQuery = Testimonial::query()
-                ->where('is_deleted', false)
-                ->whereNull('deleted_at');
-            $this->applyCircleScopeToActivityQuery($testimonialQuery, $admin, 'from_user_id', 'to_user_id');
-            $testimonialCounts = $this->countByMember($testimonialQuery, $memberIds, 'from_user_id', 'to_user_id');
-
-            $referralQuery = Referral::query()
-                ->where('is_deleted', false)
-                ->whereNull('deleted_at');
-            $this->applyCircleScopeToActivityQuery($referralQuery, $admin, 'from_user_id', 'to_user_id');
-            $referralCounts = $this->countByMember($referralQuery, $memberIds, 'from_user_id', 'to_user_id');
-
-            $businessDealQuery = BusinessDeal::query()
-                ->where('is_deleted', false)
-                ->whereNull('deleted_at');
-            $this->applyCircleScopeToActivityQuery($businessDealQuery, $admin, 'from_user_id', 'to_user_id');
-            $businessDealCounts = $this->countByMember($businessDealQuery, $memberIds, 'from_user_id', 'to_user_id');
-
-            $p2pMeetingQuery = P2pMeeting::query()
-                ->where('is_deleted', false)
-                ->whereNull('deleted_at');
-            $this->applyCircleScopeToActivityQuery($p2pMeetingQuery, $admin, 'initiator_user_id', 'peer_user_id');
-            $p2pMeetingCounts = $this->countByMember($p2pMeetingQuery, $memberIds, 'initiator_user_id', 'peer_user_id');
-
-            $requirementQuery = Requirement::query()
-                ->whereNull('deleted_at');
-            $this->applyCircleScopeToActivityQuery($requirementQuery, $admin, 'user_id', null);
-            $requirementCounts = $this->countByMember($requirementQuery, $memberIds, 'user_id', null);
-
-            $leaderInterestQuery = LeaderInterestSubmission::query();
-            $this->applyCircleScopeToActivityQuery($leaderInterestQuery, $admin, 'user_id', null);
-            $leaderInterestCounts = $this->countByMember($leaderInterestQuery, $memberIds, 'user_id', null);
-
-            $peerRecommendationQuery = PeerRecommendation::query();
-            $this->applyCircleScopeToActivityQuery($peerRecommendationQuery, $admin, 'user_id', null);
-            $peerRecommendationCounts = $this->countByMember($peerRecommendationQuery, $memberIds, 'user_id', null);
-
-            $visitorRegistrationQuery = VisitorRegistration::query();
-            $this->applyCircleScopeToActivityQuery($visitorRegistrationQuery, $admin, 'user_id', null);
-            $visitorRegistrationCounts = $this->countByMember($visitorRegistrationQuery, $memberIds, 'user_id', null);
-        }
-
-        $membershipStatuses = User::query()
-            ->whereNotNull('membership_status')
-            ->distinct()
-            ->pluck('membership_status')
-            ->sort()
-            ->values();
+        $circles = $this->buildCircleFilterOptions($admin);
 
         return view('admin.activities.index', [
             'members' => $members,
-            'filters' => [
-                'search' => $search,
-                'membership_status' => $membership,
-                'per_page' => $perPage,
-            ],
-            'membershipStatuses' => $membershipStatuses,
-            'counts' => [
-                'testimonials' => $testimonialCounts,
-                'referrals' => $referralCounts,
-                'business_deals' => $businessDealCounts,
-                'p2p_meetings' => $p2pMeetingCounts,
-                'requirements' => $requirementCounts,
-                'become_a_leader' => $leaderInterestCounts,
-                'recommend_peer' => $peerRecommendationCounts,
-                'register_visitor' => $visitorRegistrationCounts,
-            ],
+            'filters' => $filters,
+            'circles' => $circles,
         ]);
+    }
+
+    private function buildPeerSummaryQuery(array $filters, $admin)
+    {
+        $from = $filters['from_dt'] ?? null;
+        $to = $filters['to_dt'] ?? null;
+
+        $query = User::query()
+            ->from('users')
+            ->leftJoin('cities', 'cities.id', '=', 'users.city_id')
+            ->select([
+                'users.id',
+                'users.email',
+                'users.company_name',
+                DB::raw("trim(coalesce(users.display_name, '' )) as display_name"),
+                DB::raw("coalesce(nullif(trim(coalesce(users.display_name, '')), ''), nullif(trim(concat(coalesce(users.first_name, ''), ' ', coalesce(users.last_name, ''))), ''), users.email) as peer_name"),
+                DB::raw("coalesce(nullif(trim(coalesce(users.city, '')), ''), cities.name) as city_name"),
+            ]);
+
+        $this->applyCircleScopeToUsersQuery($query, $admin);
+
+        $query->selectSub($this->primaryCircleSubquery('name'), 'circle_name');
+
+        $query->selectSub(function ($sub) use ($from, $to) {
+            $sub->from('testimonials')
+                ->selectRaw('count(*)')
+                ->whereColumn('testimonials.from_user_id', 'users.id')
+                ->where('testimonials.is_deleted', false)
+                ->whereNull('testimonials.deleted_at');
+            $this->applyDateRangeToSubQuery($sub, $from, $to, 'testimonials.created_at');
+        }, 'testimonials_count');
+
+        $query->selectSub(function ($sub) use ($from, $to) {
+            $sub->from('referrals')
+                ->selectRaw('count(*)')
+                ->whereColumn('referrals.from_user_id', 'users.id')
+                ->where('referrals.is_deleted', false)
+                ->whereNull('referrals.deleted_at');
+            $this->applyDateRangeToSubQuery($sub, $from, $to, 'referrals.created_at');
+        }, 'referrals_count');
+
+        $query->selectSub(function ($sub) use ($from, $to) {
+            $sub->from('business_deals')
+                ->selectRaw('count(*)')
+                ->whereColumn('business_deals.from_user_id', 'users.id')
+                ->where('business_deals.is_deleted', false)
+                ->whereNull('business_deals.deleted_at');
+            $this->applyDateRangeToSubQuery($sub, $from, $to, 'business_deals.created_at');
+        }, 'business_deals_count');
+
+        $query->selectSub(function ($sub) use ($from, $to) {
+            $sub->from('p2p_meetings')
+                ->selectRaw('count(*)')
+                ->whereColumn('p2p_meetings.initiator_user_id', 'users.id')
+                ->where('p2p_meetings.is_deleted', false)
+                ->whereNull('p2p_meetings.deleted_at')
+                ->whereDate('p2p_meetings.meeting_date', '<', now()->toDateString());
+            $this->applyDateRangeToSubQuery($sub, $from, $to, 'p2p_meetings.created_at');
+        }, 'p2p_completed_count');
+
+        $query->selectSub(function ($sub) use ($from, $to) {
+            $sub->from('requirements')
+                ->selectRaw('count(*)')
+                ->whereColumn('requirements.user_id', 'users.id')
+                ->whereNull('requirements.deleted_at');
+            $this->applyDateRangeToSubQuery($sub, $from, $to, 'requirements.created_at');
+        }, 'requirements_count');
+
+        $query->selectSub(function ($sub) use ($from, $to) {
+            $sub->from('leader_interest_submissions')
+                ->selectRaw('count(*)')
+                ->whereColumn('leader_interest_submissions.user_id', 'users.id');
+            $this->applyDateRangeToSubQuery($sub, $from, $to, 'leader_interest_submissions.created_at');
+        }, 'become_leader_count');
+
+        $query->selectSub(function ($sub) use ($from, $to) {
+            $sub->from('peer_recommendations')
+                ->selectRaw('count(*)')
+                ->whereColumn('peer_recommendations.user_id', 'users.id');
+            $this->applyDateRangeToSubQuery($sub, $from, $to, 'peer_recommendations.created_at');
+        }, 'recommend_peer_count');
+
+        $query->selectSub(function ($sub) use ($from, $to) {
+            $sub->from('visitor_registrations')
+                ->selectRaw('count(*)')
+                ->whereColumn('visitor_registrations.user_id', 'users.id');
+            $this->applyDateRangeToSubQuery($sub, $from, $to, 'visitor_registrations.created_at');
+        }, 'register_visitor_count');
+
+        if ($filters['q'] !== '') {
+            $like = "%{$filters['q']}%";
+            $query->where(function ($q) use ($like) {
+                $q->where('users.display_name', 'ILIKE', $like)
+                    ->orWhere('users.first_name', 'ILIKE', $like)
+                    ->orWhere('users.last_name', 'ILIKE', $like)
+                    ->orWhere('users.company_name', 'ILIKE', $like)
+                    ->orWhere('users.city', 'ILIKE', $like)
+                    ->orWhere('cities.name', 'ILIKE', $like);
+            });
+        }
+
+
+        if (! empty($filters['circle_id']) && $filters['circle_id'] !== 'any') {
+            $query->whereExists(function ($sub) use ($filters) {
+                $sub->selectRaw('1')
+                    ->from('circle_members as cm_filter')
+                    ->whereColumn('cm_filter.user_id', 'users.id')
+                    ->where('cm_filter.status', 'approved')
+                    ->whereNull('cm_filter.deleted_at')
+                    ->where('cm_filter.circle_id', $filters['circle_id']);
+            });
+        }
+
+        return $query;
+    }
+
+    private function applyDateRangeToSubQuery($subQuery, ?Carbon $from, ?Carbon $to, string $column = 'created_at'): void
+    {
+        if ($from) {
+            $subQuery->where($column, '>=', $from);
+        }
+
+        if ($to) {
+            $subQuery->where($column, '<=', $to);
+        }
+    }
+
+    private function buildFilters(Request $request, int $defaultPerPage = 20): array
+    {
+        $perPage = $request->integer('per_page') ?: $defaultPerPage;
+        $perPage = in_array($perPage, [10, 20, 25, 50, 100, 500], true) ? $perPage : $defaultPerPage;
+
+        $filters = [
+            'q' => trim((string) $request->input('q', $request->input('search', ''))),
+            'circle_id' => $request->input('circle_id', ''),
+            'from' => $request->input('from'),
+            'to' => $request->input('to'),
+            'per_page' => $perPage,
+        ];
+
+        $filters['from_dt'] = $this->normalizeDateTime($filters['from'], false);
+        $filters['to_dt'] = $this->normalizeDateTime($filters['to'], true);
+
+        return $filters;
+    }
+
+    private function normalizeDateTime($value, bool $isEndOfDay): ?Carbon
+    {
+        $value = is_string($value) ? trim($value) : null;
+        if (! $value) {
+            return null;
+        }
+
+        try {
+            $parsed = Carbon::parse($value);
+
+            if (! str_contains($value, 'T') && ! str_contains($value, ':')) {
+                return $isEndOfDay ? $parsed->endOfDay() : $parsed->startOfDay();
+            }
+
+            return $parsed;
+        } catch (\Throwable $exception) {
+            return null;
+        }
+    }
+
+    private function primaryCircleSubquery(string $column)
+    {
+        return DB::table('circle_members as cm_primary')
+            ->join('circles as c_primary', 'c_primary.id', '=', 'cm_primary.circle_id')
+            ->whereColumn('cm_primary.user_id', 'users.id')
+            ->where('cm_primary.status', 'approved')
+            ->whereNull('cm_primary.deleted_at')
+            ->orderByRaw("case when cm_primary.role::text in ('chair', 'vice_chair', 'secretary', 'founder', 'director', 'committee_leader') then 0 else 1 end")
+            ->orderByDesc('cm_primary.joined_at')
+            ->orderByDesc('cm_primary.created_at')
+            ->limit(1)
+            ->select("c_primary.{$column}");
+    }
+
+    private function buildCircleFilterOptions($admin)
+    {
+        $query = DB::table('circles')
+            ->select('circles.id', 'circles.name')
+            ->orderBy('circles.name');
+
+        if (\App\Support\AdminAccess::isCircleScoped($admin)) {
+            $circleId = AdminCircleScope::resolveCircleId($admin);
+            if ($circleId) {
+                $query->where('circles.id', $circleId);
+            } else {
+                $query->whereRaw('1=0');
+            }
+        }
+
+        return $query->get();
     }
 
     public function testimonials(User $member, Request $request): View
@@ -269,7 +370,8 @@ class ActivitiesController extends Controller
     {
         $validated = $request->validated();
         $activityType = $validated['activity_type'];
-        $filename = 'activity_' . $activityType . '_' . now()->format('Ymd_His') . '.csv';
+        $filenamePrefix = $activityType === 'summary' ? 'activities_summary' : 'activity_' . $activityType;
+        $filename = $filenamePrefix . '_' . now()->format('Ymd_His') . '.csv';
 
         return response()->streamDownload(function () use ($request, $activityType) {
             @ini_set('zlib.output_compression', '0');
@@ -321,13 +423,31 @@ class ActivitiesController extends Controller
     private function dateFilters(Request $request): array
     {
         return [
-            'from' => $request->query('from'),
-            'to' => $request->query('to'),
+            'from' => $request->input('from'),
+            'to' => $request->input('to'),
         ];
     }
 
     private function buildHeaderRow(string $activityType): array
     {
+        if ($activityType === 'summary') {
+            return [
+                'Peer Name',
+                'Email',
+                'Company',
+                'City',
+                'Circle',
+                'Testimonials',
+                'Referrals',
+                'Business Deals',
+                'P2P Meetings Completed',
+                'Requirements',
+                'Become A Leader',
+                'Recommend A Peer',
+                'Register A Visitor',
+            ];
+        }
+
         return collect($this->exportColumns($activityType))
             ->pluck('label')
             ->all();
@@ -335,6 +455,43 @@ class ActivitiesController extends Controller
 
     private function streamRowsAsCsv($handle, string $activityType, ActivitiesExportRequest $request): void
     {
+        if ($activityType === 'summary') {
+            $filters = $this->buildFilters($request, 500);
+
+            $summaryQuery = $this->buildPeerSummaryQuery($filters, auth('admin')->user());
+
+            if (($request->input('scope') ?? 'selected') === 'selected') {
+                $summaryQuery->whereIn('users.id', $request->input('selected_member_ids', []));
+            }
+
+            $summaryQuery
+                ->orderByDesc('p2p_completed_count')
+                ->orderByDesc('testimonials_count')
+                ->orderByDesc('referrals_count')
+                ->orderBy('peer_name')
+                ->chunk(500, function ($rows) use ($handle) {
+                    foreach ($rows as $row) {
+                        fputcsv($handle, [
+                            $row->peer_name,
+                            $row->email,
+                            $row->company_name,
+                            $row->city_name,
+                            $row->circle_name ?: 'No Circle',
+                            (int) ($row->testimonials_count ?? 0),
+                            (int) ($row->referrals_count ?? 0),
+                            (int) ($row->business_deals_count ?? 0),
+                            (int) ($row->p2p_completed_count ?? 0),
+                            (int) ($row->requirements_count ?? 0),
+                            (int) ($row->become_leader_count ?? 0),
+                            (int) ($row->recommend_peer_count ?? 0),
+                            (int) ($row->register_visitor_count ?? 0),
+                        ]);
+                    }
+                });
+
+            return;
+        }
+
         $query = $this->buildExportQuery($activityType, $request, $request->validated());
         $columns = $this->exportColumns($activityType);
 
@@ -387,8 +544,7 @@ class ActivitiesController extends Controller
                     $like = "%{$search}%";
                     $q->where('member_user.display_name', 'ILIKE', $like)
                         ->orWhere('member_user.first_name', 'ILIKE', $like)
-                        ->orWhere('member_user.last_name', 'ILIKE', $like)
-                        ->orWhere('member_user.email', 'ILIKE', $like);
+                        ->orWhere('member_user.last_name', 'ILIKE', $like);
                 });
             }
 

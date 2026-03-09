@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
+use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
 
@@ -27,14 +28,22 @@ class ActivitiesBusinessDealsController extends Controller
                 'activity.business_type',
                 'activity.comment',
                 'activity.created_at',
+                DB::raw($this->hasMediaSelectExpression() . ' as has_media'),
+                DB::raw($this->mediaReferenceSelectExpression() . ' as media_reference'),
                 'actor.display_name as actor_display_name',
                 'actor.first_name as actor_first_name',
                 'actor.last_name as actor_last_name',
                 'actor.email as actor_email',
+                DB::raw("coalesce(nullif(trim(concat_ws(' ', actor.first_name, actor.last_name)), ''), actor.display_name, '—') as from_user_name"),
+                DB::raw("coalesce(actor.company_name, '') as from_company"),
+                DB::raw("coalesce(actor.city, '') as from_city"),
                 'peer.display_name as peer_display_name',
                 'peer.first_name as peer_first_name',
                 'peer.last_name as peer_last_name',
                 'peer.email as peer_email',
+                DB::raw("coalesce(nullif(trim(concat_ws(' ', peer.first_name, peer.last_name)), ''), peer.display_name, '—') as to_user_name"),
+                DB::raw("coalesce(peer.company_name, '') as to_company"),
+                DB::raw("coalesce(peer.city, '') as to_city"),
             ])
             ->orderByDesc('activity.deal_date')
             ->orderByDesc('activity.created_at')
@@ -48,6 +57,7 @@ class ActivitiesBusinessDealsController extends Controller
             'filters' => $filters,
             'topMembers' => $topMembers,
             'total' => $total,
+            'circles' => $this->circleOptions(),
         ]);
     }
 
@@ -99,7 +109,8 @@ class ActivitiesBusinessDealsController extends Controller
                         'peer.first_name as peer_first_name',
                         'peer.last_name as peer_last_name',
                         'peer.email as peer_email',
-                        DB::raw('NULL as media'),
+                        DB::raw($this->hasMediaSelectExpression() . ' as has_media'),
+                        DB::raw($this->mediaReferenceSelectExpression() . ' as media_reference'),
                     ])
                     ->orderBy('activity.created_at')
                     ->orderBy('activity.id')
@@ -126,9 +137,9 @@ class ActivitiesBusinessDealsController extends Controller
                                 $row->deal_amount ?? '',
                                 $row->business_type ?? '',
                                 $row->comment ?? '',
-                                $this->mediaCount($row->media ?? null),
-                                $this->mediaUrls($row->media ?? null),
-                                $this->mediaJson($row->media ?? null),
+                                (int) ($row->has_media ?? 0),
+                                $this->mediaReferenceForExport($row->media_reference ?? null),
+                                $this->mediaReferenceForExport($row->media_reference ?? null),
                                 $row->created_at ?? '',
                             ]);
                         }
@@ -146,10 +157,23 @@ class ActivitiesBusinessDealsController extends Controller
 
     private function filters(Request $request): array
     {
+        $from = $request->query('from');
+        $to = $request->query('to');
+
         return [
-            'search' => trim((string) $request->query('search', '')),
-            'from' => $request->query('from'),
-            'to' => $request->query('to'),
+            'q' => trim((string) $request->query('q', $request->query('search', ''))),
+            'from' => $from,
+            'to' => $to,
+            'from_at' => $this->parseDayBoundary($from, false),
+            'to_at' => $this->parseDayBoundary($to, true),
+            'circle_id' => (string) $request->query('circle_id', ''),
+            'from_user' => trim((string) $request->query('from_user', '')),
+            'to_user' => trim((string) $request->query('to_user', '')),
+            'deal_date' => trim((string) $request->query('deal_date', '')),
+            'deal_amount' => trim((string) $request->query('deal_amount', '')),
+            'business_type' => trim((string) $request->query('business_type', '')),
+            'comment' => trim((string) $request->query('comment', '')),
+            'has_media' => (string) $request->query('has_media', ''),
         ];
     }
 
@@ -161,26 +185,77 @@ class ActivitiesBusinessDealsController extends Controller
             ->whereNull('activity.deleted_at')
             ->where('activity.is_deleted', false);
 
-        if ($filters['search'] !== '') {
+        if ($filters['q'] !== '') {
             $query->leftJoin('cities as actor_city', 'actor_city.id', '=', 'actor.city_id');
-            $like = '%' . $filters['search'] . '%';
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['q']) . '%';
             $query->where(function ($q) use ($like) {
                 $q->where('actor.display_name', 'ILIKE', $like)
                     ->orWhere('actor.first_name', 'ILIKE', $like)
                     ->orWhere('actor.last_name', 'ILIKE', $like)
-                    ->orWhere('actor.email', 'ILIKE', $like)
                     ->orWhere('actor.company_name', 'ILIKE', $like)
                     ->orWhere('actor.city', 'ILIKE', $like)
                     ->orWhere('actor_city.name', 'ILIKE', $like);
             });
         }
 
-        if ($filters['from']) {
-            $query->whereDate('activity.created_at', '>=', $filters['from']);
+        if ($filters['from_at']) {
+            $query->where('activity.created_at', '>=', $filters['from_at']);
         }
 
-        if ($filters['to']) {
-            $query->whereDate('activity.created_at', '<=', $filters['to']);
+        if ($filters['to_at']) {
+            $query->where('activity.created_at', '<=', $filters['to_at']);
+        }
+
+        if (! empty($filters['circle_id'])) {
+            $query->whereExists(function ($sub) use ($filters) {
+                $sub->selectRaw('1')
+                    ->from('circle_members as cm_filter')
+                    ->whereColumn('cm_filter.user_id', 'actor.id')
+                    ->where('cm_filter.circle_id', $filters['circle_id']);
+            });
+        }
+
+        if ($filters['from_user'] !== '') {
+            $like = $this->escapeLike($filters['from_user']);
+            $query->where(function ($inner) use ($like) {
+                $inner->whereRaw("coalesce(nullif(trim(concat_ws(' ', actor.first_name, actor.last_name)), ''), actor.display_name, '') ILIKE ?", ["%{$like}%"])
+                    ->orWhere('actor.company_name', 'ILIKE', "%{$like}%")
+                    ->orWhere('actor.city', 'ILIKE', "%{$like}%");
+            });
+        }
+
+        if ($filters['to_user'] !== '') {
+            $like = $this->escapeLike($filters['to_user']);
+            $query->where(function ($inner) use ($like) {
+                $inner->whereRaw("coalesce(nullif(trim(concat_ws(' ', peer.first_name, peer.last_name)), ''), peer.display_name, '') ILIKE ?", ["%{$like}%"])
+                    ->orWhere('peer.company_name', 'ILIKE', "%{$like}%")
+                    ->orWhere('peer.city', 'ILIKE', "%{$like}%");
+            });
+        }
+
+        if ($filters['deal_date'] !== '') {
+            $dealDate = $this->parseInputDate($filters['deal_date']);
+            if ($dealDate) {
+                $query->whereDate('activity.deal_date', $dealDate->toDateString());
+            }
+        }
+
+        if ($filters['deal_amount'] !== '') {
+            $query->whereRaw('CAST(activity.deal_amount AS TEXT) ILIKE ?', ['%' . $this->escapeLike($filters['deal_amount']) . '%']);
+        }
+
+        if ($filters['business_type'] !== '') {
+            $query->where('activity.business_type', 'ILIKE', '%' . $this->escapeLike($filters['business_type']) . '%');
+        }
+
+        if ($filters['comment'] !== '') {
+            $query->where('activity.comment', 'ILIKE', '%' . $this->escapeLike($filters['comment']) . '%');
+        }
+
+        if ($filters['has_media'] === 'yes') {
+            $this->applyHasMediaFilter($query, true);
+        } elseif ($filters['has_media'] === 'no') {
+            $this->applyHasMediaFilter($query, false);
         }
 
         $this->applyScopeToActivityQuery($query, 'activity.from_user_id', 'activity.to_user_id');
@@ -190,10 +265,21 @@ class ActivitiesBusinessDealsController extends Controller
 
     private function topMembers(Request $request)
     {
+        $filters = $this->filters($request);
+
         $query = DB::table('business_deals as activity')
             ->join('users as actor', 'actor.id', '=', 'activity.from_user_id')
             ->whereNull('activity.deleted_at')
             ->where('activity.is_deleted', false);
+
+        if (! empty($filters['circle_id'])) {
+            $query->whereExists(function ($sub) use ($filters) {
+                $sub->selectRaw('1')
+                    ->from('circle_members as cm_filter')
+                    ->whereColumn('cm_filter.user_id', 'actor.id')
+                    ->where('cm_filter.circle_id', $filters['circle_id']);
+            });
+        }
 
         $this->applyScopeToActivityQuery($query, 'activity.from_user_id', 'activity.to_user_id');
 
@@ -203,7 +289,9 @@ class ActivitiesBusinessDealsController extends Controller
                 'actor.display_name',
                 'actor.first_name',
                 'actor.last_name',
-                'actor.email'
+                'actor.email',
+                'actor.company_name',
+                'actor.city'
             )
             ->orderByDesc(DB::raw('count(*)'))
             ->limit(5)
@@ -213,9 +301,118 @@ class ActivitiesBusinessDealsController extends Controller
                 'actor.first_name',
                 'actor.last_name',
                 'actor.email',
+                'actor.company_name',
+                'actor.city',
+                DB::raw("coalesce(nullif(trim(concat_ws(' ', actor.first_name, actor.last_name)), ''), actor.display_name, '—') as peer_name"),
+                DB::raw("coalesce(actor.company_name, '') as peer_company"),
+                DB::raw("coalesce(actor.city, '') as peer_city"),
                 DB::raw('count(*) as total_count'),
             ])
             ->get();
+    }
+
+    private function circleOptions()
+    {
+        return DB::table('circles')
+            ->select(['id', 'name'])
+            ->orderBy('name')
+            ->get();
+    }
+
+    private function dealMediaColumn(): ?string
+    {
+        static $column;
+        if (func_num_args() === 0 && isset($column)) {
+            return $column;
+        }
+        foreach (['media', 'media_id', 'media_file_id', 'file_id', 'attachment_id', 'media_url'] as $candidate) {
+            if (Schema::hasColumn('business_deals', $candidate)) {
+                $column = $candidate;
+                return $column;
+            }
+        }
+        $column = null;
+        return null;
+    }
+
+    private function hasMediaSelectExpression(): string
+    {
+        $column = $this->dealMediaColumn();
+        if ($column === 'media_url') {
+            return "CASE WHEN NULLIF(activity.media_url, '') IS NULL THEN 0 ELSE 1 END";
+        }
+        if ($column === 'media') {
+            return "CASE WHEN activity.media IS NULL OR activity.media::text = '[]' THEN 0 ELSE 1 END";
+        }
+        if ($column) {
+            return "CASE WHEN activity.{$column} IS NULL THEN 0 ELSE 1 END";
+        }
+        return '0';
+    }
+
+    private function mediaReferenceSelectExpression(): string
+    {
+        $column = $this->dealMediaColumn();
+        return $column ? "activity.{$column}" : 'NULL';
+    }
+
+    private function applyHasMediaFilter($query, bool $hasMedia): void
+    {
+        $column = $this->dealMediaColumn();
+        if (! $column) {
+            if ($hasMedia) {
+                $query->whereRaw('1 = 0');
+            }
+            return;
+        }
+        $qualified = "activity.{$column}";
+        if ($column === 'media_url') {
+            $query->whereRaw($hasMedia ? "NULLIF({$qualified}, '') IS NOT NULL" : "NULLIF({$qualified}, '') IS NULL");
+            return;
+        }
+        if ($column === 'media') {
+            $query->whereRaw($hasMedia ? "{$qualified} IS NOT NULL AND {$qualified}::text <> '[]'" : "{$qualified} IS NULL OR {$qualified}::text = '[]'");
+            return;
+        }
+        $hasMedia ? $query->whereNotNull($qualified) : $query->whereNull($qualified);
+    }
+
+    private function mediaReferenceForExport($value): string
+    {
+        return $value === null ? '' : (string) $value;
+    }
+
+    private function parseInputDate(string $value): ?Carbon
+    {
+        try {
+            return Carbon::createFromFormat('d-m-Y', $value);
+        } catch (\Throwable $exception) {
+            try {
+                return Carbon::parse($value);
+            } catch (\Throwable $exception) {
+                return null;
+            }
+        }
+    }
+
+    private function escapeLike(string $value): string
+    {
+        return str_replace(['%', '_'], ['\\%', '\\_'], $value);
+    }
+
+    private function parseDayBoundary($value, bool $endOfDay): ?Carbon
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            $parsed = Carbon::parse($value);
+
+            return $endOfDay ? $parsed->endOfDay() : $parsed->startOfDay();
+        } catch (\Throwable $exception) {
+            return null;
+        }
     }
 
     private function applyScopeToActivityQuery($query, string $primaryColumn, ?string $peerColumn): void
@@ -234,83 +431,4 @@ class ActivitiesBusinessDealsController extends Controller
         return $name !== '' ? $name : '—';
     }
 
-    private function mediaCount($media): int
-    {
-        return count($this->normalizeMedia($media));
-    }
-
-    private function mediaUrls($media): string
-    {
-        $urls = [];
-
-        foreach ($this->normalizeMedia($media) as $item) {
-            $url = $this->resolveMediaUrl($item);
-            if ($url) {
-                $urls[] = $url;
-            }
-        }
-
-        return implode(',', $urls);
-    }
-
-    private function mediaJson($media): string
-    {
-        $normalized = $this->normalizeMedia($media);
-
-        return $normalized ? json_encode($normalized) : '';
-    }
-
-    private function normalizeMedia($media): array
-    {
-        if (! $media) {
-            return [];
-        }
-
-        if (is_string($media)) {
-            $decoded = json_decode($media, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                return $decoded;
-            }
-
-            return [$media];
-        }
-
-        if (is_array($media)) {
-            return $media;
-        }
-
-        return [$media];
-    }
-
-    private function resolveMediaUrl($item): ?string
-    {
-        if (is_array($item)) {
-            $url = $item['url'] ?? null;
-            $id = $item['id'] ?? null;
-
-            if ($url) {
-                return $url;
-            }
-
-            if ($id && Str::isUuid($id)) {
-                return url('/api/v1/files/' . $id);
-            }
-
-            return $id ?: null;
-        }
-
-        if (is_string($item)) {
-            if (str_starts_with($item, 'http://') || str_starts_with($item, 'https://')) {
-                return $item;
-            }
-
-            if (Str::isUuid($item)) {
-                return url('/api/v1/files/' . $item);
-            }
-
-            return $item;
-        }
-
-        return null;
-    }
 }

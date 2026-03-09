@@ -15,22 +15,18 @@ class LoginHistoryController extends Controller
     public function index(Request $request): View
     {
         $validated = $request->validate([
-            'name' => ['nullable', 'string', 'max:255'],
-            'city' => ['nullable', 'string', 'max:255'],
-            'company' => ['nullable', 'string', 'max:255'],
+            'q' => ['nullable', 'string', 'max:255'],
             'circle_id' => ['nullable', 'string'],
-            'joined' => ['nullable', 'in:all,joined,not_joined'],
+            'join_status' => ['nullable', 'in:all,joined,not_joined'],
             'from' => ['nullable', 'date_format:Y-m-d\TH:i'],
             'to' => ['nullable', 'date_format:Y-m-d\TH:i'],
             'last_login_date' => ['nullable', 'date_format:Y-m-d'],
             'per_page' => ['nullable', 'integer', 'in:10,20,50,100'],
         ]);
 
-        $name = trim((string) ($validated['name'] ?? ''));
-        $city = trim((string) ($validated['city'] ?? ''));
-        $company = trim((string) ($validated['company'] ?? ''));
+        $q = trim((string) ($validated['q'] ?? ''));
         $circleId = trim((string) ($validated['circle_id'] ?? ''));
-        $joined = (string) ($validated['joined'] ?? 'all');
+        $joinStatus = (string) ($validated['join_status'] ?? 'all');
         $fromInput = (string) ($validated['from'] ?? '');
         $toInput = (string) ($validated['to'] ?? '');
         $lastLoginDate = (string) ($validated['last_login_date'] ?? '');
@@ -52,14 +48,19 @@ class LoginHistoryController extends Controller
 
         $hasUsersName = Schema::hasColumn('users', 'name');
         $hasUsersCompany = Schema::hasColumn('users', 'company');
+        $hasUsersBusinessName = Schema::hasColumn('users', 'business_name');
 
         $peerNameExpression = $hasUsersName
             ? "COALESCE(NULLIF(users.display_name, ''), users.name)"
             : "NULLIF(users.display_name, '')";
 
-        $companyExpression = $hasUsersCompany
-            ? "COALESCE(users.company_name, users.company, '')"
-            : "COALESCE(users.company_name, '')";
+        $companyExpression = $hasUsersBusinessName
+            ? ($hasUsersCompany
+                ? "COALESCE(NULLIF(users.company_name, ''), NULLIF(users.company, ''), NULLIF(users.business_name, ''), '')"
+                : "COALESCE(NULLIF(users.company_name, ''), NULLIF(users.business_name, ''), '')")
+            : ($hasUsersCompany
+                ? "COALESCE(NULLIF(users.company_name, ''), NULLIF(users.company, ''), '')"
+                : "COALESCE(NULLIF(users.company_name, ''), '')");
 
         $circleOptions = Circle::query()
             ->orderBy('name')
@@ -86,34 +87,29 @@ class LoginHistoryController extends Controller
                     ->where('circle_members.status', '=', 'approved');
             })
             ->leftJoin('circles', 'circles.id', '=', 'circle_members.circle_id')
-            ->when($name !== '', function ($query) use ($name, $hasUsersName) {
-                $likeQuery = '%' . $name . '%';
+            ->when($q !== '', function ($query) use ($q, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                $likeQuery = '%' . $q . '%';
 
-                $query->where(function ($innerQuery) use ($likeQuery, $hasUsersName) {
+                $query->where(function ($innerQuery) use ($likeQuery, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
                     $innerQuery->where('users.display_name', 'ilike', $likeQuery)
-                        ->orWhere('users.email', 'ilike', $likeQuery);
+                        ->orWhere('users.first_name', 'ilike', $likeQuery)
+                        ->orWhere('users.last_name', 'ilike', $likeQuery)
+                        ->orWhere('users.email', 'ilike', $likeQuery)
+                        ->orWhere('users.company_name', 'ilike', $likeQuery)
+                        ->orWhere('users.city', 'ilike', $likeQuery)
+                        ->orWhere('cities.name', 'ilike', $likeQuery)
+                        ->orWhere('circles.name', 'ilike', $likeQuery);
 
                     if ($hasUsersName) {
                         $innerQuery->orWhere('users.name', 'ilike', $likeQuery);
                     }
-                });
-            })
-            ->when($city !== '', function ($query) use ($city) {
-                $likeQuery = '%' . $city . '%';
-
-                $query->where(function ($innerQuery) use ($likeQuery) {
-                    $innerQuery->where('users.city', 'ilike', $likeQuery)
-                        ->orWhere('cities.name', 'ilike', $likeQuery);
-                });
-            })
-            ->when($company !== '', function ($query) use ($company, $hasUsersCompany) {
-                $likeQuery = '%' . $company . '%';
-
-                $query->where(function ($innerQuery) use ($likeQuery, $hasUsersCompany) {
-                    $innerQuery->where('users.company_name', 'ilike', $likeQuery);
 
                     if ($hasUsersCompany) {
                         $innerQuery->orWhere('users.company', 'ilike', $likeQuery);
+                    }
+
+                    if ($hasUsersBusinessName) {
+                        $innerQuery->orWhere('users.business_name', 'ilike', $likeQuery);
                     }
                 });
             })
@@ -122,29 +118,30 @@ class LoginHistoryController extends Controller
             ->groupBy(
                 'users.id',
                 'users.display_name',
+                'users.first_name',
+                'users.last_name',
                 'users.email',
                 'users.city',
                 'cities.name',
                 'users.company_name',
                 'login_last.last_login_at',
                 ...($hasUsersName ? ['users.name'] : []),
-                ...($hasUsersCompany ? ['users.company'] : [])
+                ...($hasUsersCompany ? ['users.company'] : []),
+                ...($hasUsersBusinessName ? ['users.business_name'] : [])
             )
-            ->when($joined === 'joined', fn ($query) => $query->havingRaw('COUNT(DISTINCT circles.id) > 0'))
-            ->when($joined === 'not_joined', fn ($query) => $query->havingRaw('COUNT(DISTINCT circles.id) = 0'))
+            ->when($joinStatus === 'joined', fn ($query) => $query->havingRaw('COUNT(DISTINCT circles.id) > 0'))
+            ->when($joinStatus === 'not_joined', fn ($query) => $query->havingRaw('COUNT(DISTINCT circles.id) = 0'))
             ->orderByDesc('login_last.last_login_at')
             ->paginate($perPage)
-            ->withQueryString();
+            ->appends($request->query());
 
         return view('admin.login_history.index', [
             'records' => $records,
             'circleOptions' => $circleOptions,
             'filters' => [
-                'name' => $name,
-                'city' => $city,
-                'company' => $company,
+                'q' => $q,
                 'circle_id' => $circleId,
-                'joined' => in_array($joined, ['all', 'joined', 'not_joined'], true) ? $joined : 'all',
+                'join_status' => in_array($joinStatus, ['all', 'joined', 'not_joined'], true) ? $joinStatus : 'all',
                 'from' => $fromInput,
                 'to' => $toInput,
                 'last_login_date' => $lastLoginDate,

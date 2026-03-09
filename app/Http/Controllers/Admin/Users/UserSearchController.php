@@ -23,25 +23,31 @@ class UserSearchController extends Controller
                 $query->where('display_name', 'ILIKE', "%{$search}%")
                     ->orWhere('first_name', 'ILIKE', "%{$search}%")
                     ->orWhere('last_name', 'ILIKE', "%{$search}%")
-                    ->orWhere('email', 'ILIKE', "%{$search}%");
+                    ->orWhere('email', 'ILIKE', "%{$search}%")
+                    ->orWhere('company_name', 'ILIKE', "%{$search}%")
+                    ->orWhere('city', 'ILIKE', "%{$search}%");
             })
-            ->orderBy('display_name')
+            ->with(['circleMembers' => function ($query) {
+                $query->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->orderByDesc('joined_at')
+                    ->with(['circle:id,name']);
+            }])
+            ->orderByRaw("COALESCE(NULLIF(display_name,''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)),''), email) ASC")
             ->limit(10)
-            ->get(['id', 'display_name', 'first_name', 'last_name', 'email']);
+            ->get(['id', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'company', 'business_name', 'city']);
 
         $results = $users->map(function (User $user): array {
-            $name = $user->display_name
-                ?? trim($user->first_name . ' ' . ($user->last_name ?? ''));
-
-            $label = trim($name);
-
-            if ($user->email) {
-                $label = $label !== '' ? $label . " ({$user->email})" : $user->email;
-            }
+            [$name, $company, $city, $circle] = $user->adminDisplayParts();
 
             return [
                 'id' => $user->id,
-                'label' => $label !== '' ? $label : (string) $user->email,
+                'name' => $name,
+                'company' => $company,
+                'city' => $city,
+                'circle' => $circle,
+                'label' => $user->adminDisplayLabel(),
+                'label_inline' => $user->adminDisplayInlineLabel(),
             ];
         })->values();
 

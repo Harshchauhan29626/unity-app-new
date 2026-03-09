@@ -11,7 +11,7 @@
             <label for="perPage" class="form-label mb-0 small text-muted">Rows per page:</label>
             <select id="perPage" name="per_page" form="loginHistoryFiltersForm" class="form-select form-select-sm" style="width: 90px;">
                 @foreach ([10, 20, 50, 100] as $size)
-                    <option value="{{ $size }}" @selected((int) ($filters['per_page'] ?? 20) === $size)>{{ $size }}</option>
+                    <option value="{{ $size }}" @selected(($filters['per_page'] ?? 20) == $size)>{{ $size }}</option>
                 @endforeach
             </select>
         </div>
@@ -51,8 +51,6 @@
             <thead class="table-light">
                 <tr>
                     <th>Peer Name</th>
-                    <th>City</th>
-                    <th>Company</th>
                     <th>Circles</th>
                     <th>Last Login</th>
                 </tr>
@@ -60,31 +58,11 @@
                     <th>
                         <input
                             type="text"
-                            name="name"
+                            name="q"
                             form="loginHistoryFiltersForm"
                             class="form-control form-control-sm"
-                            placeholder="Name or email"
-                            value="{{ $filters['name'] ?? '' }}"
-                        >
-                    </th>
-                    <th>
-                        <input
-                            type="text"
-                            name="city"
-                            form="loginHistoryFiltersForm"
-                            class="form-control form-control-sm"
-                            placeholder="City"
-                            value="{{ $filters['city'] ?? '' }}"
-                        >
-                    </th>
-                    <th>
-                        <input
-                            type="text"
-                            name="company"
-                            form="loginHistoryFiltersForm"
-                            class="form-control form-control-sm"
-                            placeholder="Company"
-                            value="{{ $filters['company'] ?? '' }}"
+                            placeholder="Peer/Company/City/Circle"
+                            value="{{ $filters['q'] ?? '' }}"
                         >
                     </th>
                     <th>
@@ -94,10 +72,10 @@
                                 <option value="{{ $id }}" @selected(($filters['circle_id'] ?? '') == (string) $id)>{{ $name }}</option>
                             @endforeach
                         </select>
-                        <select name="joined" form="loginHistoryFiltersForm" class="form-select form-select-sm mt-2">
-                            <option value="all" @selected(($filters['joined'] ?? 'all') === 'all')>All</option>
-                            <option value="joined" @selected(($filters['joined'] ?? 'all') === 'joined')>Joined</option>
-                            <option value="not_joined" @selected(($filters['joined'] ?? 'all') === 'not_joined')>Not Joined</option>
+                        <select name="join_status" form="loginHistoryFiltersForm" class="form-select form-select-sm mt-2">
+                            <option value="all" @selected(($filters['join_status'] ?? 'all') === 'all')>All</option>
+                            <option value="joined" @selected(($filters['join_status'] ?? 'all') === 'joined')>Joined</option>
+                            <option value="not_joined" @selected(($filters['join_status'] ?? 'all') === 'not_joined')>Not Joined</option>
                         </select>
                     </th>
                     <th>
@@ -117,13 +95,21 @@
             </thead>
             <tbody>
                 @forelse ($records as $record)
+                    @php
+                        $peerName = $record->peer_name ?: '—';
+                        $peerCompany = $record->company ?: 'No Company';
+                        $peerCity = $record->city ?: 'No City';
+                        $peerCircle = ! empty($record->circles_names) ? explode(', ', $record->circles_names)[0] : 'No Circle';
+                    @endphp
                     <tr>
                         <td>
-                            <div class="fw-semibold">{{ $record->peer_name ?: '—' }}</div>
-                            <small class="text-muted">{{ $record->email ?: '—' }}</small>
+                            <div class="d-flex flex-column">
+                                <div class="fw-semibold text-dark">{{ $peerName }}</div>
+                                <div class="text-muted small">{{ $peerCompany }}</div>
+                                <div class="text-muted small">{{ $peerCity }}</div>
+                                <div class="text-muted small">{{ $peerCircle }}</div>
+                            </div>
                         </td>
-                        <td>{{ $record->city ?: '—' }}</td>
-                        <td>{{ $record->company ?: '—' }}</td>
                         <td>
                             <span class="badge bg-light text-dark">{{ (int) $record->circles_count }}</span>
                             @if ((int) $record->circles_count === 0)
@@ -136,7 +122,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="text-center text-muted py-4">No records found.</td>
+                        <td colspan="3" class="text-center text-muted py-4">No records found.</td>
                     </tr>
                 @endforelse
             </tbody>

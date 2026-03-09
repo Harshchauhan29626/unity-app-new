@@ -9,71 +9,200 @@ use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\User;
+use App\Support\UserOptionLabel;
+use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
+use Throwable;
 
 class CircleController extends Controller
 {
+    public function __construct(private readonly ZohoBillingService $zohoBillingService)
+    {
+    }
+
     public function index(Request $request): View
     {
-        $search = $request->input('q', $request->input('search'));
-        $status = $request->input('status');
-        $cityId = $request->input('city_id');
-        $type = $request->input('type');
+        $search = trim((string) $request->query('search', ''));
+        $cityId = trim((string) $request->query('city_id', ''));
+        $country = trim((string) $request->query('country', ''));
+        $type = trim((string) $request->query('type', ''));
+        $status = trim((string) $request->query('status', ''));
+
+        $filters = [
+            'circle_name' => trim((string) $request->query('circle_name', '')),
+            'founder' => trim((string) $request->query('founder', '')),
+            'city' => trim((string) $request->query('city', '')),
+            'city_id' => $cityId,
+            'search' => $search,
+            'country' => $country,
+            'type' => $type,
+            'industry_tags' => trim((string) $request->query('industry_tags', '')),
+            'meeting_mode' => trim((string) $request->query('meeting_mode', '')),
+            'meeting_frequency' => trim((string) $request->query('meeting_frequency', '')),
+            'launch_date' => trim((string) $request->query('launch_date', '')),
+            'director' => trim((string) $request->query('director', '')),
+            'industry_director' => trim((string) $request->query('industry_director', '')),
+            'ded' => trim((string) $request->query('ded', '')),
+            'status' => $status,
+        ];
+
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
 
-        $query = Circle::query()->with(['founder', 'director', 'industryDirector', 'ded', 'city'])->withCount('members');
+        $query = Circle::query()
+            ->leftJoin('cities as city', 'city.id', '=', 'circles.city_id')
+            ->select([
+                'circles.*',
+                'city.name as city_name',
+                'city.country as city_country',
+            ])
+            ->with(['founder', 'director', 'industryDirector', 'ded', 'city', 'coverFile'])
+            ->withCount('members');
 
         if (is_array($allowedCircleIds)) {
             if ($allowedCircleIds === []) {
                 $query->whereRaw('1=0');
             } else {
-                $query->whereIn('id', $allowedCircleIds);
+                $query->whereIn('circles.id', $allowedCircleIds);
             }
         }
 
-        if ($search) {
-            $query->where('name', 'ILIKE', "%{$search}%");
+        if ($search !== '') {
+            $like = '%'.$search.'%';
+
+            $query->where(function ($searchQuery) use ($like): void {
+                $searchQuery->where('circles.name', 'ILIKE', $like)
+                    ->orWhere('circles.slug', 'ILIKE', $like)
+                    ->orWhereHas('founder', function ($founderQuery) use ($like): void {
+                        $founderQuery->where('display_name', 'ILIKE', $like)
+                            ->orWhere('first_name', 'ILIKE', $like)
+                            ->orWhere('last_name', 'ILIKE', $like)
+                            ->orWhereRaw("CONCAT_WS(' ', first_name, last_name) ILIKE ?", [$like]);
+                    });
+            });
         }
 
-        if ($status) {
-            $query->where('status', $status);
+        if ($filters['circle_name'] !== '') {
+            $query->where('circles.name', $filters['circle_name']);
         }
 
-        if ($cityId) {
-            $query->where('city_id', $cityId);
+        if ($cityId !== '' && $cityId !== 'any') {
+            $query->where('circles.city_id', $cityId);
+        } elseif ($filters['city'] !== '') {
+            $query->where('city.name', $filters['city']);
         }
 
-        if ($type) {
-            $query->where('type', $type);
+        if ($country !== '' && $country !== 'any' && Schema::hasColumn('circles', 'country')) {
+            $query->where('circles.country', $country);
         }
 
-        $circles = $query->orderByDesc('created_at')
+        if ($type !== '' && $type !== 'any' && Schema::hasColumn('circles', 'type')) {
+            $query->where('circles.type', $type);
+        }
+
+        if ($filters['meeting_mode'] !== '') {
+            if (Schema::hasColumn('circles', 'meeting_mode')) {
+                $query->where('circles.meeting_mode', $filters['meeting_mode']);
+            } elseif (Schema::hasColumn('circles', 'calendar')) {
+                $query->whereRaw("calendar->'settings'->>'meeting_mode' = ?", [$filters['meeting_mode']]);
+            }
+        }
+
+        if ($filters['meeting_frequency'] !== '') {
+            if (Schema::hasColumn('circles', 'meeting_frequency')) {
+                $query->where('circles.meeting_frequency', $filters['meeting_frequency']);
+            } elseif (Schema::hasColumn('circles', 'calendar')) {
+                $query->whereRaw("calendar->'settings'->>'meeting_frequency' = ?", [$filters['meeting_frequency']]);
+            }
+        }
+
+        if ($status !== '' && $status !== 'any' && in_array($status, Circle::STATUS_OPTIONS, true) && Schema::hasColumn('circles', 'status')) {
+            $query->where('circles.status', $status);
+        }
+
+        if ($filters['industry_tags'] !== '' && Schema::hasColumn('circles', 'industry_tags')) {
+            $query->whereRaw('CAST(industry_tags AS TEXT) ILIKE ?', ['%'.$filters['industry_tags'].'%']);
+        }
+
+
+
+        if ($filters['launch_date'] !== '') {
+            if (Schema::hasColumn('circles', 'launch_date')) {
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['launch_date'])) {
+                    $query->whereDate('circles.launch_date', $filters['launch_date']);
+                } else {
+                    $query->whereRaw('CAST(circles.launch_date AS TEXT) ILIKE ?', ['%'.$filters['launch_date'].'%']);
+                }
+            } elseif (Schema::hasColumn('circles', 'calendar')) {
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['launch_date'])) {
+                    $query->whereRaw("(calendar->'settings'->>'launch_date')::date = ?", [$filters['launch_date']]);
+                } else {
+                    $query->whereRaw("COALESCE(calendar->'settings'->>'launch_date', '') ILIKE ?", ['%'.$filters['launch_date'].'%']);
+                }
+            }
+        }
+
+        if ($filters['founder'] !== '') {
+            $this->applyUserNameFilter($query, 'founder', $filters['founder']);
+        }
+
+        if ($filters['director'] !== '') {
+            $this->applyUserNameFilter($query, 'director', $filters['director']);
+        }
+
+        if ($filters['industry_director'] !== '') {
+            $this->applyUserNameFilter($query, 'industryDirector', $filters['industry_director']);
+        }
+
+        if ($filters['ded'] !== '') {
+            $this->applyUserNameFilter($query, 'ded', $filters['ded']);
+        }
+
+        $circles = $query
+            ->orderByDesc('circles.created_at')
             ->paginate(20)
-            ->withQueryString();
+            ->appends($request->query());
 
-        $statuses = Circle::query()
-            ->select('status')
-            ->whereNotNull('status')
+        $circleNames = Circle::query()
+            ->whereNotNull('name')
+            ->select('name')
             ->distinct()
-            ->orderBy('status')
-            ->pluck('status');
+            ->orderBy('name')
+            ->pluck('name');
 
-        $cities = City::query()->orderBy('name')->get();
+        $cities = City::query()
+            ->whereNotNull('name')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $countryOptions = Schema::hasColumn('circles', 'country')
+            ? Circle::query()->whereNotNull('country')->select('country')->distinct()->orderBy('country')->pluck('country')
+            : City::query()->whereNotNull('country')->select('country')->distinct()->orderBy('country')->pluck('country');
+
+        $typeOptions = Schema::hasColumn('circles', 'type')
+            ? Circle::query()->whereNotNull('type')->select('type')->distinct()->orderBy('type')->pluck('type')
+            : collect();
+
+        $meetingModeOptions = collect(Circle::MEETING_MODE_OPTIONS);
+
+        $meetingFrequencyOptions = collect(Circle::MEETING_FREQUENCY_OPTIONS);
+
+        $statusOptions = collect(Circle::STATUS_OPTIONS);
 
         return view('admin.circles.index', [
             'circles' => $circles,
-            'statuses' => $statuses,
+            'filters' => $filters,
+            'circleNames' => $circleNames,
             'cities' => $cities,
-            'types' => Circle::TYPE_OPTIONS,
-            'filters' => [
-                'search' => $search,
-                'status' => $status,
-                'city_id' => $cityId,
-                'type' => $type,
-            ],
+            'countryOptions' => $countryOptions,
+            'typeOptions' => $typeOptions,
+            'meetingModeOptions' => $meetingModeOptions,
+            'meetingFrequencyOptions' => $meetingFrequencyOptions,
+            'statusOptions' => $statusOptions,
         ]);
     }
 
@@ -100,21 +229,46 @@ class CircleController extends Controller
             'meetingModes' => Circle::MEETING_MODE_OPTIONS,
             'meetingFrequencies' => Circle::MEETING_FREQUENCY_OPTIONS,
             'allUsers' => $this->allUsers(),
+            'circlePackages' => $this->circlePackageOptions(),
         ]);
     }
 
     public function store(StoreCircleRequest $request): RedirectResponse
     {
-        $data = $request->validated();
-        $data['industry_tags'] = $this->normalizeIndustryTags($data['industry_tags'] ?? null);
-        $data['calendar'] = $this->normalizeCalendarMeetings($request->input('calendar_meetings', []));
+        $validated = $request->validated();
+        $circlePackage = $this->resolveCirclePackage($validated['circle_package'] ?? null);
 
-        if (empty($data['status'])) {
-            unset($data['status']);
+        $payload = [
+            'name' => $validated['name'] ?? null,
+            'type' => $validated['type'] ?? null,
+            'status' => $validated['status'] ?? null,
+            'city_id' => $validated['city_id'] ?? null,
+            'country' => $validated['country'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'purpose' => $validated['purpose'] ?? null,
+            'announcement' => $validated['announcement'] ?? null,
+            'industry_tags' => $this->normalizeIndustryTags($validated['industry_tags'] ?? null),
+        ];
+
+        if (empty($payload['status'])) {
+            unset($payload['status']);
         }
 
-        $circle = new Circle($data);
+        $payload = array_merge($payload, $this->buildCirclePackagePayload($circlePackage));
+        $payload = $this->pruneEmptyPayload($payload);
+
+        $circle = new Circle();
+        $circle->forceFill($this->filterCircleDataByExistingColumns($payload));
+
+        $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+        $calendar = $this->mergeCalendarSettings($calendar, $validated, $request);
+        $circle->calendar = $calendar;
+
         $circle->save();
+        $circle->refresh();
+
+        Cache::forget('admin.circles.index');
+        Cache::forget('admin.circles.filters');
 
         return redirect()
             ->route('admin.circles.show', $circle)
@@ -144,7 +298,7 @@ class CircleController extends Controller
 
         $defaultFounder = $circle->founder ?? $this->defaultFounderUser();
         $countries = $this->countriesList();
-        $selectedCountry = $request->input('country', $circle->city?->country ?? $countries->first() ?? 'India');
+        $selectedCountry = $request->input('country', $circle->country ?? $circle->city?->country ?? $countries->first() ?? 'India');
 
         $cities = City::query()
             ->when($selectedCountry, fn ($query) => $query->where('country', $selectedCountry))
@@ -163,24 +317,63 @@ class CircleController extends Controller
             'meetingModes' => Circle::MEETING_MODE_OPTIONS,
             'meetingFrequencies' => Circle::MEETING_FREQUENCY_OPTIONS,
             'allUsers' => $this->allUsers(),
+            'circlePackages' => $this->circlePackageOptions(),
         ]);
     }
 
     public function update(UpdateCircleRequest $request, Circle $circle): RedirectResponse
     {
-        $data = $request->validated();
-        $data['industry_tags'] = $this->normalizeIndustryTags($data['industry_tags'] ?? null);
-        $data['calendar'] = $this->normalizeCalendarMeetings($request->input('calendar_meetings', []));
+        $validated = $request->validated();
+
+        $circlePackage = $this->resolveCirclePackage($validated['circle_package'] ?? null);
+
+        $allowed = [];
+        foreach ([
+            'name',
+            'city',
+            'country',
+            'type',
+            'status',
+            'industry_tags',
+            'founder_user_id',
+            'city_id',
+            'description',
+            'purpose',
+            'announcement',
+        ] as $column) {
+            if (Schema::hasColumn('circles', $column) && array_key_exists($column, $validated)) {
+                $allowed[$column] = $validated[$column];
+            }
+        }
+
+        if (Schema::hasColumn('circles', 'industry_tags')) {
+            $allowed['industry_tags'] = $this->normalizeIndustryTags($validated['industry_tags'] ?? null);
+        }
+
+        $allowed = array_merge($allowed, $this->buildCirclePackagePayload($circlePackage));
+        $allowed = $this->pruneEmptyPayload($allowed);
+
+        if (Schema::hasColumn('circles', 'country') && ! array_key_exists('country', $allowed)) {
+            $allowed['country'] = $circle->country;
+        }
 
         $originalName = $circle->name;
 
-        $circle->fill($data);
+        $circle->fill($allowed);
 
-        if ($circle->name !== $originalName) {
+        $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+        $calendar = $this->mergeCalendarSettings($calendar, $validated, $request);
+        $circle->calendar = $calendar;
+
+        if (array_key_exists('name', $allowed) && $circle->name !== $originalName) {
             $circle->slug = Circle::generateUniqueSlug($circle->name, $circle->id);
         }
 
         $circle->save();
+        $circle->refresh();
+
+        Cache::forget('admin.circles.index');
+        Cache::forget('admin.circles.filters');
 
         return redirect()
             ->route('admin.circles.show', $circle)
@@ -194,6 +387,20 @@ class CircleController extends Controller
         return redirect()
             ->route('admin.circles.index')
             ->with('success', 'Circle deleted successfully.');
+    }
+
+    private function applyUserNameFilter($query, string $relation, string $search): void
+    {
+        $query->whereHas($relation, function ($userQuery) use ($search): void {
+            $like = '%'.$search.'%';
+
+            $userQuery->where(function ($nameQuery) use ($like): void {
+                $nameQuery->where('display_name', 'ILIKE', $like)
+                    ->orWhere('first_name', 'ILIKE', $like)
+                    ->orWhere('last_name', 'ILIKE', $like)
+                    ->orWhereRaw("CONCAT_WS(' ', first_name, last_name) ILIKE ?", [$like]);
+            });
+        });
     }
 
     private function normalizeIndustryTags(null|string|array $tags): ?array
@@ -275,6 +482,67 @@ class CircleController extends Controller
         return $payload;
     }
 
+
+    private function circlePackageOptions(): array
+    {
+        try {
+            return $this->zohoBillingService->listCirclePackageAddons(true);
+        } catch (Throwable $throwable) {
+            report($throwable);
+            session()->flash('error', 'Unable to load Circle Package addons from Zoho Billing right now.');
+
+            return [];
+        }
+    }
+
+    private function resolveCirclePackage(?string $selection): ?array
+    {
+        $selection = trim((string) $selection);
+
+        if ($selection === '') {
+            return null;
+        }
+
+        try {
+            $addon = $this->zohoBillingService->findCirclePackageAddonByCodeOrId($selection, true);
+        } catch (Throwable $throwable) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'circle_package' => 'Failed to fetch selected Circle Package from Zoho Billing.',
+            ]);
+        }
+
+        if (! is_array($addon)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'circle_package' => 'Selected Circle Package is invalid or inactive.',
+            ]);
+        }
+
+        return $addon;
+    }
+
+    private function buildCirclePackagePayload(?array $circlePackage): array
+    {
+        if (! is_array($circlePackage)) {
+            return [
+                'zoho_addon_code' => null,
+                'zoho_addon_id' => null,
+                'zoho_addon_name' => null,
+                'circle_price_amount' => null,
+                'circle_price_currency' => null,
+                'circle_duration_months' => null,
+            ];
+        }
+
+        return [
+            'zoho_addon_code' => $circlePackage['addon_code'] ?? null,
+            'zoho_addon_id' => $circlePackage['addon_id'] ?? null,
+            'zoho_addon_name' => $circlePackage['name'] ?? null,
+            'circle_price_amount' => $circlePackage['amount'] ?? null,
+            'circle_price_currency' => $circlePackage['currency_code'] ?? null,
+            'circle_duration_months' => 12,
+        ];
+    }
+
     private function countriesList()
     {
         $countries = City::query()
@@ -299,16 +567,118 @@ class CircleController extends Controller
             return null;
         }
 
-        return User::query()->where('email', $admin->email)->first();
+        return User::query()
+            ->where('email', $admin->email)
+            ->with(['circleMembers' => function ($query) {
+                $query->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->orderByDesc('joined_at')
+                    ->with(['circle:id,name']);
+            }])
+            ->first();
+    }
+
+    private function mergeCalendarSettings(array $calendar, array $validated, Request $request): array
+    {
+        $meetingMode = trim((string) ($validated['meeting_mode'] ?? ''));
+        data_set($calendar, 'settings.meeting_mode', $meetingMode !== '' ? strtolower($meetingMode) : null);
+
+        $meetingFrequency = trim((string) ($validated['meeting_frequency'] ?? ''));
+        data_set($calendar, 'settings.meeting_frequency', $meetingFrequency !== '' ? strtolower($meetingFrequency) : null);
+
+        $launchDate = trim((string) ($validated['launch_date'] ?? ''));
+        data_set($calendar, 'settings.launch_date', $launchDate !== '' ? $launchDate : null);
+
+        data_set($calendar, 'settings.meeting_repeat', $validated['meeting_repeat'] ?? null);
+
+        data_set($calendar, 'leadership.director_user_id', $validated['director_user_id'] ?? null);
+        data_set($calendar, 'leadership.industry_director_user_id', $validated['industry_director_user_id'] ?? null);
+        data_set($calendar, 'leadership.ded_user_id', $validated['ded_user_id'] ?? null);
+
+        $coverFileId = trim((string) ($validated['cover_file_id'] ?? ''));
+        data_set($calendar, 'cover.file_id', $coverFileId !== '' ? $coverFileId : null);
+
+        $freqRows = $request->input('meeting_schedule_frequency', []);
+        $timeRows = $request->input('meeting_schedule_default_meet_time', []);
+        $dayRows = $request->input('meeting_schedule_day_of_week', []);
+
+        $schedule = [];
+        $max = max(count($freqRows), count($timeRows), count($dayRows));
+        for ($i = 0; $i < $max; $i++) {
+            $freq = strtolower(trim((string) ($freqRows[$i] ?? '')));
+            $time = trim((string) ($timeRows[$i] ?? ''));
+            $day = trim((string) ($dayRows[$i] ?? ''));
+
+            if ($freq === '' && $time === '' && $day === '') {
+                continue;
+            }
+
+            if ($freq === '' || $time === '' || $day === '') {
+                continue;
+            }
+
+            $schedule[] = [
+                'frequency' => $freq,
+                'default_meet_time' => $time,
+                'day_of_week' => $day,
+            ];
+        }
+
+        data_set($calendar, 'meeting_schedule', $schedule);
+
+        return $calendar;
+    }
+
+    private function pruneEmptyPayload(array $payload): array
+    {
+        foreach ($payload as $key => $value) {
+            if ($value === null) {
+                unset($payload[$key]);
+                continue;
+            }
+
+            if (is_string($value) && trim($value) === '') {
+                unset($payload[$key]);
+            }
+        }
+
+        return $payload;
+    }
+
+    private function filterCircleDataByExistingColumns(array $data): array
+    {
+        $filtered = [];
+
+        foreach ($data as $key => $value) {
+            if (Schema::hasColumn('circles', $key)) {
+                $filtered[$key] = $value;
+            }
+        }
+
+        return $filtered;
     }
 
     private function allUsers()
     {
+        $columns = ['id', 'display_name', 'first_name', 'last_name'];
+
+        foreach (['company_name', 'business_name', 'city'] as $column) {
+            if (Schema::hasColumn('users', $column)) {
+                $columns[] = $column;
+            }
+        }
+
         return User::query()
             ->whereNull('deleted_at')
-            ->orderBy('display_name')
+            ->with(['circleMembers' => function ($query) {
+                $query->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->orderByDesc('joined_at')
+                    ->with(['circle:id,name']);
+            }])
+            ->orderByRaw("COALESCE(NULLIF(display_name, ''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)), '')) ASC")
             ->limit(2000)
-            ->get(['id', 'display_name', 'first_name', 'last_name', 'email']);
+            ->get($columns);
     }
 
     private function founderLabel(?User $user): string
@@ -317,15 +687,6 @@ class CircleController extends Controller
             return '';
         }
 
-        $name = $user->display_name
-            ?? trim($user->first_name . ' ' . ($user->last_name ?? ''));
-
-        $label = trim($name);
-
-        if ($user->email) {
-            $label = $label !== '' ? $label . " ({$user->email})" : $user->email;
-        }
-
-        return $label;
+        return UserOptionLabel::make($user);
     }
 }

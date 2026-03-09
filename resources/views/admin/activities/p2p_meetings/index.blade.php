@@ -3,6 +3,13 @@
 @section('title', 'P2P Meetings')
 
 @section('content')
+    <style>
+        .peer-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
     @php
         $displayName = function (?string $display, ?string $first, ?string $last): string {
             if ($display) {
@@ -40,32 +47,20 @@
         <h1 class="h4 mb-0">P2P Meetings</h1>
         <div class="d-flex gap-2 align-items-center">
             <span class="badge bg-light text-dark border">Total Meetings: {{ number_format($total) }}</span>
-            <a href="{{ route('admin.activities.p2p-meetings.export', request()->query()) }}" class="btn btn-outline-primary">Export</a>
         </div>
     </div>
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <form method="GET" class="row g-2 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label small text-muted">Search created by</label>
-                    <input type="text" name="search" value="{{ $filters['search'] }}" class="form-control" placeholder="Name, email, company, or city">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">From</label>
-                    <input type="date" name="from" value="{{ $filters['from'] }}" class="form-control">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">To</label>
-                    <input type="date" name="to" value="{{ $filters['to'] }}" class="form-control">
-                </div>
-                <div class="col-md-2 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary w-100">Apply</button>
-                    <a href="{{ route('admin.activities.p2p-meetings.index') }}" class="btn btn-outline-secondary w-100">Reset</a>
-                </div>
-            </form>
-        </div>
-    </div>
+    <form id="p2pMeetingsFiltersForm" method="GET" action="{{ route('admin.activities.p2p-meetings.index') }}">
+    @include('admin.components.activity-filter-bar-v2', [
+        'actionUrl' => route('admin.activities.p2p-meetings.index'),
+        'resetUrl' => route('admin.activities.p2p-meetings.index'),
+        'filters' => $filters,
+        'circles' => $circles ?? collect(),
+        'showExport' => true,
+        'exportUrl' => route('admin.activities.p2p-meetings.export', request()->query()),
+        'renderFormTag' => false,
+        'formId' => 'p2pMeetingsFiltersForm',
+    ])
 
     <div class="card shadow-sm mb-3">
         <div class="card-header bg-white">
@@ -85,8 +80,12 @@
                         <tr>
                             <td>{{ $index + 1 }}</td>
                             <td>
-                                <div>{{ $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}</div>
-                                <div class="text-muted small">{{ $member->email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null),
+                                    'company' => $member->peer_company ?? '',
+                                    'city' => $member->peer_city ?? '',
+                                    'maxWidth' => 260,
+                                ])
                             </td>
                             <td>{{ $member->total_count ?? 0 }}</td>
                         </tr>
@@ -113,31 +112,68 @@
                         <th>Media</th>
                         <th>Created At</th>
                     </tr>
+                    <tr>
+                        <th><input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="to_user" value="{{ $filters['to_user'] ?? '' }}" placeholder="To" class="form-control form-control-sm"></th>
+                        <th><input type="date" name="meeting_date" value="{{ $filters['meeting_date'] ?? '' }}" class="form-control form-control-sm" placeholder="dd-mm-yyyy"></th>
+                        <th><input type="text" name="meeting_place" value="{{ $filters['meeting_place'] ?? '' }}" placeholder="Meeting Place" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="remarks" value="{{ $filters['remarks'] ?? '' }}" placeholder="Remarks" class="form-control form-control-sm"></th>
+                        <th>
+                            <select name="has_media" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                <option value="yes" @selected(($filters['has_media'] ?? '') === 'yes')>Yes</option>
+                                <option value="no" @selected(($filters['has_media'] ?? '') === 'no')>No</option>
+                            </select>
+                        </th>
+                        <th>
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                                <a href="{{ route('admin.activities.p2p-meetings.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                            </div>
+                        </th>
+                    </tr>
                 </thead>
                 <tbody>
                     @forelse ($items as $meeting)
                         @php
+                            $mediaValue = $meeting->media_reference ?? null;
+                            $hasMedia = false;
+
+                            if (is_string($mediaValue)) {
+                                $trim = trim($mediaValue);
+                                $hasMedia = ($trim !== '' && $trim !== 'null' && $trim !== '[]' && $trim !== '{}');
+                            } elseif (is_array($mediaValue)) {
+                                $hasMedia = count($mediaValue) > 0;
+                            } elseif (! is_null($mediaValue)) {
+                                $hasMedia = true;
+                            }
+
                             $actorName = $displayName($meeting->actor_display_name ?? null, $meeting->actor_first_name ?? null, $meeting->actor_last_name ?? null);
                             $peerName = $displayName($meeting->peer_display_name ?? null, $meeting->peer_first_name ?? null, $meeting->peer_last_name ?? null);
-                            $mediaInfo = $mediaSummary($meeting->media ?? null);
                         @endphp
                         <tr>
                             <td>
-                                <div>{{ $actorName }}</div>
-                                <div class="text-muted small">{{ $meeting->actor_email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $meeting->from_user_name ?? $actorName,
+                                    'company' => $meeting->from_company ?? '',
+                                    'city' => $meeting->from_city ?? '',
+                                ])
                             </td>
                             <td>
-                                <div>{{ $peerName }}</div>
-                                <div class="text-muted small">{{ $meeting->peer_email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $meeting->to_user_name ?? $peerName,
+                                    'company' => $meeting->to_company ?? '',
+                                    'city' => $meeting->to_city ?? '',
+                                ])
                             </td>
                             <td>{{ $formatDate($meeting->meeting_date ?? null) }}</td>
                             <td>{{ $meeting->meeting_place ?? '—' }}</td>
                             <td class="text-muted">{{ $meeting->remarks ?? '—' }}</td>
                             <td>
-                                @if ($mediaInfo['has'])
-                                    <span class="badge bg-success">Yes ({{ $mediaInfo['count'] }})</span>
+                                @if ($hasMedia)
+                                    <span class="badge bg-success">Yes</span>
                                     <button type="button" class="btn btn-sm btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#mediaViewerModal" data-media-source="media-json-{{ $meeting->id }}">View</button>
-                                    <script type="application/json" id="media-json-{{ $meeting->id }}">{{ e(json_encode(is_string($meeting->media ?? null) ? json_decode($meeting->media ?? '[]', true) : ($meeting->media ?? []))) }}</script>
+                                    <script type="application/json" id="media-json-{{ $meeting->id }}">{{ e(json_encode(is_string($meeting->media_reference ?? null) ? json_decode($meeting->media_reference ?? '[]', true) : ($meeting->media_reference ?? []))) }}</script>
                                 @else
                                     <span class="text-muted">No</span>
                                 @endif
@@ -153,6 +189,8 @@
             </table>
         </div>
     </div>
+
+    </form>
 
     <div class="mt-3">
         {{ $items->links() }}

@@ -3,6 +3,9 @@
 @section('title', 'Recommend A Peer')
 
 @section('content')
+    <style>
+        .peer-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; display: block; }
+    </style>
     @php
         $displayName = function (?string $display, ?string $first, ?string $last): string {
             if ($display) {
@@ -22,28 +25,16 @@
         <span class="badge bg-light text-dark border">Total: {{ number_format($items->total()) }}</span>
     </div>
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <form method="GET" class="row g-2 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label small text-muted">Search</label>
-                    <input type="text" name="search" value="{{ $filters['search'] }}" class="form-control" placeholder="Peer name/phone or recommended peer">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">How Well Known</label>
-                    <select name="how_well_known" class="form-select">
-                        @foreach ($knownOptions as $option)
-                            <option value="{{ $option }}" @selected($filters['how_well_known'] === $option)>{{ ucfirst(str_replace('_', ' ', $option)) }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-2 d-flex flex-column gap-2">
-                    <button type="submit" class="btn btn-primary">Apply</button>
-                    <a href="{{ route('admin.activities.recommend-peer.index') }}" class="btn btn-outline-secondary">Reset</a>
-                </div>
-            </form>
-        </div>
-    </div>
+    <form id="adminactivitiesrecommend-peerindexFiltersForm" method="GET" action="{{ route('admin.activities.recommend-peer.index') }}">
+    @include('admin.components.activity-filter-bar-v2', [
+        'actionUrl' => route('admin.activities.recommend-peer.index'),
+        'resetUrl' => route('admin.activities.recommend-peer.index'),
+        'filters' => $filters,
+        'circles' => $circles ?? collect(),
+        'showExport' => false,
+        'renderFormTag' => false,
+        'formId' => 'adminactivitiesrecommend-peerindexFiltersForm',
+    ])
 
     <div class="card shadow-sm">
         <div class="table-responsive">
@@ -60,17 +51,44 @@
                         <th>Coins Awarded</th>
                         <th>Created At</th>
                     </tr>
+                    <tr>
+                        <th class="text-muted">—</th>
+                        <th><input type="text" name="peer_name" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="peer_phone" value="{{ $filters['peer_phone'] ?? '' }}" placeholder="Peer Phone" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="recommended_peer_name" value="{{ $filters['recommended_peer_name'] ?? '' }}" placeholder="Recommended Peer Name" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="recommended_peer_mobile" value="{{ $filters['recommended_peer_mobile'] ?? '' }}" placeholder="Recommended Peer Mobile" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="how_well_known" value="{{ $filters['how_well_known'] ?? '' }}" placeholder="How Well Known" class="form-control form-control-sm"></th>
+                        <th>
+                            <select name="is_aware" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                <option value="yes" @selected(($filters['is_aware'] ?? '')==='yes')>Yes</option>
+                                <option value="no" @selected(($filters['is_aware'] ?? '')==='no')>No</option>
+                            </select>
+                        </th>
+                        <th><input type="number" name="coins_awarded" value="{{ $filters['coins_awarded'] ?? '' }}" placeholder="Coins" class="form-control form-control-sm"></th>
+                        <th>
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                                <a href="{{ route('admin.activities.recommend-peer.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                            </div>
+                        </th>
+                    </tr>
                 </thead>
                 <tbody>
                     @forelse ($items as $item)
                         @php
-                            $peer = $item->user;
-                            $peerName = $displayName($peer->display_name ?? null, $peer->first_name ?? null, $peer->last_name ?? null);
+                            $peerName = $item->from_user_name ?? '—';
                         @endphp
                         <tr>
                             <td>{{ $formatDateTime($item->created_at ?? null) }}</td>
-                            <td>{{ $peerName }}</td>
-                            <td>{{ $peer->phone ?? '—' }}</td>
+                            <td>
+                                @include('admin.components.peer-card', [
+                                    'name' => $peerName,
+                                    'company' => $item->from_company ?? '',
+                                    'city' => $item->from_city ?? '',
+                                ])
+                            </td>
+                            <td>{{ $item->from_phone ?? '—' }}</td>
                             <td>{{ $item->peer_name ?? '—' }}</td>
                             <td>{{ $item->peer_mobile ?? '—' }}</td>
                             <td>{{ $item->how_well_known ?? '—' }}</td>
@@ -87,6 +105,8 @@
             </table>
         </div>
     </div>
+
+    </form>
 
     <div class="mt-3">
         {{ $items->links() }}

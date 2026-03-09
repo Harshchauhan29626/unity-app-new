@@ -13,7 +13,6 @@
         ? [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-            ['icon' => 'bi-person-rolodex', 'label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
             ['icon' => 'bi-card-checklist', 'label' => 'Membership Plans', 'route' => 'admin.unity-peers-plans.index'],
             ...($isGlobalAdmin ? [['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index']] : []),
         ]
@@ -22,7 +21,6 @@
             ...($isGlobalAdmin ? [['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index']] : []),
             ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-            ['icon' => 'bi-person-rolodex', 'label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
             ['icon' => 'bi-card-checklist', 'label' => 'Membership Plans', 'route' => 'admin.unity-peers-plans.index'],
             ...($isGlobalAdmin ? [['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index']] : []),
             ['icon' => 'bi-wallet2', 'label' => 'Wallet & Finance', 'route' => '#'],
@@ -44,10 +42,11 @@
         ['label' => 'Business Deals', 'route' => 'admin.activities.business-deals.index'],
         ['label' => 'Become A Leader', 'route' => 'admin.activities.become-a-leader.index'],
         ['label' => 'Recommend A Peer', 'route' => 'admin.activities.recommend-peer.index'],
+        ['label' => 'Find & Build Collaborations', 'route' => 'admin.collaborations.index'],
         ['label' => 'Register A Visitor', 'route' => 'admin.activities.register-visitor.index'],
     ] : [];
 
-    $activityActive = request()->routeIs('admin.activities.*');
+    $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
     $activityExpanded = $activityActive || ! $isGlobalAdmin;
 
     $postsMenu = $isGlobalAdmin ? [
@@ -55,6 +54,12 @@
         ['label' => 'Post Reports', 'route' => 'admin.post-reports.index'],
     ] : [];
     $postsActive = request()->routeIs('admin.posts.*') || request()->routeIs('admin.post-reports.*');
+
+    $pendingRequestsMenu = [
+        ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
+        ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
+    ];
+    $pendingRequestsActive = request()->routeIs('admin.visitor-registrations.*') || request()->routeIs('admin.coin-claims.*');
 @endphp
 <aside class="admin-sidebar d-flex flex-column">
     <div class="text-center mb-2">
@@ -115,6 +120,23 @@
                     </div>
                 </li>
             @endif
+            <li class="nav-item menu-parent {{ $pendingRequestsActive ? 'open' : '' }}">
+                <a class="nav-link d-flex justify-content-between align-items-center {{ $pendingRequestsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#pendingRequestsSubmenu" role="button" aria-expanded="{{ $pendingRequestsActive ? 'true' : 'false' }}" aria-controls="pendingRequestsSubmenu">
+                    <span><i class="bi bi-hourglass-split me-2"></i>Pending Requests</span>
+                    <i class="bi bi-chevron-right menu-arrow"></i>
+                </a>
+                <div class="collapse {{ $pendingRequestsActive ? 'show' : '' }}" id="pendingRequestsSubmenu">
+                    <ul class="nav flex-column ms-3">
+                        @foreach ($pendingRequestsMenu as $item)
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                    {{ $item['label'] }}
+                                </a>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            </li>
             @foreach ($navItems as $item)
                 <li class="nav-item">
                     @if ($item['route'] === '#')
@@ -141,26 +163,28 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const submenu = document.getElementById('activitiesSubmenu');
-            if (!submenu) {
-                return;
-            }
+            ['activitiesSubmenu', 'postsSubmenu', 'pendingRequestsSubmenu'].forEach((submenuId) => {
+                const submenu = document.getElementById(submenuId);
+                if (!submenu) {
+                    return;
+                }
 
-            const parentItem = submenu.closest('.menu-parent');
-            if (!parentItem) {
-                return;
-            }
+                const parentItem = submenu.closest('.menu-parent');
+                if (!parentItem) {
+                    return;
+                }
 
-            if (submenu.classList.contains('show')) {
-                parentItem.classList.add('open');
-            }
+                if (submenu.classList.contains('show')) {
+                    parentItem.classList.add('open');
+                }
 
-            submenu.addEventListener('show.bs.collapse', () => {
-                parentItem.classList.add('open');
-            });
+                submenu.addEventListener('show.bs.collapse', () => {
+                    parentItem.classList.add('open');
+                });
 
-            submenu.addEventListener('hide.bs.collapse', () => {
-                parentItem.classList.remove('open');
+                submenu.addEventListener('hide.bs.collapse', () => {
+                    parentItem.classList.remove('open');
+                });
             });
         });
     </script>

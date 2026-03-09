@@ -230,6 +230,55 @@
 
         <div class="col-12">
             <div class="card">
+                <div class="card-header fw-semibold">Circle</div>
+                <div class="card-body row g-3">
+                    @php
+                        $selectedCircleValue = (string) ($effectiveCircleId ?? '');
+                    @endphp
+                    <div class="col-md-6">
+                        <label class="form-label" for="circle_id">Circle</label>
+                        <select name="circle_id" id="circle_id" class="form-select @error('circle_id') is-invalid @enderror">
+                            <option value="">-- No Circle --</option>
+                            @foreach ($circles as $circle)
+                                <option value="{{ $circle->id }}" @selected((string) $selectedCircleValue === (string) $circle->id)>
+                                    {{ $circle->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('circle_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    @if (! $isJoinedToEffectiveCircle)
+                        <div class="col-12">
+                            <div class="alert alert-warning mb-0">
+                                Peer is not joined to the selected circle. Select a circle and click <strong>Save</strong> to join.
+                            </div>
+                        </div>
+                    @endif
+
+                    @if ($selectedCircle)
+                        <div class="col-12">
+                            <div class="border rounded p-3 bg-light-subtle">
+                                <h6 class="mb-2">Circle Info</h6>
+                                <div class="row g-2 small">
+                                    <div class="col-md-6"><strong>Circle Name:</strong> {{ $selectedCircle?->name ?: '—' }}</div>
+                                    <div class="col-md-6"><strong>City:</strong> {{ $selectedCircle?->city_display ?: '—' }}</div>
+                                    <div class="col-md-6"><strong>Country:</strong> {{ $selectedCircle?->country ?: '—' }}</div>
+                                    <div class="col-md-6"><strong>Meeting Mode:</strong> {{ $selectedCircle?->meeting_mode ?: '—' }}</div>
+                                    <div class="col-md-6"><strong>Meeting Frequency:</strong> {{ $selectedCircle?->meeting_frequency ?: '—' }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+
+        <div class="col-12">
+            <div class="card">
                 <div class="card-header fw-semibold">Location</div>
                 <div class="card-body row g-3">
                     <div class="col-md-12">
@@ -353,6 +402,30 @@
         <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary" type="button">Cancel</a>
     </div>
 </form>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const circleSelect = document.getElementById('circle_id');
+    if (!circleSelect) return;
+
+    circleSelect.addEventListener('change', function (e) {
+        const selectedId = e.target.value;
+        const url = new URL(window.location.href);
+
+        if (!selectedId) {
+            url.searchParams.delete('circle_id');
+        } else {
+            url.searchParams.set('circle_id', selectedId);
+        }
+
+        // circle_id_redirect_sync
+        window.location.href = url.toString();
+    });
+});
+</script>
+@endpush
+
 @endsection
 
 @push('scripts')

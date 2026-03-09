@@ -24,12 +24,17 @@ class ActivitiesExportRequest extends FormRequest
                 'become_a_leader',
                 'recommend_peer',
                 'register_visitor',
+                'summary',
             ])],
             'scope' => ['required', Rule::in(['selected', 'all'])],
             'selected_member_ids' => ['nullable', 'array'],
             'selected_member_ids.*' => ['uuid'],
             'q' => ['nullable', 'string'],
             'membership_status' => ['nullable', 'string'],
+            'search' => ['nullable', 'string'],
+            'circle_id' => ['nullable', 'string'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
         ];
     }
 

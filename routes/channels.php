@@ -46,3 +46,8 @@ Broadcast::channel('presence-chat.{chatId}', function ($user, string $chatId) {
 Broadcast::channel('App.Models.User.{id}', function ($user, string $id) {
     return (string) $user->id === (string) $id;
 });
+
+
+Broadcast::channel('user.{userId}', function ($user, string $userId) {
+    return (string) $user->id === (string) $userId;
+});

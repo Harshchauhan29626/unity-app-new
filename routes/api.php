@@ -121,6 +121,12 @@ Route::prefix('v1')->group(function () {
         // Collaborations
         Route::post('/collaborations', [CollaborationPostController::class, 'store']);
 
+        // Collaborations
+        Route::post('/collaborations', [CollaborationPostController::class, 'store']);
+
+
+        // Collaborations
+        Route::post('/collaborations', [CollaborationPostController::class, 'store']);
         // Circles
         Route::get('/circles', [CircleController::class, 'index']);
         Route::get('/circles/{id}', [CircleController::class, 'show']);
@@ -303,6 +309,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/forms/register-visitor', [VisitorRegistrationController::class, 'store']);
         Route::get('/forms/register-visitor/my', [VisitorRegistrationController::class, 'myIndex']);
         Route::get('/forms/visitor-registrations/my', [VisitorRegistrationController::class, 'myIndex']);
+
 
         Route::get('/zoho/test-token', [ZohoDebugController::class, 'testToken']);
         Route::get('/zoho/org', [ZohoDebugController::class, 'org']);

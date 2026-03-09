@@ -3,6 +3,13 @@
 @section('title', 'Testimonials')
 
 @section('content')
+    <style>
+        .peer-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
     @php
         $displayName = function (?string $display, ?string $first, ?string $last): string {
             if ($display) {
@@ -60,32 +67,20 @@
         <h1 class="h4 mb-0">Testimonials</h1>
         <div class="d-flex gap-2 align-items-center">
             <span class="badge bg-light text-dark border">Total Testimonials: {{ number_format($total) }}</span>
-            <a href="{{ route('admin.activities.testimonials.export', request()->query()) }}" class="btn btn-outline-primary">Export</a>
         </div>
     </div>
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <form method="GET" class="row g-2 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label small text-muted">Search created by</label>
-                    <input type="text" name="search" value="{{ $filters['search'] }}" class="form-control" placeholder="Name, email, company, or city">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">From</label>
-                    <input type="date" name="from" value="{{ $filters['from'] }}" class="form-control">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">To</label>
-                    <input type="date" name="to" value="{{ $filters['to'] }}" class="form-control">
-                </div>
-                <div class="col-md-2 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary w-100">Apply</button>
-                    <a href="{{ route('admin.activities.testimonials.index') }}" class="btn btn-outline-secondary w-100">Reset</a>
-                </div>
-            </form>
-        </div>
-    </div>
+    <form id="testimonialsFiltersForm" method="GET" action="{{ route('admin.activities.testimonials.index') }}">
+    @include('admin.components.activity-filter-bar-v2', [
+        'actionUrl' => route('admin.activities.testimonials.index'),
+        'resetUrl' => route('admin.activities.testimonials.index'),
+        'filters' => $filters,
+        'circles' => $circles ?? collect(),
+        'showExport' => true,
+        'exportUrl' => route('admin.activities.testimonials.export', request()->except(['content'])),
+        'renderFormTag' => false,
+        'formId' => 'testimonialsFiltersForm',
+    ])
 
     <div class="card shadow-sm mb-3">
         <div class="card-header bg-white">
@@ -105,8 +100,12 @@
                         <tr>
                             <td>{{ $index + 1 }}</td>
                             <td>
-                                <div>{{ $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}</div>
-                                <div class="text-muted small">{{ $member->email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null),
+                                    'company' => $member->peer_company ?? '',
+                                    'city' => $member->peer_city ?? '',
+                                    'maxWidth' => 260,
+                                ])
                             </td>
                             <td>{{ $member->total_count ?? 0 }}</td>
                         </tr>
@@ -131,6 +130,28 @@
                         <th>Media</th>
                         <th>Created At</th>
                     </tr>
+                    <tr>
+                        <th>
+                            <input type="text" name="from_peer" value="{{ $tableFilters['from_peer'] ?? '' }}" class="form-control form-control-sm" placeholder="From">
+                        </th>
+                        <th>
+                            <input type="text" name="to_peer" value="{{ $tableFilters['to_peer'] ?? '' }}" class="form-control form-control-sm" placeholder="To">
+                        </th>
+                        <th></th>
+                        <th>
+                            <select name="media" class="form-select form-select-sm">
+                                <option value="" @selected(($tableFilters['media'] ?? '') === '')>Any</option>
+                                <option value="yes" @selected(($tableFilters['media'] ?? '') === 'yes')>Yes</option>
+                                <option value="no" @selected(($tableFilters['media'] ?? '') === 'no')>No</option>
+                            </select>
+                        </th>
+                        <th class="text-end">
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                                <a class="btn btn-outline-secondary btn-sm" href="{{ route('admin.activities.testimonials.index') }}">Reset</a>
+                            </div>
+                        </th>
+                    </tr>
                 </thead>
                 <tbody>
                     @forelse ($items as $testimonial)
@@ -142,12 +163,18 @@
                         @endphp
                         <tr>
                             <td>
-                                <div>{{ $actorName }}</div>
-                                <div class="text-muted small">{{ $testimonial->actor_email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $testimonial->from_user_name ?? $actorName,
+                                    'company' => $testimonial->from_company ?? '',
+                                    'city' => $testimonial->from_city ?? '',
+                                ])
                             </td>
                             <td>
-                                <div>{{ $peerName }}</div>
-                                <div class="text-muted small">{{ $testimonial->peer_email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $testimonial->to_user_name ?? $peerName,
+                                    'company' => $testimonial->to_company ?? '',
+                                    'city' => $testimonial->to_city ?? '',
+                                ])
                             </td>
                             <td class="text-muted">{{ $testimonial->content ?? '—' }}</td>
                             <td>
@@ -169,6 +196,8 @@
             </table>
         </div>
     </div>
+
+    </form>
 
     <div class="mt-3">
         {{ $items->links() }}

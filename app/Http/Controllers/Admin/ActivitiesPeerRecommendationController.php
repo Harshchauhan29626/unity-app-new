@@ -2,39 +2,109 @@
 
 namespace App\Http\Controllers\Admin;
 
+use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Models\PeerRecommendation;
 use App\Models\User;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class ActivitiesPeerRecommendationController extends Controller
 {
     public function index(Request $request): View
     {
-        $search = trim((string) $request->query('search', ''));
-        $known = $request->query('how_well_known', 'all');
+        $search = trim((string) $request->query('q', $request->query('search', '')));
+        $from = $request->query('from');
+        $to = $request->query('to');
+        $fromAt = $this->parseDayBoundary($from, false);
+        $toAt = $this->parseDayBoundary($to, true);
+        $peerNameFilter = trim((string) $request->query('peer_name', ''));
+        $peerPhone = trim((string) $request->query('peer_phone', ''));
+        $recommendedName = trim((string) $request->query('recommended_peer_name', ''));
+        $recommendedMobile = trim((string) $request->query('recommended_peer_mobile', ''));
+        $howWellKnown = trim((string) $request->query('how_well_known', ''));
+        $isAwareFilter = trim((string) $request->query('is_aware', ''));
+        $coinsAwarded = trim((string) $request->query('coins_awarded', ''));
 
         $query = PeerRecommendation::query()
-            ->with(['user:id,display_name,first_name,last_name,phone']);
-
-        if ($known && $known !== 'all') {
-            $query->where('how_well_known', $known);
-        }
+            ->leftJoin('users as peer', 'peer.id', '=', 'peer_recommendations.user_id')
+            ->select([
+                'peer_recommendations.*',
+                DB::raw("coalesce(nullif(trim(concat_ws(' ', peer.first_name, peer.last_name)), ''), peer.display_name, '—') as from_user_name"),
+                DB::raw("coalesce(peer.company_name, '') as from_company"),
+                DB::raw("coalesce(peer.city, '') as from_city"),
+                'peer.phone as from_phone',
+            ]);
 
         if ($search !== '') {
-            $like = "%{$search}%";
+            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $search) . '%';
             $query->where(function ($q) use ($like) {
-                $q->where('peer_name', 'ILIKE', $like)
-                    ->orWhere('peer_mobile', 'ILIKE', $like)
-                    ->orWhereHas('user', function ($userQuery) use ($like) {
-                        $userQuery->where('display_name', 'ILIKE', $like)
-                            ->orWhere('first_name', 'ILIKE', $like)
-                            ->orWhere('last_name', 'ILIKE', $like)
-                            ->orWhere('phone', 'ILIKE', $like);
-                    });
+                $q->where('peer.display_name', 'ILIKE', $like)
+                    ->orWhere('peer.first_name', 'ILIKE', $like)
+                    ->orWhere('peer.last_name', 'ILIKE', $like)
+                    ->orWhere('peer.company_name', 'ILIKE', $like)
+                    ->orWhere('peer.city', 'ILIKE', $like);
+            });
+        }
+
+
+        if ($peerNameFilter !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $peerNameFilter) . '%';
+            $query->where(function ($q) use ($like) {
+                $q->where('peer.display_name', 'ILIKE', $like)
+                    ->orWhere('peer.first_name', 'ILIKE', $like)
+                    ->orWhere('peer.last_name', 'ILIKE', $like);
+            });
+        }
+
+        if ($peerPhone !== '') {
+            $query->where('peer.phone', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $peerPhone) . '%');
+        }
+
+        if ($recommendedName !== '') {
+            $query->where('peer_recommendations.peer_name', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $recommendedName) . '%');
+        }
+
+        if ($recommendedMobile !== '') {
+            $query->where('peer_recommendations.peer_mobile', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $recommendedMobile) . '%');
+        }
+
+        if ($howWellKnown !== '') {
+            $query->where('peer_recommendations.how_well_known', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $howWellKnown) . '%');
+        }
+
+        if ($isAwareFilter === 'yes') {
+            $query->where('peer_recommendations.is_aware', true);
+        }
+
+        if ($isAwareFilter === 'no') {
+            $query->where(function ($inner) {
+                $inner->where('peer_recommendations.is_aware', false)
+                    ->orWhereNull('peer_recommendations.is_aware');
+            });
+        }
+
+        if ($coinsAwarded !== '' && is_numeric($coinsAwarded)) {
+            $query->where('peer_recommendations.coins_awarded', (int) $coinsAwarded);
+        }
+
+        if ($fromAt) {
+            $query->where('created_at', '>=', $fromAt);
+        }
+
+        if ($toAt) {
+            $query->where('created_at', '<=', $toAt);
+        }
+
+        if ($request->filled('circle_id')) {
+            $query->whereExists(function ($sub) use ($request) {
+                $sub->selectRaw('1')
+                    ->from('circle_members as cm_filter')
+                    ->whereColumn('cm_filter.user_id', 'peer.id')
+                    ->where('cm_filter.circle_id', $request->query('circle_id'));
             });
         }
 
@@ -48,17 +118,40 @@ class ActivitiesPeerRecommendationController extends Controller
         return view('admin.activities.recommend_peer.index', [
             'items' => $items,
             'filters' => [
-                'search' => $search,
-                'how_well_known' => $known,
+                'q' => $search,
+                'from' => $from,
+                'to' => $to,
+                'circle_id' => $request->query('circle_id'),
+                'peer_name' => $peerNameFilter,
+                'peer_phone' => $peerPhone,
+                'recommended_peer_name' => $recommendedName,
+                'recommended_peer_mobile' => $recommendedMobile,
+                'how_well_known' => $howWellKnown,
+                'is_aware' => $isAwareFilter,
+                'coins_awarded' => $coinsAwarded,
             ],
-            'knownOptions' => [
-                'all',
-                'close_friend',
-                'business_associate',
-                'client',
-                'community_contact',
-            ],
+            'circles' => $this->circleOptions(),
         ]);
+    }
+
+    private function circleOptions()
+    {
+        return DB::table('circles')->select(['id','name'])->orderBy('name')->get();
+    }
+
+    private function parseDayBoundary($value, bool $endOfDay): ?Carbon
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            $parsed = Carbon::parse($value);
+
+            return $endOfDay ? $parsed->endOfDay() : $parsed->startOfDay();
+        } catch (\Throwable $exception) {
+            return null;
+        }
     }
 
     public function show(User $peer, Request $request): View

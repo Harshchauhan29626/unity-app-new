@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+use Carbon\Carbon;
 use App\Http\Controllers\Controller;
+use App\Models\Requirement;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,9 +16,9 @@ class ActivitiesRequirementsController extends Controller
 {
     public function index(Request $request): View
     {
-        $filters = $this->filters($request);
+        $filters = $this->buildFilters($request);
 
-        $baseQuery = $this->baseQuery($request, $filters);
+        $baseQuery = $this->baseQuery($filters);
         $total = (clone $baseQuery)->count();
 
         $items = $baseQuery
@@ -33,6 +35,12 @@ class ActivitiesRequirementsController extends Controller
                 'actor.first_name as actor_first_name',
                 'actor.last_name as actor_last_name',
                 'actor.email as actor_email',
+                DB::raw("coalesce(nullif(trim(concat_ws(' ', actor.first_name, actor.last_name)), ''), actor.display_name, '—') as from_user_name"),
+                DB::raw("coalesce(actor.company_name, '') as from_company"),
+                DB::raw("coalesce(actor.city, '') as from_city"),
+                DB::raw('NULL as to_user_name'),
+                DB::raw("'' as to_company"),
+                DB::raw("'' as to_city"),
             ])
             ->orderByDesc('activity.created_at')
             ->paginate(20)
@@ -45,12 +53,14 @@ class ActivitiesRequirementsController extends Controller
             'filters' => $filters,
             'topMembers' => $topMembers,
             'total' => $total,
+            'circles' => $this->circleOptions(),
+            'statuses' => $this->statusOptions(),
         ]);
     }
 
     public function export(Request $request): StreamedResponse
     {
-        $filters = $this->filters($request);
+        $filters = $this->buildFilters($request);
         $filename = 'requirements_' . now()->format('Ymd_His') . '.csv';
 
         return response()->streamDownload(function () use ($request, $filters) {
@@ -79,7 +89,7 @@ class ActivitiesRequirementsController extends Controller
                     'Created At',
                 ]);
 
-                $this->baseQuery($request, $filters)
+                $this->baseQuery($filters)
                     ->select([
                         'activity.id',
                         'activity.subject',
@@ -131,46 +141,104 @@ class ActivitiesRequirementsController extends Controller
         ]);
     }
 
-    private function filters(Request $request): array
+    private function buildFilters(Request $request): array
     {
+        $from = $request->query('from');
+        $to = $request->query('to');
+        $fromAtRaw = $request->query('from_at', $from);
+        $toAtRaw = $request->query('to_at', $to);
+
         return [
-            'search' => trim((string) $request->query('search', '')),
-            'status' => $request->query('status'),
-            'from' => $request->query('from'),
-            'to' => $request->query('to'),
+            'q' => trim((string) $request->query('q', $request->query('search', ''))),
+            'from' => $from,
+            'to' => $to,
+            'from_at' => $fromAtRaw,
+            'to_at' => $toAtRaw,
+            'from_dt' => $this->parseDayBoundary($fromAtRaw, false),
+            'to_dt' => $this->parseDayBoundary($toAtRaw, true),
+            'circle_id' => (string) $request->query('circle_id', ''),
+            'from_user' => trim((string) $request->query('from_user', '')),
+            'subject' => trim((string) $request->query('subject', '')),
+            'region' => trim((string) $request->query('region', '')),
+            'category' => trim((string) $request->query('category', '')),
+            'status' => trim((string) $request->query('status', '')),
+            'has_media' => (string) $request->query('has_media', ''),
+            'per_page' => (int) $request->query('per_page', 20),
         ];
     }
 
-    private function baseQuery(Request $request, array $filters)
+    private function baseQuery(array $filters)
     {
         $query = DB::table('requirements as activity')
             ->leftJoin('users as actor', 'actor.id', '=', 'activity.user_id')
             ->whereNull('activity.deleted_at');
 
-        if ($filters['search'] !== '') {
+        if ($filters['q'] !== '') {
             $query->leftJoin('cities as actor_city', 'actor_city.id', '=', 'actor.city_id');
-            $like = '%' . $filters['search'] . '%';
+            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['q']) . '%';
             $query->where(function ($q) use ($like) {
                 $q->where('actor.display_name', 'ILIKE', $like)
                     ->orWhere('actor.first_name', 'ILIKE', $like)
                     ->orWhere('actor.last_name', 'ILIKE', $like)
-                    ->orWhere('actor.email', 'ILIKE', $like)
                     ->orWhere('actor.company_name', 'ILIKE', $like)
                     ->orWhere('actor.city', 'ILIKE', $like)
                     ->orWhere('actor_city.name', 'ILIKE', $like);
             });
         }
 
-        if ($filters['status']) {
+        if ($filters['from_user'] !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['from_user']) . '%';
+            $query->where(function ($inner) use ($like) {
+                $inner->where('actor.display_name', 'ILIKE', $like)
+                    ->orWhere('actor.first_name', 'ILIKE', $like)
+                    ->orWhere('actor.last_name', 'ILIKE', $like)
+                    ->orWhereRaw("concat_ws(' ', coalesce(actor.first_name, ''), coalesce(actor.last_name, '')) ILIKE ?", [$like]);
+            });
+        }
+
+        if ($filters['subject'] !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['subject']) . '%';
+            $query->where('activity.subject', 'ILIKE', $like);
+        }
+
+        if ($filters['region'] !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['region']) . '%';
+            $query->whereRaw("coalesce(nullif(activity.region_filter->>'region_label', ''), nullif(activity.region_filter->>'region_name', ''), nullif(activity.region_filter->>'city_name', '')) ILIKE ?", [$like]);
+        }
+
+        if ($filters['category'] !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['category']) . '%';
+            $query->whereRaw("coalesce(nullif(activity.category_filter->>'category', ''), nullif(activity.category_filter->>'name', '')) ILIKE ?", [$like]);
+        }
+
+        if ($filters['status'] !== '') {
             $query->where('activity.status', $filters['status']);
         }
 
-        if ($filters['from']) {
-            $query->whereDate('activity.created_at', '>=', $filters['from']);
+        if ($filters['has_media'] === '1') {
+            $query->whereNotNull('activity.media')->whereRaw("activity.media::text <> '[]'");
         }
 
-        if ($filters['to']) {
-            $query->whereDate('activity.created_at', '<=', $filters['to']);
+        if ($filters['has_media'] === '0') {
+            $query->where(function ($inner) {
+                $inner->whereNull('activity.media')
+                    ->orWhereRaw("activity.media::text = '[]'");
+            });
+        }
+
+        $from = $filters['from_dt'] ?? null;
+        $to = $filters['to_dt'] ?? null;
+
+        $query->when($from, fn ($inner) => $inner->where('activity.created_at', '>=', $from))
+            ->when($to, fn ($inner) => $inner->where('activity.created_at', '<=', $to));
+
+        if (! empty($filters['circle_id'])) {
+            $query->whereExists(function ($sub) use ($filters) {
+                $sub->selectRaw('1')
+                    ->from('circle_members as cm_filter')
+                    ->whereColumn('cm_filter.user_id', 'actor.id')
+                    ->where('cm_filter.circle_id', $filters['circle_id']);
+            });
         }
 
         $this->applyScopeToActivityQuery($query, 'activity.user_id');
@@ -180,9 +248,20 @@ class ActivitiesRequirementsController extends Controller
 
     private function topMembers(Request $request)
     {
+        $filters = $this->buildFilters($request);
+
         $query = DB::table('requirements as activity')
             ->join('users as actor', 'actor.id', '=', 'activity.user_id')
             ->whereNull('activity.deleted_at');
+
+        if (! empty($filters['circle_id'])) {
+            $query->whereExists(function ($sub) use ($filters) {
+                $sub->selectRaw('1')
+                    ->from('circle_members as cm_filter')
+                    ->whereColumn('cm_filter.user_id', 'actor.id')
+                    ->where('cm_filter.circle_id', $filters['circle_id']);
+            });
+        }
 
         $this->applyScopeToActivityQuery($query, 'activity.user_id');
 
@@ -192,7 +271,9 @@ class ActivitiesRequirementsController extends Controller
                 'actor.display_name',
                 'actor.first_name',
                 'actor.last_name',
-                'actor.email'
+                'actor.email',
+                'actor.company_name',
+                'actor.city'
             )
             ->orderByDesc(DB::raw('count(*)'))
             ->limit(5)
@@ -202,9 +283,50 @@ class ActivitiesRequirementsController extends Controller
                 'actor.first_name',
                 'actor.last_name',
                 'actor.email',
+                'actor.company_name',
+                'actor.city',
+                DB::raw("coalesce(nullif(trim(concat_ws(' ', actor.first_name, actor.last_name)), ''), actor.display_name, '—') as peer_name"),
+                DB::raw("coalesce(actor.company_name, '') as peer_company"),
+                DB::raw("coalesce(actor.city, '') as peer_city"),
                 DB::raw('count(*) as total_count'),
             ])
             ->get();
+    }
+
+    private function circleOptions()
+    {
+        return DB::table('circles')
+            ->select(['id', 'name'])
+            ->orderBy('name')
+            ->get();
+    }
+
+
+    private function statusOptions()
+    {
+        return Requirement::query()
+            ->whereNotNull('status')
+            ->select('status')
+            ->distinct()
+            ->orderBy('status')
+            ->pluck('status')
+            ->filter(fn ($value) => is_string($value) && trim($value) !== '')
+            ->values();
+    }
+
+    private function parseDayBoundary($value, bool $endOfDay): ?Carbon
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            $parsed = Carbon::parse($value);
+
+            return $endOfDay ? $parsed->endOfDay() : $parsed->startOfDay();
+        } catch (\Throwable $exception) {
+            return null;
+        }
     }
 
     private function applyScopeToActivityQuery($query, string $primaryColumn): void

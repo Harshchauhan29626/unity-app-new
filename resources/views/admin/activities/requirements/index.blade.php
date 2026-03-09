@@ -3,6 +3,13 @@
 @section('title', 'Requirements')
 
 @section('content')
+    <style>
+        .peer-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
     @php
         $displayName = function (?string $display, ?string $first, ?string $last): string {
             if ($display) {
@@ -73,36 +80,20 @@
         <h1 class="h4 mb-0">Requirements</h1>
         <div class="d-flex gap-2 align-items-center">
             <span class="badge bg-light text-dark border">Total Requirements: {{ number_format($total) }}</span>
-            <a href="{{ route('admin.activities.requirements.export', request()->query()) }}" class="btn btn-outline-primary">Export</a>
         </div>
     </div>
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <form method="GET" class="row g-2 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label small text-muted">Search created by</label>
-                    <input type="text" name="search" value="{{ $filters['search'] }}" class="form-control" placeholder="Name, email, company, or city">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">Status</label>
-                    <input type="text" name="status" value="{{ $filters['status'] }}" class="form-control" placeholder="Status">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small text-muted">From</label>
-                    <input type="date" name="from" value="{{ $filters['from'] }}" class="form-control">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small text-muted">To</label>
-                    <input type="date" name="to" value="{{ $filters['to'] }}" class="form-control">
-                </div>
-                <div class="col-md-1 d-flex flex-column gap-2">
-                    <button type="submit" class="btn btn-primary">Apply</button>
-                    <a href="{{ route('admin.activities.requirements.index') }}" class="btn btn-outline-secondary">Reset</a>
-                </div>
-            </form>
-        </div>
-    </div>
+    <form id="requirementsFiltersForm" method="GET" action="{{ route('admin.activities.requirements.index') }}">
+        @include('admin.components.activity-filter-bar-v2', [
+            'actionUrl' => route('admin.activities.requirements.index'),
+            'resetUrl' => route('admin.activities.requirements.index'),
+            'filters' => $filters,
+            'circles' => $circles ?? collect(),
+            'showExport' => true,
+            'exportUrl' => route('admin.activities.requirements.export', request()->query()),
+            'renderFormTag' => false,
+            'formId' => 'requirementsFiltersForm',
+        ])
 
     <div class="card shadow-sm mb-3">
         <div class="card-header bg-white">
@@ -122,8 +113,12 @@
                         <tr>
                             <td>{{ $index + 1 }}</td>
                             <td>
-                                <div>{{ $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}</div>
-                                <div class="text-muted small">{{ $member->email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null),
+                                    'company' => $member->peer_company ?? '',
+                                    'city' => $member->peer_city ?? '',
+                                    'maxWidth' => 260,
+                                ])
                             </td>
                             <td>{{ $member->total_count ?? 0 }}</td>
                         </tr>
@@ -151,6 +146,42 @@
                         <th>Media</th>
                         <th>Created At</th>
                     </tr>
+                    <tr>
+                        <th>
+                            <input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From" class="form-control form-control-sm" />
+                        </th>
+                        <th>
+                            <input type="text" name="subject" value="{{ $filters['subject'] ?? '' }}" placeholder="Subject" class="form-control form-control-sm" />
+                        </th>
+                        <th class="text-muted">—</th>
+                        <th>
+                            <input type="text" name="region" value="{{ $filters['region'] ?? '' }}" placeholder="Region" class="form-control form-control-sm" />
+                        </th>
+                        <th>
+                            <input type="text" name="category" value="{{ $filters['category'] ?? '' }}" placeholder="Category" class="form-control form-control-sm" />
+                        </th>
+                        <th>
+                            <select name="status" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                @foreach (($statuses ?? collect()) as $status)
+                                    <option value="{{ $status }}" @selected(($filters['status'] ?? '') === $status)>{{ ucfirst($status) }}</option>
+                                @endforeach
+                            </select>
+                        </th>
+                        <th>
+                            <select name="has_media" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                <option value="1" @selected(($filters['has_media'] ?? '') === '1')>Yes</option>
+                                <option value="0" @selected(($filters['has_media'] ?? '') === '0')>No</option>
+                            </select>
+                        </th>
+                        <th>
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                                <a href="{{ route('admin.activities.requirements.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                            </div>
+                        </th>
+                    </tr>
                 </thead>
                 <tbody>
                     @forelse ($items as $requirement)
@@ -165,8 +196,11 @@
                         @endphp
                         <tr>
                             <td>
-                                <div>{{ $actorName }}</div>
-                                <div class="text-muted small">{{ $requirement->actor_email ?? '—' }}</div>
+                                @include('admin.components.peer-card', [
+                                    'name' => $requirement->from_user_name ?? $actorName,
+                                    'company' => $requirement->from_company ?? '',
+                                    'city' => $requirement->from_city ?? '',
+                                ])
                             </td>
                             <td>{{ $requirement->subject ?? '—' }}</td>
                             <td class="text-muted">{{ $requirement->description ?? '—' }}</td>
@@ -192,6 +226,7 @@
             </table>
         </div>
     </div>
+    </form>
 
     <div class="mt-3">
         {{ $items->links() }}

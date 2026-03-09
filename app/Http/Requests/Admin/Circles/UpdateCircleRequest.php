@@ -23,6 +23,7 @@ class UpdateCircleRequest extends FormRequest
             'purpose' => ['nullable', 'string'],
             'announcement' => ['nullable', 'string'],
             'city_id' => ['required', 'uuid', 'exists:cities,id'],
+            'country' => ['required', 'string', 'max:100'],
             'founder_user_id' => ['required', 'uuid', 'exists:users,id'],
             'director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'industry_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
@@ -41,6 +42,7 @@ class UpdateCircleRequest extends FormRequest
             'calendar_meetings.*.default_meet_day' => ['nullable', Rule::in(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])],
             'calendar_meetings.*.default_meet_time' => ['nullable', 'date_format:H:i'],
             'calendar_meetings.*.monthly_rule' => ['nullable', Rule::in(['first', 'second', 'third', 'fourth', 'last'])],
+            'circle_package' => ['nullable', 'string', 'max:120'],
         ];
     }
 
