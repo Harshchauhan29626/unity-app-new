@@ -11,25 +11,32 @@ class UserMiniResource extends JsonResource
     {
         $user = $this->resource;
 
-        $displayName = $user->display_name
+        $name = $user->name
+            ?? $user->display_name
             ?? trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
 
-        if (empty($displayName) && ! empty($user->email)) {
-            $displayName = Str::before($user->email, '@');
+        if (empty($name) && ! empty($user->email)) {
+            $name = Str::before($user->email, '@');
         }
 
         return [
             'id' => $user->id,
-            'display_name' => $displayName ? trim($displayName) : null,
-            'profile_photo_url' => $this->buildProfilePhotoUrl(),
+            'name' => $name !== '' ? trim((string) $name) : null,
+            'profile_image_url' => $this->buildProfileImageUrl(),
+            'company_name' => $user->company_name,
+            'city' => $user->city,
+            'industry' => $user->industry ?? null,
         ];
     }
 
-    private function buildProfilePhotoUrl(): ?string
+    private function buildProfileImageUrl(): ?string
     {
         $user = $this->resource;
 
-        $fileId = $user->profile_photo_file_id ?? null;
+        $fileId = $user->profile_image_id
+            ?? $user->profile_photo_file_id
+            ?? $user->profile_photo_id
+            ?? null;
 
         if (! $fileId) {
             return null;

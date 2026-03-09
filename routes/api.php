@@ -57,6 +57,7 @@ use App\Http\Controllers\Api\V1\Billing\ZohoBillingWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
+use App\Http\Controllers\Api\V1\FollowController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -103,6 +104,22 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/me/connections', [MemberController::class, 'myConnections']);
         Route::get('/me/connection-requests', [MemberController::class, 'myConnectionRequests']);
+
+        // Follow system
+        Route::post('users/{user}/follow', [FollowController::class, 'requestFollow'])->whereUuid('user');
+        Route::delete('users/{user}/unfollow', [FollowController::class, 'unfollow'])->whereUuid('user');
+        Route::get('users/{user}/follow-status', [FollowController::class, 'status'])->whereUuid('user');
+
+        Route::get('me/follow-requests', [FollowController::class, 'incomingRequests']);
+        Route::get('me/following', [FollowController::class, 'myFollowing']);
+        Route::get('me/followers', [FollowController::class, 'myFollowers']);
+
+        Route::post('follows/{follow}/accept', [FollowController::class, 'accept'])->whereUuid('follow');
+        Route::post('follows/{follow}/reject', [FollowController::class, 'reject'])->whereUuid('follow');
+        Route::delete('follows/{follow}/cancel', [FollowController::class, 'cancel'])->whereUuid('follow');
+
+        // Collaborations
+        Route::post('/collaborations', [CollaborationPostController::class, 'store']);
 
         // Collaborations
         Route::post('/collaborations', [CollaborationPostController::class, 'store']);
