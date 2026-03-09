@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\TestimonialController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
+use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\V1\CoinsController;
@@ -103,6 +104,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/me/connections', [MemberController::class, 'myConnections']);
         Route::get('/me/connection-requests', [MemberController::class, 'myConnectionRequests']);
 
+        // Collaborations
+        Route::post('/collaborations', [CollaborationPostController::class, 'store']);
+
 
         // Collaborations
         Route::post('/collaborations', [CollaborationPostController::class, 'store']);
@@ -149,7 +153,6 @@ Route::prefix('v1')->group(function () {
         Route::get('/activities/my/coins-ledger', [ActivityController::class, 'myCoinsLedger']);
         Route::get('/me/coins', [CoinsController::class, 'balance']);
         Route::get('/me/coins/ledger', [CoinsController::class, 'ledger']);
-        // If routes are cached, run `php artisan route:clear` and `php artisan optimize:clear` to load this route.
         Route::get('/coins/history', [CoinHistoryController::class, 'index']);
 
         Route::prefix('activities')->group(function () {
@@ -178,6 +181,15 @@ Route::prefix('v1')->group(function () {
             Route::post('testimonials', [TestimonialController::class, 'store']);
             Route::get('testimonials/{id}', [TestimonialHistoryController::class, 'show']);
         });
+
+        // P2P Meeting Requests
+        Route::post('/p2p-meeting-requests', [P2PMeetingRequestController::class, 'store']);
+        Route::get('/p2p-meeting-requests/inbox', [P2PMeetingRequestController::class, 'inbox']);
+        Route::get('/p2p-meeting-requests/sent', [P2PMeetingRequestController::class, 'sent']);
+        Route::get('/p2p-meeting-requests/{id}', [P2PMeetingRequestController::class, 'show']);
+        Route::post('/p2p-meeting-requests/{id}/accept', [P2PMeetingRequestController::class, 'accept']);
+        Route::post('/p2p-meeting-requests/{id}/reject', [P2PMeetingRequestController::class, 'reject']);
+        Route::post('/p2p-meeting-requests/{id}/cancel', [P2PMeetingRequestController::class, 'cancel']);
 
         // Admin Activities
         Route::get('/admin/activities', [AdminActivityController::class, 'index']);
