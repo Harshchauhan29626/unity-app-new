@@ -5,16 +5,15 @@ namespace App\Services\CircleChat;
 use App\Events\CircleChatMessageDeletedForAll;
 use App\Events\CircleChatMessageSent;
 use App\Events\CircleChatMessagesRead;
+use App\Events\UserNotificationCreated;
 use App\Http\Resources\CircleChatMessageResource;
 use App\Models\Circle;
 use App\Models\CircleChatMessage;
 use App\Models\CircleChatMessageDeletion;
 use App\Models\CircleChatMessageRead;
 use App\Models\CircleMember;
-use App\Models\FileModel;
 use App\Models\Notification;
 use App\Models\User;
-use App\Events\UserNotificationCreated;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -45,10 +44,8 @@ class CircleChatService
             })
             ->with([
                 'sender:id,display_name,first_name,last_name,company_name,profile_photo_url',
-                'file:id,mime_type,size_bytes',
-                'replyTo:id,circle_id,sender_id,message_type,message_text,file_id,created_at,updated_at',
+                'replyTo:id,circle_id,sender_id,message_type,message_text,file_path,file_name,file_mime,file_size,thumbnail_path,created_at,updated_at',
                 'replyTo.sender:id,display_name,first_name,last_name,company_name,profile_photo_url',
-                'replyTo.file:id,mime_type,size_bytes',
             ])
             ->withCount('reads')
             ->withExists(['reads as is_read_by_me' => fn ($q) => $q->where('user_id', $user->id)])
@@ -67,9 +64,16 @@ class CircleChatService
         $this->accessService->ensureUserIsCircleMember($user, $circle->id);
 
         return DB::transaction(function () use ($user, $circle, $validated, $attachment): CircleChatMessage {
-            $fileId = null;
+            $filePayload = [
+                'file_path' => null,
+                'file_name' => null,
+                'file_mime' => null,
+                'file_size' => null,
+                'thumbnail_path' => null,
+            ];
+
             if ($attachment) {
-                $fileId = $this->storeAttachment($attachment, $user->id);
+                $filePayload = $this->storeAttachment($attachment);
             }
 
             $message = CircleChatMessage::query()->create([
@@ -77,8 +81,8 @@ class CircleChatService
                 'sender_id' => $user->id,
                 'message_type' => $validated['message_type'],
                 'message_text' => $validated['message_text'] ?? null,
-                'file_id' => $fileId,
                 'reply_to_message_id' => $validated['reply_to_message_id'] ?? null,
+                ...$filePayload,
             ]);
 
             CircleChatMessageRead::query()->create([
@@ -89,10 +93,8 @@ class CircleChatService
 
             $message->load([
                 'sender:id,display_name,first_name,last_name,company_name,profile_photo_url',
-                'file:id,mime_type,size_bytes',
-                'replyTo:id,circle_id,sender_id,message_type,message_text,file_id,created_at,updated_at',
+                'replyTo:id,circle_id,sender_id,message_type,message_text,file_path,file_name,file_mime,file_size,thumbnail_path,created_at,updated_at',
                 'replyTo.sender:id,display_name,first_name,last_name,company_name,profile_photo_url',
-                'replyTo.file:id,mime_type,size_bytes',
             ])->loadCount('reads')->loadExists(['reads as is_read_by_me' => fn ($q) => $q->where('user_id', $user->id)]);
 
             $this->notifyCircleMembers($circle, $user, $message);
@@ -214,21 +216,20 @@ class CircleChatService
         }
     }
 
-    private function storeAttachment(UploadedFile $file, string $uploaderUserId): string
+    private function storeAttachment(UploadedFile $file): array
     {
         $disk = config('filesystems.default', 'public');
-        $folder = 'uploads/' . now()->format('Y/m/d');
-        $safeName = preg_replace('/[^A-Za-z0-9\.\-_]/', '_', $file->getClientOriginalName());
-        $path = $file->storeAs($folder, (string) Str::uuid() . '_' . $safeName, $disk);
+        $folder = 'uploads/circle-chat/' . now()->format('Y/m/d');
+        $safeName = preg_replace('/[^A-Za-z0-9\.\-_]/', '_', $file->getClientOriginalName()) ?: 'attachment';
+        $storedPath = $file->storeAs($folder, (string) Str::uuid() . '_' . $safeName, $disk);
 
-        $stored = FileModel::query()->create([
-            'uploader_user_id' => $uploaderUserId,
-            's3_key' => $path,
-            'mime_type' => $file->getMimeType() ?: $file->getClientMimeType(),
-            'size_bytes' => $file->getSize(),
-        ]);
-
-        return (string) $stored->id;
+        return [
+            'file_path' => $storedPath,
+            'file_name' => $file->getClientOriginalName(),
+            'file_mime' => $file->getMimeType() ?: $file->getClientMimeType(),
+            'file_size' => $file->getSize(),
+            'thumbnail_path' => null,
+        ];
     }
 
     private function notifyCircleMembers(Circle $circle, User $sender, CircleChatMessage $message): void

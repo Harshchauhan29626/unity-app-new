@@ -15,7 +15,11 @@ return new class extends Migration
             $table->uuid('sender_id');
             $table->string('message_type', 20);
             $table->text('message_text')->nullable();
-            $table->uuid('file_id')->nullable();
+            $table->text('file_path')->nullable();
+            $table->string('file_name')->nullable();
+            $table->string('file_mime', 150)->nullable();
+            $table->bigInteger('file_size')->nullable();
+            $table->text('thumbnail_path')->nullable();
             $table->uuid('reply_to_message_id')->nullable();
             $table->boolean('is_deleted_for_all')->default(false);
             $table->timestampTz('deleted_for_all_at')->nullable();
@@ -23,14 +27,13 @@ return new class extends Migration
 
             $table->foreign('circle_id')->references('id')->on('circles')->cascadeOnDelete();
             $table->foreign('sender_id')->references('id')->on('users')->cascadeOnDelete();
-            $table->foreign('file_id')->references('id')->on('files')->nullOnDelete();
             $table->foreign('reply_to_message_id')->references('id')->on('circle_chat_messages')->nullOnDelete();
 
             $table->index(['circle_id', 'created_at']);
             $table->index('sender_id');
             $table->index('is_deleted_for_all');
             $table->check("message_type IN ('text','image','video')");
-            $table->check("(message_type = 'text' AND message_text IS NOT NULL) OR (message_type IN ('image','video') AND file_id IS NOT NULL)");
+            $table->check("(message_type = 'text' AND message_text IS NOT NULL) OR (message_type IN ('image','video') AND file_path IS NOT NULL)");
         });
     }
 

@@ -24,13 +24,18 @@ class CircleChatMessage extends Model
         'sender_id',
         'message_type',
         'message_text',
-        'file_id',
+        'file_path',
+        'file_name',
+        'file_mime',
+        'file_size',
+        'thumbnail_path',
         'reply_to_message_id',
         'is_deleted_for_all',
         'deleted_for_all_at',
     ];
 
     protected $casts = [
+        'file_size' => 'integer',
         'is_deleted_for_all' => 'boolean',
         'deleted_for_all_at' => 'datetime',
         'created_at' => 'datetime',
@@ -54,11 +59,6 @@ class CircleChatMessage extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sender_id');
-    }
-
-    public function file(): BelongsTo
-    {
-        return $this->belongsTo(File::class, 'file_id');
     }
 
     public function reads(): HasMany

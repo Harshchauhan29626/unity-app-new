@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class CircleChatMessageResource extends JsonResource
 {
@@ -10,7 +11,6 @@ class CircleChatMessageResource extends JsonResource
     {
         $authUserId = (string) optional($request->user())->id;
         $sender = $this->whenLoaded('sender');
-        $file = $this->whenLoaded('file');
         $replyTo = $this->whenLoaded('replyTo');
 
         return [
@@ -18,7 +18,7 @@ class CircleChatMessageResource extends JsonResource
             'circle_id' => (string) $this->circle_id,
             'message_type' => (string) $this->message_type,
             'message_text' => $this->message_text,
-            'attachment' => $this->formatAttachment($file),
+            'attachment' => $this->formatAttachment(),
             'reply_to_message' => $replyTo ? new self($replyTo) : null,
             'sender' => [
                 'id' => (string) optional($sender)->id,
@@ -34,19 +34,28 @@ class CircleChatMessageResource extends JsonResource
         ];
     }
 
-    private function formatAttachment($file): ?array
+    private function formatAttachment(): ?array
     {
-        if (! $file) {
+        if (blank($this->file_path)) {
             return null;
         }
 
         return [
-            'id' => (string) $file->id,
+            'id' => null,
             'type' => (string) $this->message_type,
-            'url' => url('/api/v1/files/' . $file->id),
-            'thumbnail_url' => null,
-            'mime' => $file->mime_type,
-            'size' => $file->size_bytes,
+            'url' => $this->resolveStorageUrl((string) $this->file_path),
+            'thumbnail_url' => $this->thumbnail_path ? $this->resolveStorageUrl((string) $this->thumbnail_path) : null,
+            'mime' => $this->file_mime,
+            'size' => $this->file_size,
+            'name' => $this->file_name,
+            'path' => $this->file_path,
         ];
+    }
+
+    private function resolveStorageUrl(string $path): string
+    {
+        $disk = config('filesystems.default', 'public');
+
+        return Storage::disk($disk)->url($path);
     }
 }
