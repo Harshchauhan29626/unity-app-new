@@ -200,7 +200,6 @@
                                             ['label' => 'City ID', 'value' => $user->city_id],
                                             ['label' => 'City (string)', 'value' => $user->city],
                                             ['label' => 'Membership Status', 'value' => $user->membership_status],
-                                            ['label' => 'Membership Expiry', 'value' => $user->membership_expiry, 'type' => 'date'],
                                             ['label' => 'Circles', 'value' => $joinedCircleName ?: 'No Circle', 'circle_id' => $joinedCircleId],
                                             ['label' => 'Zoho Customer ID', 'value' => $user->zoho_customer_id],
                                             ['label' => 'Zoho Subscription ID', 'value' => $user->zoho_subscription_id],
