@@ -11,12 +11,12 @@
         .coins-table-scroll {
             width: 100%;
             overflow-x: auto;
-            overflow-y: hidden;
+            overflow-y: visible;
         }
 
         .coins-table {
-            width: 100%;
-            min-width: 1120px;
+            width: max-content;
+            min-width: 1200px;
         }
 
         .coins-table thead th {
