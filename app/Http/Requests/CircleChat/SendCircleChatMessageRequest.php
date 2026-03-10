@@ -13,11 +13,36 @@ class SendCircleChatMessageRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $messageType = $this->input('message_type');
+
+        if (! $messageType) {
+            if ($this->hasFile('attachment')) {
+                $mime = (string) ($this->file('attachment')?->getMimeType() ?: $this->file('attachment')?->getClientMimeType());
+
+                if (str_starts_with($mime, 'image/')) {
+                    $messageType = 'image';
+                } elseif (str_starts_with($mime, 'video/')) {
+                    $messageType = 'video';
+                } else {
+                    $messageType = 'text';
+                }
+            } else {
+                $messageType = 'text';
+            }
+        }
+
+        $this->merge([
+            'message_type' => $messageType,
+        ]);
+    }
+
     public function rules(): array
     {
         return [
-            'message_type' => ['required', 'in:text,image,video'],
-            'message_text' => ['nullable', 'string', 'required_if:message_type,text'],
+            'message_type' => ['nullable', 'in:text,image,video'],
+            'message_text' => ['nullable', 'string', 'required_if:message_type,text', 'required_without:attachment'],
             'attachment' => ['nullable', 'file', 'required_if:message_type,image,video', 'max:102400'],
             'reply_to_message_id' => ['nullable', 'uuid', 'exists:circle_chat_messages,id'],
         ];

@@ -77,10 +77,12 @@ class CircleChatService
                 $filePayload = $this->storeAttachment($attachment);
             }
 
+            $messageType = (string) ($validated['message_type'] ?? ($attachment ? (str_starts_with((string) ($attachment->getMimeType() ?: $attachment->getClientMimeType()), 'image/') ? 'image' : 'video') : 'text'));
+
             $message = CircleChatMessage::query()->create([
                 'circle_id' => $circle->id,
                 'sender_id' => $user->id,
-                'message_type' => $validated['message_type'],
+                'message_type' => $messageType,
                 'message_text' => $validated['message_text'] ?? null,
                 'reply_to_message_id' => $validated['reply_to_message_id'] ?? null,
                 ...$filePayload,
