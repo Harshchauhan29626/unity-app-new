@@ -34,15 +34,6 @@
                     <label class="form-label small text-muted mb-1">To</label>
                     <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="form-control form-control-sm">
                 </div>
-                <div>
-                    <label class="form-label small text-muted mb-1">Circle</label>
-                    <select name="circle_id" class="form-select form-select-sm">
-                        <option value="all">All Circles</option>
-                        @foreach ($circles as $circle)
-                            <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-primary">Apply</button>
                     <a href="{{ $resetUrl }}" class="btn btn-sm btn-outline-secondary">Reset</a>
@@ -86,25 +77,16 @@
                         </th>
                         <th><input type="text" class="form-control form-control-sm" placeholder="—" disabled></th>
                         <th>
-                            <input
-                                type="text"
-                                name="why"
-                                form="ledgerFilterForm"
-                                value="{{ $filters['why'] ?? '' }}"
-                                class="form-control form-control-sm"
-                                placeholder="Reason"
-                            >
+                            <select name="why" form="ledgerFilterForm" class="form-select form-select-sm">
+                                <option value="">All Reasons</option>
+                                <option value="testimonial" @selected(($filters['why'] ?? '') === 'testimonial')>Testimonial</option>
+                                <option value="referral" @selected(($filters['why'] ?? '') === 'referral')>Referral</option>
+                                <option value="business_deal" @selected(($filters['why'] ?? '') === 'business_deal')>Business Deal</option>
+                                <option value="p2p_meeting" @selected(($filters['why'] ?? '') === 'p2p_meeting')>P2P Meeting</option>
+                                <option value="requirement" @selected(($filters['why'] ?? '') === 'requirement')>Requirement</option>
+                            </select>
                         </th>
-                        <th>
-                            <input
-                                type="text"
-                                name="created_by"
-                                form="ledgerFilterForm"
-                                value="{{ $filters['created_by'] ?? '' }}"
-                                class="form-control form-control-sm"
-                                placeholder="Peer/Company/City/Circle"
-                            >
-                        </th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="—" disabled></th>
                     </tr>
                 </thead>
                 <tbody>
