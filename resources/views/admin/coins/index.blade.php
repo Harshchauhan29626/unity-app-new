@@ -214,6 +214,10 @@
                 });
 
                 const appendHiddenInput = function (targetForm, name, value) {
+                    if (value === null || value === undefined || value === '') {
+                        return;
+                    }
+
                     const input = document.createElement('input');
                     input.type = 'hidden';
                     input.name = name;
@@ -231,7 +235,7 @@
                         const circleValue = document.getElementById('coinsCircle')?.value ?? 'all';
                         const perPageValue = document.getElementById('perPage')?.value ?? '20';
 
-                        appendHiddenInput(exportForm, 'search', searchValue);
+                        appendHiddenInput(exportForm, 'q', searchValue);
                         appendHiddenInput(exportForm, 'circle_id', circleValue);
                         appendHiddenInput(exportForm, 'per_page', perPageValue);
 
