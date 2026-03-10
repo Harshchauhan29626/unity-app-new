@@ -81,10 +81,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/activities/{member}/p2p-meetings', [ActivitiesController::class, 'p2pMeetings'])->name('activities.p2p-meetings');
         Route::get('/activities/{member}/requirements', [ActivitiesController::class, 'requirements'])->name('activities.requirements');
         Route::get('/coins', [CoinsController::class, 'index'])->name('coins.index');
+        Route::get('/coins/export', [CoinsController::class, 'exportIndex'])->name('coins.export');
         Route::get('/coins/add', [CoinsController::class, 'create'])->name('coins.create');
         Route::post('/coins/add', [CoinsController::class, 'store'])->name('coins.store');
         Route::get('/coins/{member}/ledger', [CoinsController::class, 'ledger'])->name('coins.ledger');
         Route::get('/coins/{member}/ledger/{type}', [CoinsController::class, 'ledgerByType'])->name('coins.ledger.type');
+        Route::get('/coins/{member}/ledger-export', [CoinsController::class, 'exportLedger'])->name('coins.ledger.export');
         Route::get('/unity-peers-plans', [MembershipPlanController::class, 'index'])->name('unity-peers-plans.index');
         Route::get('/unity-peers-plans/create', [MembershipPlanController::class, 'create'])->name('unity-peers-plans.create');
         Route::post('/unity-peers-plans', [MembershipPlanController::class, 'store'])->name('unity-peers-plans.store');

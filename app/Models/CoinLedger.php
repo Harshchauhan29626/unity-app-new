@@ -43,4 +43,9 @@ class CoinLedger extends Model
     {
         return $this->belongsTo(Activity::class, 'activity_id');
     }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 }
