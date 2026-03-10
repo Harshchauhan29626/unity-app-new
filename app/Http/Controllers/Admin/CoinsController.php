@@ -329,9 +329,57 @@ class CoinsController extends Controller
             })
             ->when($filters['from'], fn (Builder $q) => $q->whereDate('created_at', '>=', $filters['from']))
             ->when($filters['to'], fn (Builder $q) => $q->whereDate('created_at', '<=', $filters['to']))
+            ->when($filters['date'], fn (Builder $q) => $q->whereDate('created_at', '=', $filters['date']))
+            ->when($filters['circle_id'] !== '' && $filters['circle_id'] !== 'all', function (Builder $q) use ($filters) {
+                $q->whereHas('createdBy.circleMembers', function (Builder $circleMembersQuery) use ($filters) {
+                    $circleMembersQuery->where('circle_id', $filters['circle_id'])
+                        ->where('status', 'approved')
+                        ->whereNull('deleted_at');
+                });
+            })
+            ->when($filters['coins'] !== '', function (Builder $q) use ($filters) {
+                if (is_numeric($filters['coins'])) {
+                    $q->where('amount', (int) $filters['coins']);
+                } else {
+                    $q->whereRaw('CAST(amount AS TEXT) ILIKE ?', ['%' . $filters['coins'] . '%']);
+                }
+            })
+            ->when($filters['created_by'] !== '', function (Builder $q) use ($filters) {
+                $like = '%' . $filters['created_by'] . '%';
+
+                $q->whereHas('createdBy', function (Builder $createdByQuery) use ($like) {
+                    $createdByQuery->where(function (Builder $nested) use ($like) {
+                        $nested->where('display_name', 'ILIKE', $like)
+                            ->orWhere('first_name', 'ILIKE', $like)
+                            ->orWhere('last_name', 'ILIKE', $like)
+                            ->orWhere('company_name', 'ILIKE', $like)
+                            ->orWhere('business_name', 'ILIKE', $like)
+                            ->orWhere('city', 'ILIKE', $like)
+                            ->orWhereHas('circleMembers.circle', fn (Builder $circleQuery) => $circleQuery->where('name', 'ILIKE', $like));
+                    });
+                });
+            })
             ->orderByDesc('created_at');
 
+        if ($filters['why'] !== '') {
+            $this->applyWhyFilter($query, $filters['why']);
+        }
+
         return $query;
+    }
+
+    private function applyWhyFilter(Builder $query, string $whyFilter): void
+    {
+        $value = strtolower(trim($whyFilter));
+        $query->where(function (Builder $nested) use ($value) {
+            $nested->whereRaw('LOWER(reference) LIKE ?', ['%' . $value . '%']);
+
+            foreach (self::ACTIVITY_REFERENCE_PATTERNS as $type => $pattern) {
+                if (str_contains(strtolower(CoinLedgerFormatter::why($type)), $value) || str_contains($type, $value)) {
+                    $nested->orWhere('reference', 'ILIKE', $pattern);
+                }
+            }
+        });
     }
 
     private function ledgerViewData(User $member, LengthAwarePaginator $items, array $filters): array
@@ -341,6 +389,7 @@ class CoinsController extends Controller
             'items' => $items,
             'filters' => $filters,
             'activeType' => $filters['active_type'] ?? null,
+            'circles' => Circle::query()->orderBy('name')->get(['id', 'name']),
         ];
     }
 
@@ -362,6 +411,11 @@ class CoinsController extends Controller
         return [
             'from' => trim((string) $request->query('from', '')),
             'to' => trim((string) $request->query('to', '')),
+            'circle_id' => (string) $request->query('circle_id', 'all'),
+            'date' => trim((string) $request->query('date', '')),
+            'coins' => trim((string) $request->query('coins', '')),
+            'why' => trim((string) $request->query('why', '')),
+            'created_by' => trim((string) $request->query('created_by', '')),
             'active_type' => $request->query('active_type'),
         ];
     }

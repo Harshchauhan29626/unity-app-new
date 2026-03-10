@@ -34,6 +34,15 @@
                     <label class="form-label small text-muted mb-1">To</label>
                     <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="form-control form-control-sm">
                 </div>
+                <div>
+                    <label class="form-label small text-muted mb-1">Circle</label>
+                    <select name="circle_id" class="form-select form-select-sm">
+                        <option value="all">All Circles</option>
+                        @foreach ($circles as $circle)
+                            <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-sm btn-primary">Apply</button>
                     <a href="{{ $resetUrl }}" class="btn btn-sm btn-outline-secondary">Reset</a>
@@ -53,6 +62,49 @@
                         <th>Balance After</th>
                         <th>Why</th>
                         <th>Created By</th>
+                    </tr>
+                    <tr>
+                        <th>
+                            <input
+                                type="date"
+                                name="date"
+                                form="ledgerFiltersForm"
+                                value="{{ $filters['date'] ?? '' }}"
+                                class="form-control form-control-sm"
+                                placeholder="Date"
+                            >
+                        </th>
+                        <th>
+                            <input
+                                type="text"
+                                name="coins"
+                                form="ledgerFiltersForm"
+                                value="{{ $filters['coins'] ?? '' }}"
+                                class="form-control form-control-sm"
+                                placeholder="Coins"
+                            >
+                        </th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="—" disabled></th>
+                        <th>
+                            <input
+                                type="text"
+                                name="why"
+                                form="ledgerFiltersForm"
+                                value="{{ $filters['why'] ?? '' }}"
+                                class="form-control form-control-sm"
+                                placeholder="Reason"
+                            >
+                        </th>
+                        <th>
+                            <input
+                                type="text"
+                                name="created_by"
+                                form="ledgerFiltersForm"
+                                value="{{ $filters['created_by'] ?? '' }}"
+                                class="form-control form-control-sm"
+                                placeholder="Peer/Company/City/Circle"
+                            >
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
