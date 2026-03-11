@@ -24,7 +24,7 @@ class MediaProcessor
         }
 
         if ($type === 'video') {
-            return $this->processVideo($sourcePath);
+            return $this->processVideo($sourcePath, $mimeType);
         }
 
         throw new MediaProcessingException('Unsupported media type.');
@@ -60,7 +60,7 @@ class MediaProcessor
         ];
     }
 
-    private function processVideo(string $sourcePath): array
+    private function processVideo(string $sourcePath, ?string $mimeType = null): array
     {
         if (! $this->probe->ffmpegAvailable()) {
             throw new MediaProcessingException('Video optimization requires FFmpeg. Upload rejected.');
@@ -72,7 +72,7 @@ class MediaProcessor
         $audioBitrate = (string) config('media.video.audio_bitrate', '128k');
 
         $destination = $this->tempFilePath('mp4');
-        $scaleFilter = 'scale=min(' . $maxWidth . ',iw):-2';
+        $scaleFilter = 'scale=' . $maxWidth . ':-2';
 
         $process = new Process([
             'ffmpeg',
@@ -100,9 +100,14 @@ class MediaProcessor
         $process->run();
 
         if (! $process->isSuccessful()) {
-            Log::warning('FFmpeg failed', ['output' => $process->getErrorOutput()]);
+            Log::warning('FFmpeg failed; storing original video.', [
+                'command' => $process->getCommandLine(),
+                'stdout' => $process->getOutput(),
+                'stderr' => $process->getErrorOutput(),
+            ]);
             @unlink($destination);
-            throw new MediaProcessingException('Video optimization failed.');
+
+            return $this->storeOriginalVideo($sourcePath, $mimeType);
         }
 
         $meta = $this->probe->videoMetadata($destination);
@@ -110,6 +115,27 @@ class MediaProcessor
         return [
             'path' => $destination,
             'mime_type' => 'video/mp4',
+            'size_bytes' => @filesize($destination) ?: null,
+            'width' => $meta['width'] ?? null,
+            'height' => $meta['height'] ?? null,
+            'duration' => $meta['duration'] ?? null,
+        ];
+    }
+
+    private function storeOriginalVideo(string $sourcePath, ?string $mimeType = null): array
+    {
+        $sourceExtension = pathinfo($sourcePath, PATHINFO_EXTENSION) ?: 'mp4';
+        $destination = $this->tempFilePath($sourceExtension);
+
+        if (! @copy($sourcePath, $destination)) {
+            throw new MediaProcessingException('Video optimization failed and original video could not be stored.');
+        }
+
+        $meta = $this->probe->videoMetadata($destination);
+
+        return [
+            'path' => $destination,
+            'mime_type' => $mimeType ?: ($this->probe->mimeType($destination) ?: 'video/mp4'),
             'size_bytes' => @filesize($destination) ?: null,
             'width' => $meta['width'] ?? null,
             'height' => $meta['height'] ?? null,
