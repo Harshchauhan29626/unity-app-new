@@ -202,6 +202,11 @@ class User extends Authenticatable
         return $this->hasMany(CircleSubscription::class, 'user_id');
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class, 'user_id');
+    }
+
     public function activeCircle(): BelongsTo
     {
         return $this->belongsTo(Circle::class, 'active_circle_id');
@@ -567,7 +572,5 @@ class User extends Authenticatable
             'city' => $city,
             'industry' => $industry,
         ];
-    }
-}
 }
 }
