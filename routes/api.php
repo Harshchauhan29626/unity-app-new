@@ -8,59 +8,60 @@ use App\Http\Controllers\Api\Activities\RequirementHistoryController;
 use App\Http\Controllers\Api\Activities\TestimonialHistoryController;
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AdsController;
+use App\Http\Controllers\Api\Admin\CircleJoinRequestAdminController;
 use App\Http\Controllers\Api\AdminActivityController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BusinessDealController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\ChatTypingController;
+use App\Http\Controllers\Api\CircleChatController;
 use App\Http\Controllers\Api\CircleController;
 use App\Http\Controllers\Api\CircleJoinRequestController;
-use App\Http\Controllers\Api\Admin\CircleJoinRequestAdminController;
-use App\Http\Controllers\Api\CircleChatController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\FeedbackController;
 use App\Http\Controllers\Api\FileController;
 use App\Http\Controllers\Api\MemberController;
+use App\Http\Controllers\Api\MembershipSummaryController;
 use App\Http\Controllers\Api\MessageDeletionController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\P2pMeetingController;
 use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\PostSaveController;
+use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\SupportController;
-use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\TestimonialController;
-use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
-use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
-use App\Http\Controllers\Api\V1\PostReportController;
-use App\Http\Controllers\Api\WalletController;
-use App\Http\Controllers\Api\V1\CoinsController;
-use App\Http\Controllers\Api\V1\CoinHistoryController;
-use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
-use App\Http\Controllers\Api\V1\Forms\PeerRecommendationController;
-use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
-use App\Http\Controllers\Api\V1\Profile\MyPostsController;
-use App\Http\Controllers\Api\V1\EventGalleryApiController;
-use App\Http\Controllers\Api\V1\MembershipPlanController;
-use App\Http\Controllers\Api\V1\PaymentController;
-use App\Http\Controllers\Api\V1\PushTokenController;
-use App\Http\Controllers\Api\V1\PostReportReasonsController;
-use App\Http\Controllers\Api\V1\RazorpayWebhookController;
-use App\Http\Controllers\Api\V1\Circles\CircleMemberController as V1CircleMemberController;
-use App\Http\Controllers\Api\V1\CollaborationTypeController;
-use App\Http\Controllers\Api\V1\CollaborationPostController;
-use App\Http\Controllers\Api\V1\CoinClaimController;
-use App\Http\Controllers\Api\V1\IndustryController;
-use App\Http\Controllers\Api\V1\RequirementController as V1RequirementController;
-use App\Http\Controllers\Api\V1\RequirementInterestController;
-use App\Http\Controllers\Api\V1\TimelineRequirementController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
 use App\Http\Controllers\Api\V1\Billing\ZohoBillingWebhookController;
+use App\Http\Controllers\Api\V1\Circles\CircleMemberController as V1CircleMemberController;
+use App\Http\Controllers\Api\V1\CoinClaimController;
+use App\Http\Controllers\Api\V1\CoinHistoryController;
+use App\Http\Controllers\Api\V1\CoinsController;
+use App\Http\Controllers\Api\V1\CollaborationPostController;
+use App\Http\Controllers\Api\V1\CollaborationTypeController;
+use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
+use App\Http\Controllers\Api\V1\EventGalleryApiController;
+use App\Http\Controllers\Api\V1\FollowController;
+use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
+use App\Http\Controllers\Api\V1\Forms\PeerRecommendationController;
+use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
+use App\Http\Controllers\Api\V1\IndustryController;
+use App\Http\Controllers\Api\V1\MembershipPlanController;
+use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
+use App\Http\Controllers\Api\V1\PaymentController;
+use App\Http\Controllers\Api\V1\PostReportController;
+use App\Http\Controllers\Api\V1\PostReportReasonsController;
+use App\Http\Controllers\Api\V1\Profile\MyPostsController;
+use App\Http\Controllers\Api\V1\PushTokenController;
+use App\Http\Controllers\Api\V1\RazorpayWebhookController;
+use App\Http\Controllers\Api\V1\RequirementController as V1RequirementController;
+use App\Http\Controllers\Api\V1\RequirementInterestController;
+use App\Http\Controllers\Api\V1\TimelineRequirementController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
-use App\Http\Controllers\Api\V1\FollowController;
+use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -84,15 +85,15 @@ Route::prefix('v1')->group(function () {
     Route::get('/collaboration-types', [CollaborationTypeController::class, 'index']);
 
     Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
+
         Route::get('/profile', [ProfileController::class, 'show']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
 
         // Members & connections
-        // Specific route FIRST
         Route::get('members/names', [MemberController::class, 'names']);
 
-        // Generic resource routes AFTER
         Route::apiResource('members', MemberController::class)
             ->only(['index', 'show']);
 
@@ -124,13 +125,6 @@ Route::prefix('v1')->group(function () {
         // Collaborations
         Route::post('/collaborations', [CollaborationPostController::class, 'store']);
 
-        // Collaborations
-        Route::post('/collaborations', [CollaborationPostController::class, 'store']);
-
-
-        // Collaborations
-        Route::post('/collaborations', [CollaborationPostController::class, 'store']);
-
         // Circles
         Route::get('/circles', [CircleController::class, 'index']);
         Route::get('/circles/{id}', [CircleController::class, 'show']);
@@ -142,6 +136,21 @@ Route::prefix('v1')->group(function () {
         Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index']);
         Route::put('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
         Route::patch('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
+
+        // Circle Join Requests
+        Route::post('/circle-join-requests', [CircleJoinRequestController::class, 'store']);
+        Route::get('/circle-join-requests/my', [CircleJoinRequestController::class, 'myRequests']);
+        Route::get('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'show'])->whereUuid('id');
+        Route::delete('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'cancel'])->whereUuid('id');
+
+        Route::prefix('admin')->group(function () {
+            Route::get('/circle-join-requests', [CircleJoinRequestAdminController::class, 'index']);
+            Route::get('/circle-join-requests/{id}', [CircleJoinRequestAdminController::class, 'show'])->whereUuid('id');
+            Route::post('/circle-join-requests/{id}/approve-cd', [CircleJoinRequestAdminController::class, 'approveCd'])->whereUuid('id');
+            Route::post('/circle-join-requests/{id}/reject-cd', [CircleJoinRequestAdminController::class, 'rejectCd'])->whereUuid('id');
+            Route::post('/circle-join-requests/{id}/approve-id', [CircleJoinRequestAdminController::class, 'approveId'])->whereUuid('id');
+            Route::post('/circle-join-requests/{id}/reject-id', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
+        });
 
         // Circle Chat
         Route::get('/circles/{circle}/chat/messages', [CircleChatController::class, 'index']);
@@ -184,42 +193,23 @@ Route::prefix('v1')->group(function () {
         Route::get('/me/coins/ledger', [CoinsController::class, 'ledger']);
         Route::get('/coins/history', [CoinHistoryController::class, 'index']);
 
-        Route::post('/circle-join-requests', [CircleJoinRequestController::class, 'store']);
-        Route::get('/circle-join-requests/my', [CircleJoinRequestController::class, 'myRequests']);
-        Route::get('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'show'])->whereUuid('id');
-        Route::delete('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'cancel'])->whereUuid('id');
-
-        Route::prefix('admin')->group(function () {
-            Route::get('/circle-join-requests', [CircleJoinRequestAdminController::class, 'index']);
-            Route::get('/circle-join-requests/{id}', [CircleJoinRequestAdminController::class, 'show'])->whereUuid('id');
-            Route::post('/circle-join-requests/{id}/approve-cd', [CircleJoinRequestAdminController::class, 'approveCd'])->whereUuid('id');
-            Route::post('/circle-join-requests/{id}/reject-cd', [CircleJoinRequestAdminController::class, 'rejectCd'])->whereUuid('id');
-            Route::post('/circle-join-requests/{id}/approve-id', [CircleJoinRequestAdminController::class, 'approveId'])->whereUuid('id');
-            Route::post('/circle-join-requests/{id}/reject-id', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
-        });
-
         Route::prefix('activities')->group(function () {
-            // P2P Meetings
             Route::get('p2p-meetings', [P2pMeetingHistoryController::class, 'index']);
             Route::post('p2p-meetings', [P2pMeetingController::class, 'store']);
             Route::get('p2p-meetings/{id}', [P2pMeetingController::class, 'show']);
 
-            // Requirements
             Route::get('requirements', [RequirementHistoryController::class, 'index']);
             Route::post('requirements', [ActivitiesRequirementController::class, 'store']);
             Route::get('requirements/{id}', [ActivitiesRequirementController::class, 'show']);
 
-            // Referrals
             Route::get('referrals', [ReferralHistoryController::class, 'index']);
             Route::post('referrals', [ReferralController::class, 'store']);
             Route::get('referrals/{id}', [ReferralController::class, 'show']);
 
-            // Business Deals
             Route::get('business-deals', [BusinessDealHistoryController::class, 'index']);
             Route::post('business-deals', [BusinessDealController::class, 'store']);
             Route::get('business-deals/{id}', [BusinessDealHistoryController::class, 'show']);
 
-            // Testimonials
             Route::get('testimonials', [TestimonialHistoryController::class, 'index']);
             Route::post('testimonials', [TestimonialController::class, 'store']);
             Route::get('testimonials/{id}', [TestimonialHistoryController::class, 'show']);
@@ -245,7 +235,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/wallet/transactions', [WalletController::class, 'myTransactions']);
         Route::post('/wallet/topup', [WalletController::class, 'topup']);
 
-        // Requirements (timeline + creator lifecycle)
+        // Requirements
         Route::get('/timeline/requirements', [TimelineRequirementController::class, 'index']);
         Route::post('/requirements', [V1RequirementController::class, 'store']);
         Route::get('/requirements/{id}', [V1RequirementController::class, 'show']);
@@ -253,11 +243,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/requirements/{requirement}/interest', [RequirementInterestController::class, 'store']);
         Route::get('/my/requirements', [V1RequirementController::class, 'myIndex']);
 
-        // Support - user-facing
+        // Support
         Route::post('/support', [SupportController::class, 'store']);
         Route::get('/support/my', [SupportController::class, 'mySupportRequests']);
-
-        // Support - admin-facing
         Route::get('/support/admin', [SupportController::class, 'adminIndex']);
         Route::patch('/support/admin/{id}', [SupportController::class, 'adminUpdate']);
 
@@ -311,7 +299,6 @@ Route::prefix('v1')->group(function () {
         // Referrals & Visitors
         Route::post('/referrals/links', [ReferralController::class, 'storeLink']);
         Route::get('/referrals/links', [ReferralController::class, 'listLinks']);
-
         Route::get('/referrals/visitors', [ReferralController::class, 'listVisitors']);
         Route::patch('/referrals/visitors/{id}', [ReferralController::class, 'updateVisitor']);
 

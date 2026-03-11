@@ -202,6 +202,11 @@ class User extends Authenticatable
         return $this->hasMany(CircleSubscription::class, 'user_id');
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class, 'user_id');
+    }
+
     public function activeCircle(): BelongsTo
     {
         return $this->belongsTo(Circle::class, 'active_circle_id');
@@ -229,10 +234,25 @@ class User extends Authenticatable
             return $displayName;
         }
 
-        $fullName = trim(trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? '')));
-        $fullName = trim(trim((string) ($this->first_name ?? '')).' '.trim((string) ($this->last_name ?? '')));
+        $fullName = trim(
+            trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? ''))
+        );
 
         return $fullName !== '' ? $fullName : 'Unknown';
+    }
+
+    public function getDisplayNameAttribute()
+    {
+        $firstName = trim($this->first_name ?? '');
+        $lastName = trim($this->last_name ?? '');
+
+        $fullName = trim($firstName . ' ' . $lastName);
+
+        if ($fullName !== '') {
+            return $fullName;
+        }
+
+        return $this->email;
     }
 
     public function adminCompanyLabel(): string

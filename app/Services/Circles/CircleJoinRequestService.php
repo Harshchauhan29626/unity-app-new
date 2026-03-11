@@ -8,8 +8,8 @@ use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Notifications\NotifyUserService;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class CircleJoinRequestService
@@ -27,7 +27,7 @@ class CircleJoinRequestService
                 ->where('circle_id', $circle->id)
                 ->where('user_id', $user->id)
                 ->whereNull('deleted_at')
-                ->whereIn('status', ['active', 'approved'])
+                ->where('status', 'approved')
                 ->exists();
 
             if ($alreadyMember) {
@@ -79,7 +79,10 @@ class CircleJoinRequestService
 
             $updated = $locked->fresh(['user', 'circle']);
 
-            $this->safeSendTransitionNotifications($updated, fn () => $this->circleJoinRequestNotificationService->sendCdApprovedToUser($updated));
+            $this->safeSendTransitionNotifications(
+                $updated,
+                fn () => $this->circleJoinRequestNotificationService->sendCdApprovedToUser($updated)
+            );
 
             return $updated;
         });
@@ -100,7 +103,10 @@ class CircleJoinRequestService
 
             $updated = $locked->fresh(['user', 'circle']);
 
-            $this->safeSendTransitionNotifications($updated, fn () => $this->circleJoinRequestNotificationService->sendCdRejectedToUser($updated));
+            $this->safeSendTransitionNotifications(
+                $updated,
+                fn () => $this->circleJoinRequestNotificationService->sendCdRejectedToUser($updated)
+            );
 
             return $updated;
         });
@@ -124,7 +130,10 @@ class CircleJoinRequestService
 
             $updated = $locked->fresh(['user', 'circle']);
 
-            $this->safeSendTransitionNotifications($updated, fn () => $this->circleJoinRequestNotificationService->sendIdApprovedToUser($updated));
+            $this->safeSendTransitionNotifications(
+                $updated,
+                fn () => $this->circleJoinRequestNotificationService->sendIdApprovedToUser($updated)
+            );
 
             return $updated;
         });
@@ -145,7 +154,10 @@ class CircleJoinRequestService
 
             $updated = $locked->fresh(['user', 'circle']);
 
-            $this->safeSendTransitionNotifications($updated, fn () => $this->circleJoinRequestNotificationService->sendIdRejectedToUser($updated));
+            $this->safeSendTransitionNotifications(
+                $updated,
+                fn () => $this->circleJoinRequestNotificationService->sendIdRejectedToUser($updated)
+            );
 
             return $updated;
         });
@@ -157,14 +169,23 @@ class CircleJoinRequestService
             $locked = $this->lockOrFail($request->id);
 
             if ((string) $locked->user_id !== (string) $user->id) {
-                throw ValidationException::withMessages(['id' => ['You can only cancel your own request.']]);
+                throw ValidationException::withMessages([
+                    'id' => ['You can only cancel your own request.'],
+                ]);
             }
 
-            if (! in_array($locked->status, [CircleJoinRequest::STATUS_PENDING_CD_APPROVAL, CircleJoinRequest::STATUS_PENDING_ID_APPROVAL], true)) {
-                throw ValidationException::withMessages(['id' => ['This request can no longer be cancelled.']]);
+            if (! in_array($locked->status, [
+                CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
+                CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
+            ], true)) {
+                throw ValidationException::withMessages([
+                    'id' => ['This request can no longer be cancelled.'],
+                ]);
             }
 
-            $locked->forceFill(['status' => CircleJoinRequest::STATUS_CANCELLED])->save();
+            $locked->forceFill([
+                'status' => CircleJoinRequest::STATUS_CANCELLED,
+            ])->save();
 
             return $locked->fresh(['user', 'circle']);
         });
@@ -189,7 +210,7 @@ class CircleJoinRequestService
                 }
 
                 $member->forceFill([
-                    'status' => 'active',
+                    'status' => 'approved',
                     'role' => $member->role ?: 'member',
                     'joined_at' => $member->joined_at ?: $startedAt,
                     'left_at' => null,
@@ -198,7 +219,7 @@ class CircleJoinRequestService
                 CircleMember::query()->create([
                     'circle_id' => $locked->circle_id,
                     'user_id' => $locked->user_id,
-                    'status' => 'active',
+                    'status' => 'approved',
                     'role' => 'member',
                     'joined_at' => $startedAt,
                 ]);
@@ -213,7 +234,10 @@ class CircleJoinRequestService
 
             $updated = $locked->fresh(['user', 'circle']);
 
-            $this->safeSendTransitionNotifications($updated, fn () => $this->circleJoinRequestNotificationService->sendCircleMemberConfirmedToUser($updated));
+            $this->safeSendTransitionNotifications(
+                $updated,
+                fn () => $this->circleJoinRequestNotificationService->sendCircleMemberConfirmedToUser($updated)
+            );
 
             return $updated;
         });
@@ -221,7 +245,10 @@ class CircleJoinRequestService
 
     private function lockOrFail(string $id): CircleJoinRequest
     {
-        return CircleJoinRequest::query()->where('id', $id)->lockForUpdate()->firstOrFail();
+        return CircleJoinRequest::query()
+            ->where('id', $id)
+            ->lockForUpdate()
+            ->firstOrFail();
     }
 
     private function ensureStatus(CircleJoinRequest $request, string $expected): void
@@ -232,7 +259,6 @@ class CircleJoinRequestService
             ]);
         }
     }
-
 
     private function safeSendTransitionNotifications(CircleJoinRequest $request, callable $callback): void
     {
@@ -250,6 +276,7 @@ class CircleJoinRequestService
     private function notifyStakeholders(CircleJoinRequest $request, User $actor): void
     {
         $circle = $request->circle()->first();
+
         if (! $circle) {
             return;
         }
@@ -262,11 +289,15 @@ class CircleJoinRequestService
             ]))
             ->get();
 
-        $globalAdminRoleId = Role::query()->where('key', 'global_admin')->value('id');
+        $globalAdminRoleId = Role::query()
+            ->where('key', 'global_admin')
+            ->value('id');
+
         if ($globalAdminRoleId) {
             $globalAdmins = User::query()
                 ->whereHas('roles', fn ($q) => $q->where('roles.id', $globalAdminRoleId))
                 ->get();
+
             $targets = $targets->merge($globalAdmins);
         }
 
@@ -283,9 +314,14 @@ class CircleJoinRequestService
 
     private function notifyUser(User $to, User $from, string $type, string $body, array $data = []): void
     {
-        $this->notifyUserService->notifyUser($to, $from, $type, array_merge($data, [
-            'title' => 'Circle Joining Request',
-            'body' => $body,
-        ]));
+        $this->notifyUserService->notifyUser(
+            $to,
+            $from,
+            $type,
+            array_merge($data, [
+                'title' => 'Circle Joining Request',
+                'body' => $body,
+            ])
+        );
     }
 }
