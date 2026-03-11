@@ -24,7 +24,7 @@ class MediaProcessor
         }
 
         if ($type === 'video') {
-            return $this->processVideo($sourcePath);
+            return $this->processVideo($sourcePath, $mimeType);
         }
 
         throw new MediaProcessingException('Unsupported media type.');
@@ -60,19 +60,14 @@ class MediaProcessor
         ];
     }
 
-    private function processVideo(string $sourcePath): array
+    private function processVideo(string $sourcePath, ?string $mimeType = null): array
     {
         if (! $this->probe->ffmpegAvailable()) {
             throw new MediaProcessingException('Video optimization requires FFmpeg. Upload rejected.');
         }
 
-        $maxWidth = (int) config('media.video.max_width', 1280);
-        $crf = (string) config('media.video.crf', '28');
-        $preset = (string) config('media.video.preset', 'veryfast');
-        $audioBitrate = (string) config('media.video.audio_bitrate', '128k');
-
         $destination = $this->tempFilePath('mp4');
-        $scaleFilter = 'scale=min(' . $maxWidth . ',iw):-2';
+        $scaleFilter = "scale='min(720,iw)':-2";
 
         $process = new Process([
             'ffmpeg',
@@ -84,13 +79,13 @@ class MediaProcessor
             '-c:v',
             'libx264',
             '-preset',
-            $preset,
+            'veryfast',
             '-crf',
-            (string) $crf,
+            '30',
             '-c:a',
             'aac',
             '-b:a',
-            $audioBitrate,
+            '96k',
             '-movflags',
             '+faststart',
             $destination,
@@ -99,18 +94,52 @@ class MediaProcessor
         $process->setTimeout((int) config('media.video.timeout', 180));
         $process->run();
 
+        $originalSize = @filesize($sourcePath) ?: null;
+        $optimizedSize = @filesize($destination) ?: null;
+
         if (! $process->isSuccessful()) {
-            Log::warning('FFmpeg failed', ['output' => $process->getErrorOutput()]);
+            Log::warning('FFmpeg failed; keeping original video.', [
+                'command' => $process->getCommandLine(),
+                'stdout' => $process->getOutput(),
+                'stderr' => $process->getErrorOutput(),
+                'original_path' => $sourcePath,
+                'optimized_path' => $destination,
+                'original_size' => $originalSize,
+                'optimized_size' => $optimizedSize,
+                'final_selected_file' => $sourcePath,
+            ]);
+
             @unlink($destination);
-            throw new MediaProcessingException('Video optimization failed.');
+
+            return $this->buildVideoPayload($sourcePath, $mimeType);
         }
 
-        $meta = $this->probe->videoMetadata($destination);
+        $finalPath = $destination;
+
+        if ($optimizedSize === null || $originalSize === null || $optimizedSize >= $originalSize) {
+            @unlink($destination);
+            $finalPath = $sourcePath;
+        }
+
+        Log::info('Video optimization completed.', [
+            'original_path' => $sourcePath,
+            'optimized_path' => $destination,
+            'original_size' => $originalSize,
+            'optimized_size' => $optimizedSize,
+            'final_selected_file' => $finalPath,
+        ]);
+
+        return $this->buildVideoPayload($finalPath, $mimeType);
+    }
+
+    private function buildVideoPayload(string $path, ?string $mimeType = null): array
+    {
+        $meta = $this->probe->videoMetadata($path);
 
         return [
-            'path' => $destination,
-            'mime_type' => 'video/mp4',
-            'size_bytes' => @filesize($destination) ?: null,
+            'path' => $path,
+            'mime_type' => $mimeType ?: ($this->probe->mimeType($path) ?: 'video/mp4'),
+            'size_bytes' => @filesize($path) ?: null,
             'width' => $meta['width'] ?? null,
             'height' => $meta['height'] ?? null,
             'duration' => $meta['duration'] ?? null,

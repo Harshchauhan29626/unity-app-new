@@ -92,9 +92,9 @@ class EventGalleryController extends Controller
             'event_name' => ['nullable', 'string', 'max:180'],
             'media_type' => ['required', 'in:image,video'],
             'file' => ['required'],
-            'file.*' => ['file', 'max:10240'],
+            'file.*' => ['file', 'max:51200'],
             'caption' => ['nullable', 'string', 'max:255'],
-            'thumbnail_file' => ['nullable', 'file', 'max:10240'],
+            'thumbnail_file' => ['nullable', 'file', 'max:51200'],
         ]);
 
         if (empty($data['event_gallery_id']) && empty($data['event_name'])) {

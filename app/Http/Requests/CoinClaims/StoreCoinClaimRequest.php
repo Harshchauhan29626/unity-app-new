@@ -20,7 +20,7 @@ class StoreCoinClaimRequest extends FormRequest
             'activity_code' => ['required', 'string'],
             'fields' => ['nullable', 'array'],
             'files' => ['nullable', 'array'],
-            'files.*' => ['nullable', 'file', 'max:10240'],
+            'files.*' => ['nullable', 'file', 'max:51200'],
         ];
     }
 
