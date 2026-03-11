@@ -8,13 +8,16 @@ use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Notifications\NotifyUserService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CircleJoinRequestService
 {
-    public function __construct(private readonly NotifyUserService $notifyUserService)
-    {
+    public function __construct(
+        private readonly NotifyUserService $notifyUserService,
+        private readonly CircleJoinRequestNotificationService $circleJoinRequestNotificationService,
+    ) {
     }
 
     public function submitRequest(User $user, Circle $circle, ?string $reason): CircleJoinRequest
@@ -74,9 +77,11 @@ class CircleJoinRequestService
                 'cd_rejection_reason' => null,
             ])->save();
 
-            $this->notifyUser($locked->user, $admin, 'circle_join_request_cd_approved', 'Your request is now pending Industry Director approval.');
+            $updated = $locked->fresh(['user', 'circle']);
 
-            return $locked->fresh(['user', 'circle']);
+            $this->safeSendTransitionNotifications($updated, fn () => $this->circleJoinRequestNotificationService->sendCdApprovedToUser($updated));
+
+            return $updated;
         });
     }
 
@@ -93,9 +98,11 @@ class CircleJoinRequestService
                 'cd_rejection_reason' => $reason,
             ])->save();
 
-            $this->notifyUser($locked->user, $admin, 'circle_join_request_cd_rejected', 'Your request was rejected by Circle Director.');
+            $updated = $locked->fresh(['user', 'circle']);
 
-            return $locked->fresh(['user', 'circle']);
+            $this->safeSendTransitionNotifications($updated, fn () => $this->circleJoinRequestNotificationService->sendCdRejectedToUser($updated));
+
+            return $updated;
         });
     }
 
@@ -115,9 +122,11 @@ class CircleJoinRequestService
                 'fee_marked_at' => now(),
             ])->save();
 
-            $this->notifyUser($locked->user, $admin, 'circle_join_request_id_approved', 'Your request is approved and pending circle fee payment.');
+            $updated = $locked->fresh(['user', 'circle']);
 
-            return $locked->fresh(['user', 'circle']);
+            $this->safeSendTransitionNotifications($updated, fn () => $this->circleJoinRequestNotificationService->sendIdApprovedToUser($updated));
+
+            return $updated;
         });
     }
 
@@ -134,9 +143,11 @@ class CircleJoinRequestService
                 'id_rejection_reason' => $reason,
             ])->save();
 
-            $this->notifyUser($locked->user, $admin, 'circle_join_request_id_rejected', 'Your request was rejected by Industry Director.');
+            $updated = $locked->fresh(['user', 'circle']);
 
-            return $locked->fresh(['user', 'circle']);
+            $this->safeSendTransitionNotifications($updated, fn () => $this->circleJoinRequestNotificationService->sendIdRejectedToUser($updated));
+
+            return $updated;
         });
     }
 
@@ -199,9 +210,11 @@ class CircleJoinRequestService
                 'notes' => array_merge((array) $locked->notes, $context),
             ])->save();
 
-            $this->notifyUser($locked->user, $locked->user, 'circle_join_request_member_created', 'You are now a Circle Member.');
+            $updated = $locked->fresh(['user', 'circle']);
 
-            return $locked->fresh(['user', 'circle']);
+            $this->safeSendTransitionNotifications($updated, fn () => $this->circleJoinRequestNotificationService->sendCircleMemberConfirmedToUser($updated));
+
+            return $updated;
         });
     }
 
@@ -215,6 +228,20 @@ class CircleJoinRequestService
         if ($request->status !== $expected) {
             throw ValidationException::withMessages([
                 'status' => ["Invalid status transition from {$request->status}."],
+            ]);
+        }
+    }
+
+
+    private function safeSendTransitionNotifications(CircleJoinRequest $request, callable $callback): void
+    {
+        try {
+            $callback();
+        } catch (\Throwable $exception) {
+            Log::warning('Circle join request transition notification failed', [
+                'circle_join_request_id' => (string) $request->id,
+                'status' => (string) $request->status,
+                'error' => $exception->getMessage(),
             ]);
         }
     }

@@ -27,7 +27,14 @@
                     <td>{{ $row->user?->adminCityLabel() }}</td>
                     <td>{{ $row->circle?->name }}</td>
                     <td>{{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 50) }}</td>
-                    <td><span class="badge text-bg-secondary">{{ $row->status }}</span></td>
+                    <td>
+                        <span class="badge text-bg-secondary">{{ $row->status }}</span>
+                        @if($row->status === 'rejected_by_cd' && $row->cd_rejection_reason)
+                            <div class="small text-danger mt-1">Reason: {{ \Illuminate\Support\Str::limit((string) $row->cd_rejection_reason, 60) }}</div>
+                        @elseif($row->status === 'rejected_by_id' && $row->id_rejection_reason)
+                            <div class="small text-danger mt-1">Reason: {{ \Illuminate\Support\Str::limit((string) $row->id_rejection_reason, 60) }}</div>
+                        @endif
+                    </td>
                     <td>
                         <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="btn btn-sm btn-outline-primary">Details</a>
                         @if($row->status === 'pending_cd_approval')
