@@ -51,3 +51,23 @@ Broadcast::channel('App.Models.User.{id}', function ($user, string $id) {
 Broadcast::channel('user.{userId}', function ($user, string $userId) {
     return (string) $user->id === (string) $userId;
 });
+
+
+Broadcast::channel('presence-circle-chat.{circleId}', function ($user, string $circleId) {
+    $isMember = DB::table('circle_members')
+        ->where('circle_id', $circleId)
+        ->where('user_id', $user->id)
+        ->where('status', 'approved')
+        ->whereNull('deleted_at')
+        ->exists();
+
+    if (! $isMember) {
+        return false;
+    }
+
+    return [
+        'id' => (string) $user->id,
+        'name' => $user->display_name
+            ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+    ];
+});

@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\BusinessDealController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\ChatTypingController;
 use App\Http\Controllers\Api\CircleController;
+use App\Http\Controllers\Api\CircleChatController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\FeedbackController;
 use App\Http\Controllers\Api\FileController;
@@ -127,6 +128,7 @@ Route::prefix('v1')->group(function () {
 
         // Collaborations
         Route::post('/collaborations', [CollaborationPostController::class, 'store']);
+
         // Circles
         Route::get('/circles', [CircleController::class, 'index']);
         Route::get('/circles/{id}', [CircleController::class, 'show']);
@@ -138,6 +140,14 @@ Route::prefix('v1')->group(function () {
         Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index']);
         Route::put('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
         Route::patch('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
+
+        // Circle Chat
+        Route::get('/circles/{circle}/chat/messages', [CircleChatController::class, 'index']);
+        Route::post('/circles/{circle}/chat/messages', [CircleChatController::class, 'store']);
+        Route::post('/circles/{circle}/chat/messages/read', [CircleChatController::class, 'markRead']);
+        Route::get('/circles/{circle}/chat/messages/{message}/reads', [CircleChatController::class, 'readDetails']);
+        Route::post('/circles/{circle}/chat/messages/{message}/delete-for-me', [CircleChatController::class, 'deleteForMe']);
+        Route::delete('/circles/{circle}/chat/messages/{message}', [CircleChatController::class, 'destroy']);
 
         // Posts & feed
         Route::post('/posts/{post}/report', [PostReportController::class, 'store']);
@@ -309,7 +319,6 @@ Route::prefix('v1')->group(function () {
         Route::post('/forms/register-visitor', [VisitorRegistrationController::class, 'store']);
         Route::get('/forms/register-visitor/my', [VisitorRegistrationController::class, 'myIndex']);
         Route::get('/forms/visitor-registrations/my', [VisitorRegistrationController::class, 'myIndex']);
-
 
         Route::get('/zoho/test-token', [ZohoDebugController::class, 'testToken']);
         Route::get('/zoho/org', [ZohoDebugController::class, 'org']);
