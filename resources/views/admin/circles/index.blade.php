@@ -15,7 +15,7 @@
     <div class="alert alert-success">{{ session('success') }}</div>
 @endif
 
-<form method="GET" action="{{ route('admin.circles.index') }}">
+<form id="circleFiltersForm" method="GET" action="{{ route('admin.circles.index') }}">
     <div class="card p-3">
         <div class="table-responsive" style="overflow-x: auto;">
             <table class="table align-middle" style="white-space: nowrap;">
@@ -30,11 +30,13 @@
                         <th>Meeting Mode</th>
                         <th>Meeting Frequency</th>
                         <th>Launch Date</th>
+                        <th>Circle Stage</th>
                         <th>Cover Image</th>
                         <th>Director</th>
                         <th>Industry Director</th>
                         <th>DED</th>
                         <th>Peers</th>
+                        <th>Rank</th>
                         <th>Status</th>
                         <th>Created</th>
                         <th></th>
@@ -97,6 +99,14 @@
                         <th>
                             <input type="date" name="launch_date" class="form-control form-control-sm" value="{{ $filters['launch_date'] }}">
                         </th>
+                        <th>
+                            <select id="circleStageFilter" name="circle_stage" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                @foreach ($circleStageOptions as $circleStage)
+                                    <option value="{{ $circleStage }}" @selected($filters['circle_stage'] === $circleStage)>{{ $circleStage }}</option>
+                                @endforeach
+                            </select>
+                        </th>
                         <th class="text-muted small">—</th>
                         <th>
                             <input type="text" name="director" class="form-control form-control-sm" value="{{ $filters['director'] }}" placeholder="Director">
@@ -109,6 +119,14 @@
                         </th>
                         <th>
                             <input type="text" class="form-control form-control-sm" placeholder="—" disabled>
+                        </th>
+                        <th>
+                            <select id="circleRankFilter" name="rank" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                @foreach ($rankOptions as $rank)
+                                    <option value="{{ $rank }}" @selected(($filters['rank'] ?? '') === $rank)>{{ $rank }}</option>
+                                @endforeach
+                            </select>
                         </th>
                         <th>
                             <select name="status" class="form-select form-select-sm">
@@ -161,6 +179,7 @@
                                     —
                                 @endif
                             </td>
+                            <td>{{ $circle->circle_stage ?: '—' }}</td>
                             <td>
                                 @if ($circle->cover_image_url)
                                     <a href="{{ $circle->cover_image_url }}" target="_blank">
@@ -178,6 +197,11 @@
                             <td>{{ $circle->industryDirector?->display_name ?? '—' }}</td>
                             <td>{{ $circle->ded?->display_name ?? '—' }}</td>
                             <td>{{ $circle->members_count ?? 0 }}</td>
+                            @php($rankingData = $circle->getCircleRanking())
+                            <td>
+                                <div class="fw-semibold">{{ $rankingData['rank'] }}</div>
+                                <div class="small text-muted">{{ $rankingData['title'] }}</div>
+                            </td>
                             <td>
                                 <span class="badge badge-soft-secondary text-uppercase">
                                     {{ !empty($circle->status) ? ucfirst(strtolower($circle->status)) : '—' }}
@@ -197,7 +221,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="18" class="text-center text-muted py-4">No circles found.</td>
+                            <td colspan="20" class="text-center text-muted py-4">No circles found.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -208,4 +232,38 @@
         </div>
     </div>
 </form>
+
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('circleFiltersForm');
+
+        if (!form) {
+            return;
+        }
+
+        const enterSubmitFields = [
+            document.getElementById('circleStageFilter'),
+            document.getElementById('circleRankFilter'),
+        ];
+
+        enterSubmitFields.forEach(function (field) {
+            if (!field) {
+                return;
+            }
+
+            field.addEventListener('keydown', function (event) {
+                if (event.key !== 'Enter') {
+                    return;
+                }
+
+                event.preventDefault();
+                form.submit();
+            });
+        });
+    });
+</script>
+@endpush
+
 @endsection

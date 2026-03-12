@@ -32,6 +32,8 @@ class CircleController extends Controller
         $country = trim((string) $request->query('country', ''));
         $type = trim((string) $request->query('type', ''));
         $status = trim((string) $request->query('status', ''));
+        $circleStage = trim((string) $request->query('circle_stage', ''));
+        $rank = trim((string) $request->query('rank', ''));
 
         $filters = [
             'circle_name' => trim((string) $request->query('circle_name', '')),
@@ -49,6 +51,8 @@ class CircleController extends Controller
             'industry_director' => trim((string) $request->query('industry_director', '')),
             'ded' => trim((string) $request->query('ded', '')),
             'status' => $status,
+            'circle_stage' => $circleStage,
+            'rank' => $rank,
         ];
 
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
@@ -117,6 +121,25 @@ class CircleController extends Controller
                 $query->where('circles.meeting_frequency', $filters['meeting_frequency']);
             } elseif (Schema::hasColumn('circles', 'calendar')) {
                 $query->whereRaw("calendar->'settings'->>'meeting_frequency' = ?", [$filters['meeting_frequency']]);
+            }
+        }
+
+        if ($circleStage !== '' && $circleStage !== 'any' && in_array($circleStage, Circle::STAGE_OPTIONS, true) && Schema::hasColumn('circles', 'circle_stage')) {
+            $query->where('circles.circle_stage', $circleStage);
+        }
+
+        if ($rank !== '' && $rank !== 'any' && in_array($rank, Circle::RANK_OPTIONS, true)) {
+            $rankRange = Circle::rankRange($rank);
+
+            if (is_array($rankRange)) {
+                $max = $rankRange['max'];
+
+                if ($max === null) {
+                    $query->has('members', '>=', (int) $rankRange['min']);
+                } else {
+                    $query->has('members', '>=', (int) $rankRange['min'])
+                        ->has('members', '<=', (int) $max);
+                }
             }
         }
 
@@ -193,6 +216,9 @@ class CircleController extends Controller
 
         $statusOptions = collect(Circle::STATUS_OPTIONS);
 
+        $circleStageOptions = collect(Circle::STAGE_OPTIONS);
+        $rankOptions = collect(Circle::RANK_OPTIONS);
+
         return view('admin.circles.index', [
             'circles' => $circles,
             'filters' => $filters,
@@ -203,6 +229,8 @@ class CircleController extends Controller
             'meetingModeOptions' => $meetingModeOptions,
             'meetingFrequencyOptions' => $meetingFrequencyOptions,
             'statusOptions' => $statusOptions,
+            'circleStageOptions' => $circleStageOptions,
+            'rankOptions' => $rankOptions,
         ]);
     }
 
@@ -230,6 +258,7 @@ class CircleController extends Controller
             'meetingFrequencies' => Circle::MEETING_FREQUENCY_OPTIONS,
             'allUsers' => $this->allUsers(),
             'circlePackages' => $this->circlePackageOptions(),
+            'circleStages' => Circle::STAGE_OPTIONS,
         ]);
     }
 
@@ -248,6 +277,7 @@ class CircleController extends Controller
             'purpose' => $validated['purpose'] ?? null,
             'announcement' => $validated['announcement'] ?? null,
             'industry_tags' => $this->normalizeIndustryTags($validated['industry_tags'] ?? null),
+            'circle_stage' => $validated['circle_stage'] ?? null,
         ];
 
         if (empty($payload['status'])) {
@@ -285,10 +315,34 @@ class CircleController extends Controller
 
         $circle->load(['city', 'founder', 'director', 'industryDirector', 'ded', 'members.user', 'members.roleRef']);
 
+        $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+
+        $circleStage = trim((string) $circle->getRawOriginal('circle_stage'));
+        if ($circleStage === '') {
+            $circleStage = trim((string) data_get($calendar, 'settings.circle_stage', ''));
+        }
+
+        $rawMeetingSchedule = data_get($calendar, 'meeting_schedule');
+        $meetings = is_array($rawMeetingSchedule) ? array_values($rawMeetingSchedule) : [];
+        $timezone = data_get($calendar, 'timezone', 'Asia/Kolkata');
+
+        $meetingRows = array_map(function ($meeting, int $index): array {
+            $meeting = is_array($meeting) ? $meeting : [];
+
+            return [
+                'label' => 'Meeting #'.($index + 1),
+                'value' => $this->formatMeetingScheduleEntry($meeting),
+            ];
+        }, $meetings, array_keys($meetings));
+
         return view('admin.circles.show', [
             'circle' => $circle,
+            'circleStage' => $circleStage,
             'allUsers' => $this->allUsers(),
             'roles' => CircleMember::roleOptions(),
+            'meetingRows' => $meetingRows,
+            'timezone' => is_string($timezone) && trim($timezone) !== '' ? trim($timezone) : 'Asia/Kolkata',
+            'rankingData' => $circle->getCircleRanking(),
         ]);
     }
 
@@ -318,6 +372,7 @@ class CircleController extends Controller
             'meetingFrequencies' => Circle::MEETING_FREQUENCY_OPTIONS,
             'allUsers' => $this->allUsers(),
             'circlePackages' => $this->circlePackageOptions(),
+            'circleStages' => Circle::STAGE_OPTIONS,
         ]);
     }
 
@@ -340,6 +395,7 @@ class CircleController extends Controller
             'description',
             'purpose',
             'announcement',
+            'circle_stage',
         ] as $column) {
             if (Schema::hasColumn('circles', $column) && array_key_exists($column, $validated)) {
                 $allowed[$column] = $validated[$column];
@@ -417,6 +473,20 @@ class CircleController extends Controller
         return null;
     }
 
+
+
+    private function formatMeetingScheduleEntry(array $meeting): string
+    {
+        $frequency = strtolower(trim((string) ($meeting['frequency'] ?? '')));
+        $day = trim((string) ($meeting['day_of_week'] ?? ''));
+        $time = trim((string) ($meeting['default_meet_time'] ?? ''));
+
+        if ($frequency === '' || $day === '' || $time === '') {
+            return '—';
+        }
+
+        return $day.' at '.$time.' ('.ucfirst($frequency).')';
+    }
 
     private function normalizeCalendarMeetings(mixed $meetings): ?array
     {

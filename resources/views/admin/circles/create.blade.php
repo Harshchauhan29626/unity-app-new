@@ -141,6 +141,16 @@
                         <input type="date" name="launch_date" class="form-control" value="{{ old('launch_date') }}">
                     </div>
                     <div class="col-md-4">
+                        <label class="form-label">Circle Stage</label>
+                        <select name="circle_stage" class="form-select">
+                            <option value="">Select stage</option>
+                            @foreach ($circleStages as $stage)
+                                <option value="{{ $stage }}" @selected(old('circle_stage') === $stage)>{{ $stage }}</option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">Select the current maturity stage of this circle.</div>
+                    </div>
+                    <div class="col-md-4">
                         <label class="form-label">Circle Director</label>
                         <select name="director_user_id" class="form-select">
                             <option value="">Select director</option>

@@ -19,6 +19,25 @@ class Circle extends Model
     public const TYPE_OPTIONS = ['public', 'private'];
     public const MEETING_MODE_OPTIONS = ['online', 'offline', 'hybrid'];
     public const MEETING_FREQUENCY_OPTIONS = ['monthly', 'quarterly'];
+    public const STAGE_OPTIONS = [
+        'Conceptualized Circle',
+        'Foundation Circle',
+        'Pre-Launch Circle',
+        'Launched Circle',
+        'Growth Circle',
+        'High-Impact Circle',
+    ];
+
+    public const RANK_OPTIONS = [
+        'Bronze',
+        'Silver',
+        'Gold',
+        'Platinum',
+        'Titanium',
+        'Diamond',
+        'Royal',
+        'Global Elite',
+    ];
 
     protected $keyType = 'string';
     public $incrementing = false;
@@ -48,6 +67,7 @@ class Circle extends Model
         'visitor_count',
         'type',
         'country',
+        'circle_stage',
         'zoho_addon_code',
         'zoho_addon_id',
         'zoho_addon_name',
@@ -66,6 +86,81 @@ class Circle extends Model
     ];
 
     protected $appends = ['cover_image_url', 'city_display'];
+
+    public function getCircleRanking(): array
+    {
+        $totalMembers = 0;
+
+        if ($this->relationLoaded('members')) {
+            $totalMembers = $this->members->count();
+        } elseif ($this->getAttribute('members_count') !== null) {
+            $totalMembers = (int) $this->getAttribute('members_count');
+        } else {
+            $totalMembers = $this->members()->count();
+        }
+
+        return self::buildCircleRankingData($totalMembers);
+    }
+
+    public static function buildCircleRankingData(int $totalMembers): array
+    {
+        $totalMembers = max(0, $totalMembers);
+
+        return [
+            'total_members' => $totalMembers,
+            'rank' => self::resolveCircleRank($totalMembers),
+            'title' => self::resolveCircleTitle($totalMembers),
+        ];
+    }
+
+    public static function rankRange(string $rank): ?array
+    {
+        return match ($rank) {
+            'Bronze' => ['min' => 0, 'max' => 19],
+            'Silver' => ['min' => 20, 'max' => 29],
+            'Gold' => ['min' => 30, 'max' => 39],
+            'Platinum' => ['min' => 40, 'max' => 49],
+            'Titanium' => ['min' => 50, 'max' => 59],
+            'Diamond' => ['min' => 60, 'max' => 74],
+            'Royal' => ['min' => 75, 'max' => 99],
+            'Global Elite' => ['min' => 100, 'max' => null],
+            default => null,
+        };
+    }
+
+    private static function resolveCircleRank(int $totalMembers): string
+    {
+        if ($totalMembers >= 100) {
+            return 'Global Elite';
+        }
+
+        return match (true) {
+            $totalMembers >= 75 => 'Royal',
+            $totalMembers >= 60 => 'Diamond',
+            $totalMembers >= 50 => 'Titanium',
+            $totalMembers >= 40 => 'Platinum',
+            $totalMembers >= 30 => 'Gold',
+            $totalMembers >= 20 => 'Silver',
+            default => 'Bronze',
+        };
+    }
+
+    private static function resolveCircleTitle(int $totalMembers): string
+    {
+        if ($totalMembers >= 100) {
+            return 'Flagship Circle';
+        }
+
+        return match (true) {
+            $totalMembers >= 75 => 'Legacy Circle',
+            $totalMembers >= 60 => 'Iconic Circle',
+            $totalMembers >= 50 => 'Growth Powerhouse',
+            $totalMembers >= 40 => 'Influencer Circle',
+            $totalMembers >= 30 => 'Collaborative Circle',
+            $totalMembers >= 20 => 'Trusted Circle',
+            default => 'Rising Circle',
+        };
+    }
 
     protected static function booted()
     {

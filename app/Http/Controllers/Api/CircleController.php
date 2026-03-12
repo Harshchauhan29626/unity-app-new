@@ -47,10 +47,14 @@ class CircleController extends BaseApiController
     {
         $query = Circle::query()
             ->with([
-                'founder:id,first_name,last_name,display_name,profile_photo_url,email,phone',
-                'director:id,first_name,last_name,display_name,email,phone',
-                'industryDirector:id,first_name,last_name,display_name,email,phone',
-                'ded:id,first_name,last_name,display_name,email,phone',
+                'founder:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+                'founder.cityRelation:id,name',
+                'director:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+                'director.cityRelation:id,name',
+                'industryDirector:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+                'industryDirector.cityRelation:id,name',
+                'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+                'ded.cityRelation:id,name',
                 'city:id,name,state,district,country,country_code',
             ])
             ->withCount([
@@ -105,10 +109,14 @@ class CircleController extends BaseApiController
     {
         $circle = Circle::with([
             'city:id,name,state,district,country,country_code',
-            'founder:id,first_name,last_name,display_name,profile_photo_url,email,phone',
-            'director:id,first_name,last_name,display_name,email,phone',
-            'industryDirector:id,first_name,last_name,display_name,email,phone',
-            'ded:id,first_name,last_name,display_name,email,phone',
+            'founder:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'founder.cityRelation:id,name',
+            'director:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'director.cityRelation:id,name',
+            'industryDirector:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'industryDirector.cityRelation:id,name',
+            'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'ded.cityRelation:id,name',
         ])
             ->withCount([
                 'members as members_count' => function ($q) {
@@ -205,10 +213,14 @@ class CircleController extends BaseApiController
 
         $paginator = Circle::whereIn('id', $circleIds)
             ->with([
-                'founder:id,first_name,last_name,display_name,profile_photo_url,email,phone',
-                'director:id,first_name,last_name,display_name,email,phone',
-                'industryDirector:id,first_name,last_name,display_name,email,phone',
-                'ded:id,first_name,last_name,display_name,email,phone',
+                'founder:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+                'founder.cityRelation:id,name',
+                'director:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+                'director.cityRelation:id,name',
+                'industryDirector:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+                'industryDirector.cityRelation:id,name',
+                'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+                'ded.cityRelation:id,name',
                 'city:id,name,state,district,country,country_code',
             ])
             ->withCount([

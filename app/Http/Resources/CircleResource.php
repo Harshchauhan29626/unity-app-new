@@ -15,7 +15,25 @@ class CircleResource extends JsonResource
         $city = $this->whenLoaded('city');
         $currentMember = $this->whenLoaded('currentMember');
 
-        $userMini = static function ($user) {
+        $resolveUserCity = static function ($user): ?string {
+            if (! $user) {
+                return null;
+            }
+
+            $city = trim((string) ($user->city ?? ''));
+
+            if ($city !== '') {
+                return $city;
+            }
+
+            if ($user->relationLoaded('cityRelation')) {
+                return $user->cityRelation?->name;
+            }
+
+            return null;
+        };
+
+        $userMini = static function ($user) use ($resolveUserCity) {
             if (! $user) {
                 return null;
             }
@@ -23,8 +41,13 @@ class CircleResource extends JsonResource
             return [
                 'id' => $user->id,
                 'name' => $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'profile_photo_url' => $user->profile_photo_url,
                 'email' => $user->email,
                 'phone' => $user->phone ?? null,
+                'city' => $resolveUserCity($user),
+                'company_name' => $user->company_name,
             ];
         };
 
@@ -46,6 +69,8 @@ class CircleResource extends JsonResource
             'meeting_frequency' => $this->meeting_frequency,
             'meeting_repeat' => $this->meeting_repeat,
             'launch_date' => $this->launch_date,
+            'circle_stage' => $this->circle_stage,
+            'circle_ranking' => $this->getCircleRanking(),
             'city_id' => $this->city_id,
             'city' => $city ? [
                 'id' => $city->id,
@@ -67,6 +92,8 @@ class CircleResource extends JsonResource
                 'profile_photo_url' => $founder->profile_photo_url,
                 'email' => $founder->email,
                 'phone' => $founder->phone ?? null,
+                'city' => $resolveUserCity($founder),
+                'company_name' => $founder->company_name,
             ] : null,
             'director' => $userMini($director),
             'industry_director' => $userMini($industryDirector),

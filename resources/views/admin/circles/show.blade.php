@@ -127,6 +127,10 @@
                 <div class="small text-muted">Launch Date</div>
                 {!! $displayValue($launchDate) !!}
             </div>
+            <div class="col-md-4">
+                <div class="small text-muted">Circle Stage</div>
+                {!! $displayValue($circleStage) !!}
+            </div>
 
             <div class="col-md-4">
                 <div class="small text-muted">Director</div>
@@ -173,35 +177,35 @@
 
 
 <div class="card mt-3">
+    <div class="card-header fw-semibold">Circle Ranking</div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="small text-muted">Total Members</div>
+                <div class="fw-semibold text-dark">{{ $rankingData['total_members'] }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="small text-muted">Rank</div>
+                <div class="fw-semibold text-dark">{{ $rankingData['rank'] }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="small text-muted">Circle Title</div>
+                <div class="fw-semibold text-dark">{{ $rankingData['title'] }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-3">
     <div class="card-header fw-semibold">Meeting Schedule</div>
     <div class="card-body">
-        @php
-            $calendar = is_array($circle->calendar) ? $circle->calendar : null;
-            $meetings = is_array(data_get($calendar, 'meeting_schedule')) && data_get($calendar, 'meeting_schedule') !== []
-                ? array_values(data_get($calendar, 'meeting_schedule'))
-                : [];
-            $timezone = data_get($calendar, 'timezone', 'Asia/Kolkata');
-
-            $formatMeeting = static function (array $meeting): string {
-                $frequency = strtolower((string) ($meeting['frequency'] ?? ''));
-                $day = (string) ($meeting['day_of_week'] ?? '');
-                $time = (string) ($meeting['default_meet_time'] ?? '');
-
-                if ($frequency !== '' && $day !== '' && $time !== '') {
-                    return "{$day} at {$time} (" . ucfirst($frequency) . ")";
-                }
-
-                return '—';
-            };
-        @endphp
-
-        @if ($meetings === [])
+        @if (empty($meetingRows))
             <div class="text-muted">—</div>
         @else
             <ul class="list-group list-group-flush">
-                @foreach ($meetings as $index => $meeting)
+                @foreach ($meetingRows as $meetingRow)
                     <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
-                        <span><strong>Meeting #{{ $index + 1 }}:</strong> {{ $formatMeeting($meeting) }}</span>
+                        <span><strong>{{ $meetingRow['label'] }}:</strong> {{ $meetingRow['value'] }}</span>
                     </li>
                 @endforeach
             </ul>
@@ -248,10 +252,22 @@
                     @forelse ($circle->members as $membership)
                         @php
                             $member = $membership->user;
-                            $memberName = $member?->display_name ?? trim(($member?->first_name ?? '') . ' ' . ($member?->last_name ?? ''));
+                            $memberName = trim((string) ($member?->first_name ?? '').' '.(string) ($member?->last_name ?? ''));
+                            if ($memberName === '') {
+                                $memberName = trim((string) ($member?->display_name ?? ''));
+                            }
+                            $memberCompany = trim((string) ($member?->company_name ?? ''));
+                            if ($memberCompany === '') {
+                                $memberCompany = trim((string) ($member?->business_name ?? ''));
+                            }
+                            $memberCity = trim((string) ($member?->city ?? ''));
                         @endphp
                         <tr>
-                            <td>{{ $memberName ?: '—' }}</td>
+                            <td>
+                                <div class="fw-semibold">{{ $memberName !== '' ? $memberName : '—' }}</div>
+                                <div class="text-muted small">{{ $memberCompany !== '' ? $memberCompany : 'No Company' }}</div>
+                                <div class="text-muted small">{{ $memberCity !== '' ? $memberCity : 'No City' }}</div>
+                            </td>
                             <td>{{ $member?->email ?? '—' }}</td>
                             <td>
                                 <form method="POST" action="{{ route('admin.circles.members.update', [$circle, $membership]) }}" class="d-flex gap-2 align-items-center">
