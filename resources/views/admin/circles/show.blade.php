@@ -252,10 +252,22 @@
                     @forelse ($circle->members as $membership)
                         @php
                             $member = $membership->user;
-                            $memberName = $member?->display_name ?? trim(($member?->first_name ?? '') . ' ' . ($member?->last_name ?? ''));
+                            $memberName = trim((string) ($member?->first_name ?? '').' '.(string) ($member?->last_name ?? ''));
+                            if ($memberName === '') {
+                                $memberName = trim((string) ($member?->display_name ?? ''));
+                            }
+                            $memberCompany = trim((string) ($member?->company_name ?? ''));
+                            if ($memberCompany === '') {
+                                $memberCompany = trim((string) ($member?->business_name ?? ''));
+                            }
+                            $memberCity = trim((string) ($member?->city ?? ''));
                         @endphp
                         <tr>
-                            <td>{{ $memberName ?: '—' }}</td>
+                            <td>
+                                <div class="fw-semibold">{{ $memberName !== '' ? $memberName : '—' }}</div>
+                                <div class="text-muted small">{{ $memberCompany !== '' ? $memberCompany : 'No Company' }}</div>
+                                <div class="text-muted small">{{ $memberCity !== '' ? $memberCity : 'No City' }}</div>
+                            </td>
                             <td>{{ $member?->email ?? '—' }}</td>
                             <td>
                                 <form method="POST" action="{{ route('admin.circles.members.update', [$circle, $membership]) }}" class="d-flex gap-2 align-items-center">
