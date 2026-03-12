@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Resources\ConnectionResource;
+use App\Http\Resources\MemberDetailResource;
 use App\Http\Resources\PublicUserResource;
 use App\Http\Resources\UserResource;
 use App\Models\Connection;
@@ -109,7 +110,7 @@ class MemberController extends BaseApiController
             return $this->error('Member not found', 404);
         }
 
-        return $this->success(new UserResource($user));
+        return $this->success(new MemberDetailResource($user));
     }
 
     public function publicProfileBySlug(Request $request, string $slug)
