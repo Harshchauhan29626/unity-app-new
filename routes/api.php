@@ -23,7 +23,6 @@ use App\Http\Controllers\Api\FileController;
 use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\MembershipSummaryController;
 use App\Http\Controllers\Api\MessageDeletionController;
-use App\Http\Controllers\Api\MembershipSummaryController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\P2pMeetingController;
 use App\Http\Controllers\Api\PostController;
