@@ -30,6 +30,7 @@
                         <th>Meeting Mode</th>
                         <th>Meeting Frequency</th>
                         <th>Launch Date</th>
+                        <th>Circle Stage</th>
                         <th>Cover Image</th>
                         <th>Director</th>
                         <th>Industry Director</th>
@@ -97,6 +98,14 @@
                         <th>
                             <input type="date" name="launch_date" class="form-control form-control-sm" value="{{ $filters['launch_date'] }}">
                         </th>
+                        <th>
+                            <select name="circle_stage" class="form-select form-select-sm">
+                                <option value="">Any</option>
+                                @foreach ($circleStageOptions as $circleStage)
+                                    <option value="{{ $circleStage }}" @selected($filters['circle_stage'] === $circleStage)>{{ $circleStage }}</option>
+                                @endforeach
+                            </select>
+                        </th>
                         <th class="text-muted small">—</th>
                         <th>
                             <input type="text" name="director" class="form-control form-control-sm" value="{{ $filters['director'] }}" placeholder="Director">
@@ -161,6 +170,7 @@
                                     —
                                 @endif
                             </td>
+                            <td>{{ $circle->circle_stage ?: '—' }}</td>
                             <td>
                                 @if ($circle->cover_image_url)
                                     <a href="{{ $circle->cover_image_url }}" target="_blank">
@@ -197,7 +207,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="18" class="text-center text-muted py-4">No circles found.</td>
+                            <td colspan="19" class="text-center text-muted py-4">No circles found.</td>
                         </tr>
                     @endforelse
                 </tbody>

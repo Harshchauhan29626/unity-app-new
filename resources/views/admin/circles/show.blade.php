@@ -127,6 +127,10 @@
                 <div class="small text-muted">Launch Date</div>
                 {!! $displayValue($launchDate) !!}
             </div>
+            <div class="col-md-4">
+                <div class="small text-muted">Circle Stage</div>
+                {!! $displayValue($circle->circle_stage) !!}
+            </div>
 
             <div class="col-md-4">
                 <div class="small text-muted">Director</div>
@@ -171,6 +175,27 @@
     </div>
 </div>
 
+
+<div class="card mt-3">
+    <div class="card-header fw-semibold">Circle Ranking</div>
+    <div class="card-body">
+        @php($rankingData = $circle->getCircleRanking())
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="small text-muted">Total Members</div>
+                <div class="fw-semibold text-dark">{{ $rankingData['total_members'] }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="small text-muted">Rank</div>
+                <div class="fw-semibold text-dark">{{ $rankingData['rank'] }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="small text-muted">Circle Title</div>
+                <div class="fw-semibold text-dark">{{ $rankingData['title'] }}</div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="card mt-3">
     <div class="card-header fw-semibold">Meeting Schedule</div>

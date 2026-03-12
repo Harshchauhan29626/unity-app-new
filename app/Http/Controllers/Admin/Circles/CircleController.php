@@ -32,6 +32,7 @@ class CircleController extends Controller
         $country = trim((string) $request->query('country', ''));
         $type = trim((string) $request->query('type', ''));
         $status = trim((string) $request->query('status', ''));
+        $circleStage = trim((string) $request->query('circle_stage', ''));
 
         $filters = [
             'circle_name' => trim((string) $request->query('circle_name', '')),
@@ -49,6 +50,7 @@ class CircleController extends Controller
             'industry_director' => trim((string) $request->query('industry_director', '')),
             'ded' => trim((string) $request->query('ded', '')),
             'status' => $status,
+            'circle_stage' => $circleStage,
         ];
 
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
@@ -118,6 +120,10 @@ class CircleController extends Controller
             } elseif (Schema::hasColumn('circles', 'calendar')) {
                 $query->whereRaw("calendar->'settings'->>'meeting_frequency' = ?", [$filters['meeting_frequency']]);
             }
+        }
+
+        if ($circleStage !== '' && $circleStage !== 'any' && in_array($circleStage, Circle::STAGE_OPTIONS, true) && Schema::hasColumn('circles', 'circle_stage')) {
+            $query->where('circles.circle_stage', $circleStage);
         }
 
         if ($status !== '' && $status !== 'any' && in_array($status, Circle::STATUS_OPTIONS, true) && Schema::hasColumn('circles', 'status')) {
@@ -193,6 +199,8 @@ class CircleController extends Controller
 
         $statusOptions = collect(Circle::STATUS_OPTIONS);
 
+        $circleStageOptions = collect(Circle::STAGE_OPTIONS);
+
         return view('admin.circles.index', [
             'circles' => $circles,
             'filters' => $filters,
@@ -203,6 +211,7 @@ class CircleController extends Controller
             'meetingModeOptions' => $meetingModeOptions,
             'meetingFrequencyOptions' => $meetingFrequencyOptions,
             'statusOptions' => $statusOptions,
+            'circleStageOptions' => $circleStageOptions,
         ]);
     }
 
@@ -230,6 +239,7 @@ class CircleController extends Controller
             'meetingFrequencies' => Circle::MEETING_FREQUENCY_OPTIONS,
             'allUsers' => $this->allUsers(),
             'circlePackages' => $this->circlePackageOptions(),
+            'circleStages' => Circle::STAGE_OPTIONS,
         ]);
     }
 
@@ -248,6 +258,7 @@ class CircleController extends Controller
             'purpose' => $validated['purpose'] ?? null,
             'announcement' => $validated['announcement'] ?? null,
             'industry_tags' => $this->normalizeIndustryTags($validated['industry_tags'] ?? null),
+            'circle_stage' => $validated['circle_stage'] ?? null,
         ];
 
         if (empty($payload['status'])) {
@@ -318,6 +329,7 @@ class CircleController extends Controller
             'meetingFrequencies' => Circle::MEETING_FREQUENCY_OPTIONS,
             'allUsers' => $this->allUsers(),
             'circlePackages' => $this->circlePackageOptions(),
+            'circleStages' => Circle::STAGE_OPTIONS,
         ]);
     }
 
@@ -340,6 +352,7 @@ class CircleController extends Controller
             'description',
             'purpose',
             'announcement',
+            'circle_stage',
         ] as $column) {
             if (Schema::hasColumn('circles', $column) && array_key_exists($column, $validated)) {
                 $allowed[$column] = $validated[$column];

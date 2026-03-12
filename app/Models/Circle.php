@@ -19,6 +19,14 @@ class Circle extends Model
     public const TYPE_OPTIONS = ['public', 'private'];
     public const MEETING_MODE_OPTIONS = ['online', 'offline', 'hybrid'];
     public const MEETING_FREQUENCY_OPTIONS = ['monthly', 'quarterly'];
+    public const STAGE_OPTIONS = [
+        'Conceptualized Circle',
+        'Foundation Circle',
+        'Pre-Launch Circle',
+        'Launched Circle',
+        'Growth Circle',
+        'High-Impact Circle',
+    ];
 
     protected $keyType = 'string';
     public $incrementing = false;
@@ -48,6 +56,7 @@ class Circle extends Model
         'visitor_count',
         'type',
         'country',
+        'circle_stage',
         'zoho_addon_code',
         'zoho_addon_id',
         'zoho_addon_name',
@@ -66,6 +75,53 @@ class Circle extends Model
     ];
 
     protected $appends = ['cover_image_url', 'city_display'];
+
+    public function getCircleRanking(): array
+    {
+        $totalMembers = $this->relationLoaded('members')
+            ? $this->members->count()
+            : $this->members()->count();
+
+        return [
+            'total_members' => $totalMembers,
+            'rank' => $this->resolveCircleRank($totalMembers),
+            'title' => $this->resolveCircleTitle($totalMembers),
+        ];
+    }
+
+    private function resolveCircleRank(int $totalMembers): string
+    {
+        if ($totalMembers >= 100) {
+            return '🌍 Global Elite';
+        }
+
+        return match (true) {
+            $totalMembers >= 75 => '👑 Royal',
+            $totalMembers >= 60 => '🔱 Diamond',
+            $totalMembers >= 50 => '🔷 Titanium',
+            $totalMembers >= 40 => '💎 Platinum',
+            $totalMembers >= 30 => '🟡 Gold',
+            $totalMembers >= 20 => '⚪ Silver',
+            default => '🟤 Bronze',
+        };
+    }
+
+    private function resolveCircleTitle(int $totalMembers): string
+    {
+        if ($totalMembers >= 100) {
+            return 'Flagship Circle';
+        }
+
+        return match (true) {
+            $totalMembers >= 75 => 'Legacy Circle',
+            $totalMembers >= 60 => 'Iconic Circle',
+            $totalMembers >= 50 => 'Growth Powerhouse',
+            $totalMembers >= 40 => 'Influencer Circle',
+            $totalMembers >= 30 => 'Collaborative Circle',
+            $totalMembers >= 20 => 'Trusted Circle',
+            default => 'Rising Circle',
+        };
+    }
 
     protected static function booted()
     {

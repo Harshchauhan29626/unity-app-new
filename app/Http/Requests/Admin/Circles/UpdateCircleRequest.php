@@ -31,6 +31,7 @@ class UpdateCircleRequest extends FormRequest
             'cover_file_id' => ['nullable', 'uuid'],
             'type' => ['required', Rule::in(Circle::TYPE_OPTIONS)],
             'status' => ['required', Rule::in(Circle::STATUS_OPTIONS)],
+            'circle_stage' => ['nullable', Rule::in(Circle::STAGE_OPTIONS)],
             'industry_tags' => ['nullable', 'array'],
             'industry_tags.*' => ['string', 'max:50'],
             'meeting_mode' => ['nullable', Rule::in(Circle::MEETING_MODE_OPTIONS)],
