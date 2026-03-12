@@ -40,22 +40,42 @@ class StoreCoinClaimRequest extends FormRequest
             $fields = (array) $this->input('fields', []);
             $files = $this->file('files', []);
 
+            $fieldKeys = array_keys($fieldMap);
+            $providedFieldKeys = array_keys($fields);
+            $unknownFieldKeys = array_diff($providedFieldKeys, $fieldKeys);
+
+            foreach ($unknownFieldKeys as $unknownFieldKey) {
+                $suggestedKey = $this->closestKey((string) $unknownFieldKey, $fieldKeys);
+
+                if ($suggestedKey !== null) {
+                    $validator->errors()->add(
+                        "fields.$unknownFieldKey",
+                        "Unknown field '$unknownFieldKey'. Did you mean '$suggestedKey'?"
+                    );
+
+                    continue;
+                }
+
+                $validator->errors()->add("fields.$unknownFieldKey", "Unknown field '$unknownFieldKey'.");
+            }
+
             foreach ($fieldMap as $key => $definition) {
                 $type = (string) ($definition['type'] ?? 'text');
                 $required = (bool) ($definition['required'] ?? false);
+                $label = $this->fieldLabel($key, $definition);
                 $value = $fields[$key] ?? null;
                 $file = $files[$key] ?? null;
 
                 if ($type === 'file') {
                     if ($required && ! $file) {
-                        $validator->errors()->add("files.$key", 'This file is required.');
+                        $validator->errors()->add("files.$key", "$label is required.");
                     }
 
                     continue;
                 }
 
                 if ($required && ($value === null || trim((string) $value) === '')) {
-                    $validator->errors()->add("fields.$key", 'This field is required.');
+                    $validator->errors()->add("fields.$key", "$label is required.");
 
                     continue;
                 }
@@ -64,11 +84,10 @@ class StoreCoinClaimRequest extends FormRequest
                     continue;
                 }
 
-                $this->validateTypedField($validator, $key, $type, (string) $value);
+                $this->validateTypedField($validator, $key, $type, (string) $value, $label);
             }
         });
     }
-
 
     protected function failedValidation(ValidatorContract $validator): void
     {
@@ -79,7 +98,7 @@ class StoreCoinClaimRequest extends FormRequest
         ], 422));
     }
 
-    private function validateTypedField(Validator $validator, string $key, string $type, string $value): void
+    private function validateTypedField(Validator $validator, string $key, string $type, string $value, string $label): void
     {
         $ok = match ($type) {
             'date' => (bool) strtotime($value),
@@ -89,8 +108,56 @@ class StoreCoinClaimRequest extends FormRequest
             default => true,
         };
 
-        if (! $ok) {
-            $validator->errors()->add("fields.$key", "The $key format is invalid.");
+        if ($ok) {
+            return;
         }
+
+        $message = match ($type) {
+            'date' => "$label must be a valid date.",
+            'email' => "$label must be a valid email address.",
+            'url' => "$label must be a valid URL.",
+            'phone' => "$label must be a valid phone number.",
+            default => "$label format is invalid.",
+        };
+
+        $validator->errors()->add("fields.$key", $message);
+    }
+
+    /**
+     * @param  array<string, mixed>  $definition
+     */
+    private function fieldLabel(string $key, array $definition): string
+    {
+        $label = trim((string) ($definition['label'] ?? ''));
+
+        if ($label !== '') {
+            return $label;
+        }
+
+        return ucfirst(str_replace('_', ' ', $key));
+    }
+
+    /**
+     * @param  array<int, string>  $candidates
+     */
+    private function closestKey(string $inputKey, array $candidates): ?string
+    {
+        $bestKey = null;
+        $bestDistance = null;
+
+        foreach ($candidates as $candidate) {
+            $distance = levenshtein($inputKey, $candidate);
+
+            if ($bestDistance === null || $distance < $bestDistance) {
+                $bestDistance = $distance;
+                $bestKey = $candidate;
+            }
+        }
+
+        if ($bestDistance === null || $bestDistance > 4) {
+            return null;
+        }
+
+        return $bestKey;
     }
 }
