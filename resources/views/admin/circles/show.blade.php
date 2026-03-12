@@ -201,11 +201,8 @@
     <div class="card-header fw-semibold">Meeting Schedule</div>
     <div class="card-body">
         @php
-            $calendar = is_array($circle->calendar) ? $circle->calendar : null;
-            $meetings = is_array(data_get($calendar, 'meeting_schedule')) && data_get($calendar, 'meeting_schedule') !== []
-                ? array_values(data_get($calendar, 'meeting_schedule'))
-                : [];
-            $timezone = data_get($calendar, 'timezone', 'Asia/Kolkata');
+            $meetings = is_array($meetings ?? null) ? $meetings : [];
+            $timezone = is_string($timezone ?? null) && trim((string) $timezone) !== '' ? trim((string) $timezone) : 'Asia/Kolkata';
 
             $formatMeeting = static function (array $meeting): string {
                 $frequency = strtolower((string) ($meeting['frequency'] ?? ''));

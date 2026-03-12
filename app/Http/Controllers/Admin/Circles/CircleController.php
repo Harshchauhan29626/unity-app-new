@@ -296,10 +296,17 @@ class CircleController extends Controller
 
         $circle->load(['city', 'founder', 'director', 'industryDirector', 'ded', 'members.user', 'members.roleRef']);
 
+        $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+        $rawMeetingSchedule = data_get($calendar, 'meeting_schedule');
+        $meetings = is_array($rawMeetingSchedule) ? array_values($rawMeetingSchedule) : [];
+        $timezone = data_get($calendar, 'timezone', 'Asia/Kolkata');
+
         return view('admin.circles.show', [
             'circle' => $circle,
             'allUsers' => $this->allUsers(),
             'roles' => CircleMember::roleOptions(),
+            'meetings' => $meetings,
+            'timezone' => is_string($timezone) && trim($timezone) !== '' ? $timezone : 'Asia/Kolkata',
         ]);
     }
 
