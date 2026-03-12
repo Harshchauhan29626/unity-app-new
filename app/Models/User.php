@@ -234,31 +234,28 @@ class User extends Authenticatable
             return $displayName;
         }
 
-        $fullName = trim(
-            trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? ''))
-        );
-        $fullName = trim(trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? '')));
- main
+        $fullName = $this->full_name;
 
         return $fullName !== '' ? $fullName : 'Unknown';
     }
-    public function getDisplayNameAttribute()
-    {
-        $firstName = trim($this->first_name ?? '');
-        $lastName = trim($this->last_name ?? '');
 
-    public function getDisplayNameAttribute()
+    public function getFullNameAttribute(): string
     {
-        $firstName = trim($this->first_name ?? '');
-        $lastName  = trim($this->last_name ?? '');
+        $first = trim((string) ($this->first_name ?? ''));
+        $last  = trim((string) ($this->last_name ?? ''));
 
-        $fullName = trim($firstName . ' ' . $lastName);
+        return trim($first . ' ' . $last);
+    }
+
+    public function getDisplayNameAttribute(): string
+    {
+        $fullName = $this->full_name;
 
         if ($fullName !== '') {
             return $fullName;
         }
 
-        return $this->email;
+        return (string) $this->email;
     }
 
     public function adminCompanyLabel(): string
@@ -580,6 +577,4 @@ class User extends Authenticatable
             'industry' => $industry,
         ];
     }
-}
-}
 }
