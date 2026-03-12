@@ -141,7 +141,7 @@
                                     <button class="btn btn-sm btn-success" onclick="return confirm('Approve this claim?')">Approve</button>
                                 </form>
                                 <form method="POST" action="{{ route('admin.coin-claims.reject', $claim->id) }}" class="d-inline">@csrf
-                                    <input type="hidden" name="admin_note" value="Rejected by admin">
+                                    <input type="hidden" name="admin_notes" value="Rejected by admin">
                                     <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Reject this claim?')">Reject</button>
                                 </form>
                             @endif

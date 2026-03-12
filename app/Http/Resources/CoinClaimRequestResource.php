@@ -22,9 +22,9 @@ class CoinClaimRequestResource extends JsonResource
             'payload' => $this->payload,
             'status' => (string) $this->status,
             'coins_awarded' => $this->coins_awarded,
-            'admin_note' => $this->admin_note,
-            'reviewed_by_admin_id' => $this->reviewed_by_admin_id,
-            'reviewed_at' => optional($this->reviewed_at)->toISOString(),
+            'admin_notes' => $this->admin_notes,
+            'approved_at' => optional($this->approved_at)->toISOString(),
+            'rejected_at' => optional($this->rejected_at)->toISOString(),
             'created_at' => optional($this->created_at)->toISOString(),
         ];
     }

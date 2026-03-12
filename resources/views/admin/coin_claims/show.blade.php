@@ -41,7 +41,7 @@
                 <button class="btn btn-success">Approve</button>
             </form>
             <form method="POST" action="{{ route('admin.coin-claims.reject', $claim->id) }}" class="d-inline">@csrf
-                <input type="text" name="admin_note" class="form-control my-2" placeholder="Reason (optional)">
+                <input type="text" name="admin_notes" class="form-control my-2" placeholder="Reason (optional)">
                 <button class="btn btn-outline-danger">Reject</button>
             </form>
         @endif

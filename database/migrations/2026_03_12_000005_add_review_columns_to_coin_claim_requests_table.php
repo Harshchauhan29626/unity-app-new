@@ -10,41 +10,41 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('coin_claim_requests', function (Blueprint $table): void {
-            if (! Schema::hasColumn('coin_claim_requests', 'reviewed_by_admin_id')) {
-                $table->uuid('reviewed_by_admin_id')->nullable();
+            if (! Schema::hasColumn('coin_claim_requests', 'admin_notes')) {
+                $table->text('admin_notes')->nullable();
             }
 
-            if (! Schema::hasColumn('coin_claim_requests', 'reviewed_at')) {
-                $table->timestamp('reviewed_at')->nullable();
+            if (! Schema::hasColumn('coin_claim_requests', 'approved_at')) {
+                $table->timestamp('approved_at')->nullable();
             }
 
-            if (! Schema::hasColumn('coin_claim_requests', 'admin_note')) {
-                $table->text('admin_note')->nullable();
+            if (! Schema::hasColumn('coin_claim_requests', 'rejected_at')) {
+                $table->timestamp('rejected_at')->nullable();
             }
         });
 
-        DB::statement('CREATE INDEX IF NOT EXISTS coin_claim_requests_reviewed_by_admin_id_idx ON coin_claim_requests (reviewed_by_admin_id)');
-        DB::statement('CREATE INDEX IF NOT EXISTS coin_claim_requests_reviewed_at_idx ON coin_claim_requests (reviewed_at)');
+        DB::statement('CREATE INDEX IF NOT EXISTS coin_claim_requests_approved_at_idx ON coin_claim_requests (approved_at)');
+        DB::statement('CREATE INDEX IF NOT EXISTS coin_claim_requests_rejected_at_idx ON coin_claim_requests (rejected_at)');
     }
 
     public function down(): void
     {
-        DB::statement('DROP INDEX IF EXISTS coin_claim_requests_reviewed_by_admin_id_idx');
-        DB::statement('DROP INDEX IF EXISTS coin_claim_requests_reviewed_at_idx');
+        DB::statement('DROP INDEX IF EXISTS coin_claim_requests_approved_at_idx');
+        DB::statement('DROP INDEX IF EXISTS coin_claim_requests_rejected_at_idx');
 
         Schema::table('coin_claim_requests', function (Blueprint $table): void {
             $dropColumns = [];
 
-            if (Schema::hasColumn('coin_claim_requests', 'reviewed_by_admin_id')) {
-                $dropColumns[] = 'reviewed_by_admin_id';
+            if (Schema::hasColumn('coin_claim_requests', 'admin_notes')) {
+                $dropColumns[] = 'admin_notes';
             }
 
-            if (Schema::hasColumn('coin_claim_requests', 'reviewed_at')) {
-                $dropColumns[] = 'reviewed_at';
+            if (Schema::hasColumn('coin_claim_requests', 'approved_at')) {
+                $dropColumns[] = 'approved_at';
             }
 
-            if (Schema::hasColumn('coin_claim_requests', 'admin_note')) {
-                $dropColumns[] = 'admin_note';
+            if (Schema::hasColumn('coin_claim_requests', 'rejected_at')) {
+                $dropColumns[] = 'rejected_at';
             }
 
             if ($dropColumns !== []) {

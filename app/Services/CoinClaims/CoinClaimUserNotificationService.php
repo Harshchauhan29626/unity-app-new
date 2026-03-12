@@ -30,7 +30,7 @@ class CoinClaimUserNotificationService
             'activity_code' => (string) $claim->activity_code,
             'coins_awarded' => $coinsAwarded,
             'reason' => null,
-            'reviewed_at' => optional($claim->reviewed_at)->toISOString(),
+            'reviewed_at' => optional($claim->approved_at)->toISOString(),
         ];
 
         return $this->storeAndDispatch($claim, 'coin_claim_approved', $payload);
@@ -40,7 +40,7 @@ class CoinClaimUserNotificationService
     {
         $activity = $this->registry->get((string) $claim->activity_code) ?? [];
         $activityLabel = (string) ($activity['label'] ?? $claim->activity_code);
-        $reason = (string) ($claim->admin_note ?? 'Not provided');
+        $reason = (string) ($claim->admin_notes ?? 'Not provided');
 
         $payload = [
             'notification_type' => 'coin_claim_rejected',
@@ -49,8 +49,8 @@ class CoinClaimUserNotificationService
             'coin_claim_id' => (string) $claim->id,
             'activity_code' => (string) $claim->activity_code,
             'coins_awarded' => null,
-            'reason' => $claim->admin_note,
-            'reviewed_at' => optional($claim->reviewed_at)->toISOString(),
+            'reason' => $claim->admin_notes,
+            'reviewed_at' => optional($claim->rejected_at)->toISOString(),
         ];
 
         return $this->storeAndDispatch($claim, 'coin_claim_rejected', $payload);

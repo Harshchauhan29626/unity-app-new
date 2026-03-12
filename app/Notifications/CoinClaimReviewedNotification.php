@@ -51,6 +51,10 @@ class CoinClaimReviewedNotification extends Notification
             ? 'coin_claim_approved'
             : 'coin_claim_rejected';
 
+        $reviewedAt = $this->decision === 'approved'
+            ? optional($this->claim->approved_at)->toISOString()
+            : optional($this->claim->rejected_at)->toISOString();
+
         return [
             'notification_type' => $notificationType,
             'coin_claim_id' => (string) $this->claim->id,
@@ -61,7 +65,7 @@ class CoinClaimReviewedNotification extends Notification
             'status' => $this->decision,
             'coins_awarded' => $this->coinsAwarded,
             'reason' => $this->decision === 'rejected' ? $this->reason : null,
-            'reviewed_at' => optional($this->claim->reviewed_at)->toISOString(),
+            'reviewed_at' => $reviewedAt,
         ];
     }
 }

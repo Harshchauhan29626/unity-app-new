@@ -14,14 +14,15 @@ return new class extends Migration
             $table->string('activity_code', 100);
             $table->jsonb('payload')->nullable();
             $table->string('status', 30)->default('pending');
-            $table->integer('coins_awarded')->nullable();
-            $table->uuid('reviewed_by_admin_id')->nullable();
-            $table->timestampTz('reviewed_at')->nullable();
-            $table->text('admin_note')->nullable();
+            $table->integer('coins_awarded')->default(0);
+            $table->text('admin_notes')->nullable();
+            $table->timestampTz('approved_at')->nullable();
+            $table->timestampTz('rejected_at')->nullable();
             $table->timestampsTz();
 
             $table->index('status');
             $table->index('user_id');
+            $table->index('activity_code');
             $table->index('created_at');
             $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
         });

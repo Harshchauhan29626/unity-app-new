@@ -11,10 +11,19 @@ class RejectCoinClaimRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('admin_note') && ! $this->has('admin_notes')) {
+            $this->merge([
+                'admin_notes' => $this->input('admin_note'),
+            ]);
+        }
+    }
+
     public function rules(): array
     {
         return [
-            'admin_note' => ['nullable', 'string', 'max:1000'],
+            'admin_notes' => ['nullable', 'string', 'max:1000'],
         ];
     }
 }

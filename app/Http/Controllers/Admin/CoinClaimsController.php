@@ -73,7 +73,7 @@ class CoinClaimsController extends Controller
             $query->where(function ($qQuery) use ($like, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
                 $qQuery->where('activity_code', 'ILIKE', $like)
                     ->orWhere('status', 'ILIKE', $like)
-                    ->orWhere('admin_note', 'ILIKE', $like)
+                    ->orWhere('admin_notes', 'ILIKE', $like)
                     ->orWhereRaw("COALESCE(payload::text,'') ILIKE ?", [$like])
                     ->orWhereHas('user', function ($userQuery) use ($like, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
                         $userQuery->where(function ($uq) use ($like, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
@@ -137,7 +137,7 @@ class CoinClaimsController extends Controller
             $like = "%{$keyFields}%";
             $query->where(function ($keyFieldsQuery) use ($like) {
                 $keyFieldsQuery->where('activity_code', 'ILIKE', $like)
-                    ->orWhere('admin_note', 'ILIKE', $like)
+                    ->orWhere('admin_notes', 'ILIKE', $like)
                     ->orWhereRaw("COALESCE(payload::text,'') ILIKE ?", [$like]);
             });
         }
@@ -205,10 +205,10 @@ class CoinClaimsController extends Controller
                 $coins = (int) ($activity['coins'] ?? 0);
 
                 $claim->status = 'approved';
-                $claim->reviewed_by_admin_id = $admin?->id;
-                $claim->reviewed_at = now();
+                $claim->approved_at = now();
+                $claim->rejected_at = null;
                 $claim->coins_awarded = $coins;
-                $claim->admin_note = $request->input('admin_note');
+                $claim->admin_notes = $request->input('admin_notes');
                 $claim->save();
 
                 if ($coins > 0 && $claim->user) {
@@ -258,9 +258,9 @@ class CoinClaimsController extends Controller
                 }
 
                 $claim->status = 'rejected';
-                $claim->reviewed_by_admin_id = $admin?->id;
-                $claim->reviewed_at = now();
-                $claim->admin_note = $request->validated('admin_note');
+                $claim->rejected_at = now();
+                $claim->approved_at = null;
+                $claim->admin_notes = $request->validated('admin_notes');
                 $claim->save();
 
                 $this->emailService->sendRejected($claim->fresh('user'));
