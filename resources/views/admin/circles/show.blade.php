@@ -129,7 +129,7 @@
             </div>
             <div class="col-md-4">
                 <div class="small text-muted">Circle Stage</div>
-                {!! $displayValue($circle->circle_stage) !!}
+                {!! $displayValue($circleStage) !!}
             </div>
 
             <div class="col-md-4">

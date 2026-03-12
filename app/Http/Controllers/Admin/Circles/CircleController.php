@@ -316,6 +316,12 @@ class CircleController extends Controller
         $circle->load(['city', 'founder', 'director', 'industryDirector', 'ded', 'members.user', 'members.roleRef']);
 
         $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+
+        $circleStage = trim((string) $circle->getRawOriginal('circle_stage'));
+        if ($circleStage === '') {
+            $circleStage = trim((string) data_get($calendar, 'settings.circle_stage', ''));
+        }
+
         $rawMeetingSchedule = data_get($calendar, 'meeting_schedule');
         $meetings = is_array($rawMeetingSchedule) ? array_values($rawMeetingSchedule) : [];
         $timezone = data_get($calendar, 'timezone', 'Asia/Kolkata');
@@ -331,6 +337,7 @@ class CircleController extends Controller
 
         return view('admin.circles.show', [
             'circle' => $circle,
+            'circleStage' => $circleStage,
             'allUsers' => $this->allUsers(),
             'roles' => CircleMember::roleOptions(),
             'meetingRows' => $meetingRows,
