@@ -212,10 +212,18 @@ class CoinClaimsController extends Controller
                 $claim->admin_notes = $request->input('admin_notes');
                 $claim->save();
 
-                if ((string) $claim->activity_code === 'new_member_addition') {
+                $isNewMemberAddition = Str::lower(trim((string) $claim->activity_code)) === 'new_member_addition';
+
+                if ($isNewMemberAddition) {
                     $claimant = User::where('id', $claim->user_id)->lockForUpdate()->first();
 
-                    if ($claimant) {
+                    if (! $claimant) {
+                        Log::warning('coin_claim.new_member_addition.claimant_missing', [
+                            'request_id' => $requestId,
+                            'claim_id' => (string) $claim->id,
+                            'user_id' => (string) $claim->user_id,
+                        ]);
+                    } else {
                         $oldIntroducedCount = (int) ($claimant->members_introduced_count ?? 0);
                         $claimant->members_introduced_count = $oldIntroducedCount + 1;
                         $claimant->syncContributionMilestoneAttributes();
