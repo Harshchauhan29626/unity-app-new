@@ -119,7 +119,7 @@
                             @php
                                 $owner = $post->user;
                                 $circleName = optional($post->circle)->name;
-                                $isActive = ! $post->is_deleted;
+                                $isActive = $post->deleted_at === null;
                                 $mediaUrl = (function ($media) {
                                     if (empty($media)) {
                                         return null;
@@ -174,17 +174,10 @@
                                 <td class="text-end" style="white-space:nowrap;">
                                     <div class="d-inline-flex align-items-center gap-2" style="flex-wrap:nowrap;">
                                         <a href="{{ route('admin.posts.show', $post) }}" class="btn btn-sm btn-outline-primary">View</a>
-                                        @if ($isActive)
-                                            <form method="POST" action="{{ route('admin.posts.deactivate', $post) }}" class="m-0 p-0 d-inline">
-                                                @csrf
-                                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate this post?')">Deactivate</button>
-                                            </form>
-                                        @else
-                                            <form method="POST" action="{{ route('admin.posts.restore', $post) }}" class="m-0 p-0 d-inline">
-                                                @csrf
-                                                <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Activate this post?')">Activate</button>
-                                            </form>
-                                        @endif
+                                        <form method="POST" action="{{ route('admin.posts.deactivate', $post) }}" class="m-0 p-0 d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to remove this post?')">Deactivate</button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>

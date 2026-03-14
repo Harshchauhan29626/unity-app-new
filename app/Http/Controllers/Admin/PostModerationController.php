@@ -42,17 +42,13 @@ class PostModerationController extends Controller
         $inlineActive = $request->query('inline_active', 'any');
         $media = $request->query('media', 'any');
 
-        $query = Post::withTrashed()
-            ->with(['user', 'circle'])
+        $showDeactivated = $filters['active'] === 'deactivated' || $inlineActive === 'no';
+
+        $query = $showDeactivated ? Post::onlyTrashed() : Post::query();
+
+        $query->with(['user', 'circle'])
             ->when($circleId !== 'all' && filled($circleId), fn ($q) => $q->where('circle_id', $circleId));
 
-        if ($filters['active'] === 'active') {
-            $query->where('posts.is_deleted', false);
-        }
-
-        if ($filters['active'] === 'deactivated') {
-            $query->where('posts.is_deleted', true);
-        }
 
         if (filled($filters['visibility']) && $filters['visibility'] !== 'any') {
             $query->where('posts.visibility', $filters['visibility']);
@@ -70,13 +66,6 @@ class PostModerationController extends Controller
             $query->where('posts.moderation_status', $inlineModerationStatus);
         }
 
-        if ($inlineActive === 'yes') {
-            $query->where('posts.is_deleted', false);
-        }
-
-        if ($inlineActive === 'no') {
-            $query->where('posts.is_deleted', true);
-        }
 
         if ($filters['search']) {
             $search = '%' . $filters['search'] . '%';
@@ -176,15 +165,13 @@ class PostModerationController extends Controller
     {
         $this->ensureGlobalAdmin();
 
-        $post = Post::withTrashed()->findOrFail($postId);
+        $post = Post::query()->findOrFail($postId);
 
         DB::transaction(function () use ($post): void {
-            $post->is_deleted = true;
-            $post->deleted_at = null;
-            $post->save();
+            $post->delete();
         });
 
-        return redirect()->back()->with('success', 'Post deactivated.');
+        return redirect()->back()->with('success', 'Post removed successfully.');
     }
 
     public function restore(string $postId): RedirectResponse

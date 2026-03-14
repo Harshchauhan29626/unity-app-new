@@ -6,6 +6,13 @@ use Carbon\Carbon;
 
 class CoinClaimKeyFieldsFormatter
 {
+    private const ADMIN_HIDDEN_KEYS = [
+        'new_member_mobile_normalized',
+        'mobile_normalized',
+        'phone_normalized',
+        'normalized_mobile',
+    ];
+
     private const ADMIN_LABELS = [
         'joining_date' => 'Joining Date',
         'new_member_name' => 'New Member Name',
@@ -76,6 +83,12 @@ class CoinClaimKeyFieldsFormatter
         $rows = [];
 
         foreach ($normalized as $key => $value) {
+            $normalizedKey = strtolower(trim((string) $key));
+
+            if (in_array($normalizedKey, self::ADMIN_HIDDEN_KEYS, true)) {
+                continue;
+            }
+
             if ($value === null) {
                 continue;
             }
