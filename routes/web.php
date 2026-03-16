@@ -21,6 +21,7 @@ use App\Http\Controllers\Admin\CoinsController;
 use App\Http\Controllers\Admin\CollaborationPostController;
 use App\Http\Controllers\Admin\CoinClaimsController;
 use App\Http\Controllers\Admin\CircleJoinRequestsController;
+use App\Http\Controllers\Admin\CircularController;
 use App\Http\Controllers\Admin\EventGalleryController;
 use App\Http\Controllers\Admin\LoginHistoryController;
 use App\Http\Controllers\Admin\MembershipPlanController;
@@ -110,6 +111,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/circles/{circle}/peer-options', [CirclePeersController::class, 'peerOptions'])->name('circles.peer-options');
         Route::put('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'update'])->name('circles.members.update');
         Route::delete('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'destroy'])->name('circles.members.destroy');
+
+        Route::get('/circulars', [CircularController::class, 'index'])->name('circulars.index');
+        Route::get('/circulars/create', [CircularController::class, 'create'])->name('circulars.create');
+        Route::post('/circulars', [CircularController::class, 'store'])->name('circulars.store');
+        Route::get('/circulars/{circular}/edit', [CircularController::class, 'edit'])->name('circulars.edit');
+        Route::put('/circulars/{circular}', [CircularController::class, 'update'])->name('circulars.update');
+        Route::delete('/circulars/{circular}', [CircularController::class, 'destroy'])->name('circulars.destroy');
+        Route::post('/circulars/{circular}/toggle-status', [CircularController::class, 'toggleStatus'])->name('circulars.toggle-status');
         Route::get('/event-gallery', [EventGalleryController::class, 'index'])->name('event-gallery.index');
         Route::post('/event-gallery/events', [EventGalleryController::class, 'storeEvent'])->name('event-gallery.events.store');
         Route::post('/event-gallery/media', [EventGalleryController::class, 'storeMedia'])->name('event-gallery.media.store');
