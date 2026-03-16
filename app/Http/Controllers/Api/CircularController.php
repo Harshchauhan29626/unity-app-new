@@ -25,9 +25,11 @@ class CircularController extends BaseApiController
 
         $query = Circular::query()->visibleInApp($now);
         $baseVisibleCount = (clone $query)->count();
+        $baseVisibleIds = (clone $query)->pluck('id')->map(fn ($id) => (string) $id)->values()->all();
 
         $this->applyAudienceFilter($query, $userCityId, $userCircleIds, $userType);
         $afterTargetingCount = (clone $query)->count();
+        $afterTargetingIds = (clone $query)->pluck('id')->map(fn ($id) => (string) $id)->values()->all();
 
         $query->orderByDesc('is_pinned')
             ->orderByRaw("CASE priority WHEN 'urgent' THEN 1 WHEN 'important' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END")
@@ -56,7 +58,9 @@ class CircularController extends BaseApiController
             'user_city_id' => $userCityId,
             'user_circle_ids' => $userCircleIds,
             'base_visible_count' => $baseVisibleCount,
+            'base_visible_ids' => $baseVisibleIds,
             'after_targeting_count' => $afterTargetingCount,
+            'after_targeting_ids' => $afterTargetingIds,
             'final_response_count' => $items->count(),
             'final_returned_ids' => $items->pluck('id')->values()->all(),
         ]);
@@ -125,9 +129,12 @@ class CircularController extends BaseApiController
     {
         $hasCity = filled($userCityId);
         $hasCircles = $userCircleIds !== [];
-        $isCircleMember = $hasCircles;
 
-        $query->where(function (Builder $audienceQuery) use ($userCityId, $userCircleIds, $userType, $hasCity, $hasCircles, $isCircleMember): void {
+        if (! $hasCity && ! $hasCircles && $userType === '') {
+            return;
+        }
+
+        $query->where(function (Builder $audienceQuery) use ($userCityId, $userCircleIds, $userType, $hasCity, $hasCircles): void {
             $audienceQuery->where(function (Builder $allMembersQuery) use ($userCityId, $userCircleIds, $hasCity, $hasCircles): void {
                 $allMembersQuery
                     ->where(function (Builder $typeQuery): void {
@@ -153,14 +160,8 @@ class CircularController extends BaseApiController
                     });
             });
 
-            $audienceQuery->orWhere(function (Builder $circleMembersQuery) use ($userCircleIds, $hasCircles, $isCircleMember): void {
+            $audienceQuery->orWhere(function (Builder $circleMembersQuery) use ($userCircleIds, $hasCircles): void {
                 $circleMembersQuery->where('audience_type', 'circle_members');
-
-                if (! $isCircleMember) {
-                    $circleMembersQuery->whereRaw('1=0');
-
-                    return;
-                }
 
                 if (! $hasCircles) {
                     $circleMembersQuery->whereNull('circle_id');
@@ -201,6 +202,7 @@ class CircularController extends BaseApiController
             ->where('user_id', $user->id)
             ->whereNull('deleted_at')
             ->whereNotNull('circle_id')
+            ->where('status', 'approved')
             ->pluck('circle_id')
             ->filter()
             ->unique()
