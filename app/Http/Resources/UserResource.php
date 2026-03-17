@@ -26,8 +26,35 @@ class UserResource extends JsonResource
             'email'               => $this->email,
             'phone'               => $this->phone,
             'city'                => new CityResource($this->whenLoaded('city')),
-            'membership_status'   => $this->membership_status,
-            'membership_expiry'   => $this->membership_expiry,
+            'membership_status'   => $this->effective_membership_status,
+            'membership_expiry'   => $this->membership_ends_at ?? $this->membership_expiry,
+            'membership_starts_at' => $this->membership_starts_at,
+            'membership_ends_at' => $this->membership_ends_at,
+            'zoho_plan_code' => $this->zoho_plan_code,
+            'zoho_last_invoice_id' => $this->zoho_last_invoice_id,
+            'active_circle_id' => $this->active_circle_id,
+            'active_circle_addon_code' => $this->active_circle_addon_code,
+            'active_circle_addon_name' => $this->active_circle_addon_name,
+            'circle_joined_at' => $this->circle_joined_at,
+            'circle_expires_at' => $this->circle_expires_at,
+            'active_circle_subscription_id' => $this->active_circle_subscription_id,
+            'active_circle' => $this->whenLoaded('activeCircle', function () {
+                $circle = $this->activeCircle;
+
+                if (! $circle) {
+                    return null;
+                }
+
+                return [
+                    'id' => $circle->id,
+                    'name' => $circle->name,
+                    'slug' => $circle->slug,
+                    'city' => $circle->relationLoaded('cityRef') ? [
+                        'id' => optional($circle->cityRef)->id,
+                        'name' => optional($circle->cityRef)->name,
+                    ] : null,
+                ];
+            }),
             'coins_balance'       => $this->coins_balance,
             'business_type'       => $this->business_type,
             'turnover_range'      => $this->turnover_range,

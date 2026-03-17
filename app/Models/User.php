@@ -17,6 +17,8 @@ use Throwable;
 
 class User extends Authenticatable
 {
+    private const FREE_PEER_STATUS_CANDIDATES = ['Free Peer', 'Free_peer', 'free_peer'];
+
     use HasApiTokens;
     use HasFactory;
     use Notifiable;
@@ -420,6 +422,35 @@ class User extends Authenticatable
     public function adminDisplayInlineLabel(): string
     {
         return implode(' — ', $this->adminDisplayParts());
+    }
+
+    public function isMembershipExpired(): bool
+    {
+        $membershipEndsAt = $this->membership_ends_at ?? $this->membership_expiry;
+
+        return $membershipEndsAt !== null && $membershipEndsAt->isPast();
+    }
+
+    public function getEffectiveMembershipStatusAttribute(): ?string
+    {
+        if ($this->isMembershipExpired()) {
+            return self::freePeerMembershipStatus();
+        }
+
+        return $this->membership_status;
+    }
+
+    public static function freePeerMembershipStatus(): string
+    {
+        $configuredStatuses = (array) config('membership.statuses', []);
+
+        foreach (self::FREE_PEER_STATUS_CANDIDATES as $candidate) {
+            if (in_array($candidate, $configuredStatuses, true)) {
+                return $candidate;
+            }
+        }
+
+        return self::FREE_PEER_STATUS_CANDIDATES[2];
     }
 
     public function requestedConnections(): HasMany

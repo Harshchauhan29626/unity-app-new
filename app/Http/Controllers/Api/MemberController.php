@@ -104,7 +104,7 @@ class MemberController extends BaseApiController
 
     public function show(Request $request, string $id)
     {
-        $user = User::with('city')->find($id);
+        $user = User::with(['city', 'activeCircle.cityRef'])->find($id);
 
         if (! $user) {
             return $this->error('Member not found', 404);
