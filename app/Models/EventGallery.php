@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class EventGallery extends Model
@@ -22,12 +23,21 @@ class EventGallery extends Model
         'event_name',
         'event_date',
         'description',
+        'category_id',
+        'category',
         'created_by_admin_id',
     ];
 
     protected $casts = [
         'event_date' => 'date',
+        'category_id' => 'integer',
     ];
+
+
+    public function categoryRef(): BelongsTo
+    {
+        return $this->belongsTo(Category::class, 'category_id');
+    }
 
     public function media(): HasMany
     {

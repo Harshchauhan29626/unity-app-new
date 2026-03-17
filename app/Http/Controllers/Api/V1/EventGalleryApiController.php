@@ -12,6 +12,7 @@ class EventGalleryApiController extends BaseApiController
     public function index(Request $request)
     {
         $query = EventGallery::query()
+            ->with('categoryRef')
             ->withCount([
                 'media as images_count' => function ($query) {
                     $query->where('media_type', 'image');
@@ -23,6 +24,11 @@ class EventGalleryApiController extends BaseApiController
 
         if ($search = trim((string) $request->query('q', ''))) {
             $query->where('event_name', 'ILIKE', '%' . $search . '%');
+        }
+
+        $categoryId = trim((string) $request->query('category_id', ''));
+        if ($categoryId !== '') {
+            $query->where('category_id', $categoryId);
         }
 
         $perPage = (int) $request->query('per_page', 20);
@@ -44,7 +50,7 @@ class EventGalleryApiController extends BaseApiController
     public function show(string $id)
     {
         $event = EventGallery::query()
-            ->with(['media' => function ($query) {
+            ->with(['categoryRef', 'media' => function ($query) {
                 $query->orderBy('sort_order')
                     ->orderBy('created_at');
             }])

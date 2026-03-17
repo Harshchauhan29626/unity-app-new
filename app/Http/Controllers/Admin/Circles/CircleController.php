@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\Circles\StoreCircleRequest;
 use App\Http\Requests\Admin\Circles\UpdateCircleRequest;
 use App\Models\Circle;
 use App\Models\CircleMember;
+use App\Models\Category;
 use App\Models\City;
 use App\Models\User;
 use App\Support\UserOptionLabel;
@@ -259,6 +260,8 @@ class CircleController extends Controller
             'allUsers' => $this->allUsers(),
             'circlePackages' => $this->circlePackageOptions(),
             'circleStages' => Circle::STAGE_OPTIONS,
+            'categories' => Category::query()->orderBy('category_name')->get(['id', 'category_name']),
+            'selectedCategoryIds' => old('category_ids', []),
         ]);
     }
 
@@ -295,6 +298,7 @@ class CircleController extends Controller
         $circle->calendar = $calendar;
 
         $circle->save();
+        $circle->categories()->sync($validated['category_ids'] ?? []);
         $circle->refresh();
 
         Cache::forget('admin.circles.index');
@@ -348,7 +352,7 @@ class CircleController extends Controller
 
     public function edit(Request $request, Circle $circle): View
     {
-        $circle->load('city');
+        $circle->load(['city', 'categories']);
 
         $defaultFounder = $circle->founder ?? $this->defaultFounderUser();
         $countries = $this->countriesList();
@@ -373,6 +377,8 @@ class CircleController extends Controller
             'allUsers' => $this->allUsers(),
             'circlePackages' => $this->circlePackageOptions(),
             'circleStages' => Circle::STAGE_OPTIONS,
+            'categories' => Category::query()->orderBy('category_name')->get(['id', 'category_name']),
+            'selectedCategoryIds' => old('category_ids', $circle->categories->pluck('id')->all()),
         ]);
     }
 
@@ -426,6 +432,7 @@ class CircleController extends Controller
         }
 
         $circle->save();
+        $circle->categories()->sync($validated['category_ids'] ?? []);
         $circle->refresh();
 
         Cache::forget('admin.circles.index');

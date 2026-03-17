@@ -390,6 +390,12 @@ class Circle extends Model
             ->withTimestamps();
     }
 
+    public function categories(): BelongsToMany
+    {
+        return $this->belongsToMany(Category::class, 'circle_category_mappings')
+            ->withTimestamps();
+    }
+
 
     public function coverFile(): BelongsTo
     {

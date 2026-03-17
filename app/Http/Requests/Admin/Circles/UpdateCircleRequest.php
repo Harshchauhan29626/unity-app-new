@@ -44,6 +44,8 @@ class UpdateCircleRequest extends FormRequest
             'calendar_meetings.*.default_meet_time' => ['nullable', 'date_format:H:i'],
             'calendar_meetings.*.monthly_rule' => ['nullable', Rule::in(['first', 'second', 'third', 'fourth', 'last'])],
             'circle_package' => ['nullable', 'string', 'max:120'],
+            'category_ids' => ['nullable', 'array'],
+            'category_ids.*' => ['integer', 'exists:categories,id'],
         ];
     }
 

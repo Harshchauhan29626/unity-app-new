@@ -21,6 +21,8 @@ class EventGalleryResource extends JsonResource
             'event_name' => $this->event_name,
             'event_date' => $this->event_date,
             'description' => $this->description,
+            'category_id' => $this->category_id,
+            'category_name' => $this->categoryRef?->category_name,
             'cover_url' => $this->cover_url,
             'counts' => [
                 'images' => (int) ($imagesCount ?? 0),

@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\PostReportsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\Admin\CircularController;
+use App\Http\Controllers\Admin\CategoryController;
 
 Route::get('/', function () {
     return view('landing');
@@ -124,6 +125,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/event-gallery/events', [EventGalleryController::class, 'storeEvent'])->name('event-gallery.events.store');
         Route::post('/event-gallery/media', [EventGalleryController::class, 'storeMedia'])->name('event-gallery.media.store');
         Route::delete('/event-gallery/media/{id}', [EventGalleryController::class, 'destroyMedia'])->name('event-gallery.media.destroy');
+        Route::resource('categories', CategoryController::class)->except(['show']);
         Route::get('/posts', [PostModerationController::class, 'index'])->name('posts.index');
         Route::get('/posts/{post}', [PostModerationController::class, 'show'])->name('posts.show');
         Route::get('/post-reports', [PostReportsController::class, 'index'])->name('post-reports.index');

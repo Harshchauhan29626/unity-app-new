@@ -115,6 +115,16 @@
                         <label class="form-label">Industry Tags</label>
                         <input type="text" name="industry_tags" class="form-control" value="{{ $industryTagsValue }}" placeholder="e.g. Finance, SaaS, Retail">
                     </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Categories</label>
+                        <select name="category_ids[]" class="form-select" multiple size="6">
+                            @foreach(($categories ?? collect()) as $category)
+                                <option value="{{ $category->id }}" @selected(in_array($category->id, $selectedCategoryIds ?? []))>{{ $category->category_name }}</option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">Use Ctrl/Cmd + click to select multiple categories.</div>
+                    </div>
                 </div>
             </div>
         </div>

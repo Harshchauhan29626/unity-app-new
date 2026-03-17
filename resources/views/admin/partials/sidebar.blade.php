@@ -13,7 +13,10 @@
         ? [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-            ...($isGlobalAdmin ? [['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index']] : []),
+            ...($isGlobalAdmin ? [
+                ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
+                ['icon' => 'bi-tags', 'label' => 'Categories', 'route' => 'admin.categories.index'],
+            ] : []),
         ]
         : [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
@@ -21,7 +24,10 @@
             ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
             ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-            ...($isGlobalAdmin ? [['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index']] : []),
+            ...($isGlobalAdmin ? [
+                ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
+                ['icon' => 'bi-tags', 'label' => 'Categories', 'route' => 'admin.categories.index'],
+            ] : []),
             ['icon' => 'bi-wallet2', 'label' => 'Wallet & Finance', 'route' => '#'],
             ['icon' => 'bi-chat-dots', 'label' => 'Posts & Moderation', 'route' => '#'],
             ['icon' => 'bi-calendar-event', 'label' => 'Events', 'route' => '#'],

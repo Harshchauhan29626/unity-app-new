@@ -17,6 +17,8 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call(CategorySeeder::class);
+
         User::query()->updateOrCreate(
             ['id' => 'b5d96183-2278-4dfb-b450-ff8896347fe4'],
             [
