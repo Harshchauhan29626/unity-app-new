@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreCircularRequest;
 use App\Http\Requests\Admin\UpdateCircularRequest;
@@ -74,11 +75,22 @@ class CircularController extends Controller
 
     public function store(StoreCircularRequest $request): RedirectResponse
     {
-        $payload = $this->payload($request);
-        $payload['created_by'] = (string) Auth::guard('admin')->id();
-        $payload['updated_by'] = (string) Auth::guard('admin')->id();
+        $data = $this->payload($request);
 
-        $circular = Circular::create($payload);
+        $publishDate = ! empty($data['publish_date'])
+            ? Carbon::parse($data['publish_date'], 'Asia/Kolkata')->utc()
+            : now()->utc();
+
+        $expiryDate = ! empty($data['expiry_date'])
+            ? Carbon::parse($data['expiry_date'], 'Asia/Kolkata')->utc()
+            : null;
+
+        $data['publish_date'] = $publishDate;
+        $data['expiry_date'] = $expiryDate;
+        $data['created_by'] = (string) Auth::guard('admin')->id();
+        $data['updated_by'] = (string) Auth::guard('admin')->id();
+
+        $circular = Circular::create($data);
         app(CircularNotificationService::class)->send($circular);
 
         return redirect()->route('admin.circulars.index')->with('success', 'Circular created successfully.');
@@ -98,7 +110,20 @@ class CircularController extends Controller
 
     public function update(UpdateCircularRequest $request, Circular $circular): RedirectResponse
     {
-        $circular->fill($this->payload($request));
+        $data = $this->payload($request);
+
+        $publishDate = ! empty($data['publish_date'])
+            ? Carbon::parse($data['publish_date'], 'Asia/Kolkata')->utc()
+            : now()->utc();
+
+        $expiryDate = ! empty($data['expiry_date'])
+            ? Carbon::parse($data['expiry_date'], 'Asia/Kolkata')->utc()
+            : null;
+
+        $data['publish_date'] = $publishDate;
+        $data['expiry_date'] = $expiryDate;
+
+        $circular->fill($data);
         $circular->updated_by = (string) Auth::guard('admin')->id();
 
         if ($circular->isDirty('status') && $circular->status === 'published') {

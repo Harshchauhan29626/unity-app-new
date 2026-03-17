@@ -14,7 +14,7 @@ class CircularController extends Controller
         $query = Circular::query()
             ->whereNull('deleted_at')
             ->where('status', 'published')
-            ->where('publish_date', '<=', DB::raw('NOW()'))
+            ->where('publish_date', '<=', DB::raw("NOW() + interval '5 minutes'"))
             ->where(function ($q) {
                 $q->whereNull('expiry_date')
                     ->orWhere('expiry_date', '>', DB::raw('NOW()'));
