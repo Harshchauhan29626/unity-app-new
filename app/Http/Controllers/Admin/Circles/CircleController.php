@@ -261,7 +261,7 @@ class CircleController extends Controller
             'circlePackages' => $this->circlePackageOptions(),
             'circleStages' => Circle::STAGE_OPTIONS,
             'categories' => Category::query()->orderBy('category_name')->get(['id', 'category_name']),
-            'selectedCategoryIds' => old('category_ids', []),
+            'selectedCategoryIds' => old('categories', []),
         ]);
     }
 
@@ -298,7 +298,7 @@ class CircleController extends Controller
         $circle->calendar = $calendar;
 
         $circle->save();
-        $circle->categories()->sync($validated['category_ids'] ?? []);
+        $circle->categories()->sync($validated['categories'] ?? []);
         $circle->refresh();
 
         Cache::forget('admin.circles.index');
@@ -317,7 +317,7 @@ class CircleController extends Controller
             abort(403);
         }
 
-        $circle->load(['city', 'founder', 'director', 'industryDirector', 'ded', 'members.user', 'members.roleRef']);
+        $circle->load(['city', 'founder', 'director', 'industryDirector', 'ded', 'categories', 'members.user', 'members.roleRef']);
 
         $calendar = is_array($circle->calendar) ? $circle->calendar : [];
 
@@ -378,7 +378,7 @@ class CircleController extends Controller
             'circlePackages' => $this->circlePackageOptions(),
             'circleStages' => Circle::STAGE_OPTIONS,
             'categories' => Category::query()->orderBy('category_name')->get(['id', 'category_name']),
-            'selectedCategoryIds' => old('category_ids', $circle->categories->pluck('id')->all()),
+            'selectedCategoryIds' => old('categories', $circle->categories->pluck('id')->all()),
         ]);
     }
 
@@ -432,7 +432,7 @@ class CircleController extends Controller
         }
 
         $circle->save();
-        $circle->categories()->sync($validated['category_ids'] ?? []);
+        $circle->categories()->sync($validated['categories'] ?? []);
         $circle->refresh();
 
         Cache::forget('admin.circles.index');

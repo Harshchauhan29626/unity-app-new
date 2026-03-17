@@ -116,14 +116,38 @@
                         <input type="text" name="industry_tags" class="form-control" value="{{ $industryTagsValue }}" placeholder="e.g. Finance, SaaS, Retail">
                     </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label">Categories</label>
-                        <select name="category_ids[]" class="form-select" multiple size="6">
-                            @foreach(($categories ?? collect()) as $category)
-                                <option value="{{ $category->id }}" @selected(in_array($category->id, $selectedCategoryIds ?? []))>{{ $category->category_name }}</option>
-                            @endforeach
-                        </select>
-                        <div class="form-text">Use Ctrl/Cmd + click to select multiple categories.</div>
+                    <div class="col-12">
+                        <label class="form-label d-block">Categories</label>
+                        <div class="form-text mb-2">Select one or more categories</div>
+                        <div class="row g-2">
+                            @forelse(($categories ?? collect()) as $category)
+                                <div class="col-sm-6 col-lg-4">
+                                    <div class="form-check">
+                                        <input
+                                            class="form-check-input"
+                                            type="checkbox"
+                                            name="categories[]"
+                                            value="{{ $category->id }}"
+                                            id="category_{{ $category->id }}"
+                                            @checked(in_array($category->id, $selectedCategoryIds ?? []))
+                                        >
+                                        <label class="form-check-label" for="category_{{ $category->id }}">
+                                            {{ $category->category_name }}
+                                        </label>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="col-12">
+                                    <div class="text-muted small">No categories available.</div>
+                                </div>
+                            @endforelse
+                        </div>
+                        @error('categories')
+                            <div class="text-danger small mt-2">{{ $message }}</div>
+                        @enderror
+                        @error('categories.*')
+                            <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
                     </div>
                 </div>
             </div>

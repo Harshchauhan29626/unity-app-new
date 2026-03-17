@@ -69,7 +69,17 @@
                 <p class="text-muted mb-2"><strong>Description:</strong> {{ $circle->description ?: '—' }}</p>
                 <p class="text-muted mb-2"><strong>Purpose:</strong> {{ $circle->purpose ?: '—' }}</p>
                 <p class="text-muted mb-2"><strong>Announcement:</strong> {{ $circle->announcement ?: '—' }}</p>
-                <p class="text-muted mb-0"><strong>Industry Tags:</strong> {{ $circle->industry_tags ? implode(', ', $circle->industry_tags) : '—' }}</p>
+                <p class="text-muted mb-2"><strong>Industry Tags:</strong> {{ $circle->industry_tags ? implode(', ', $circle->industry_tags) : '—' }}</p>
+                <div>
+                    <strong class="text-muted">Categories:</strong>
+                    <div class="mt-2 d-flex flex-wrap gap-2">
+                        @forelse($circle->categories as $category)
+                            <span class="badge bg-light text-dark border">{{ $category->category_name }}</span>
+                        @empty
+                            <span class="text-muted">No categories assigned</span>
+                        @endforelse
+                    </div>
+                </div>
             </div>
         </div>
     </div>

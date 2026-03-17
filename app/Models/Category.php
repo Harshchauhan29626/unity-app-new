@@ -24,7 +24,7 @@ class Category extends Model
 
     public function circles(): BelongsToMany
     {
-        return $this->belongsToMany(Circle::class, 'circle_category_mappings')
+        return $this->belongsToMany(Circle::class, 'circle_category_mappings', 'category_id', 'circle_id')
             ->withTimestamps();
     }
 
