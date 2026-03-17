@@ -257,11 +257,6 @@
                         @enderror
                         <div class="form-text">Membership plan list is loaded from existing system plans.</div>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Zoho Last Invoice ID</label>
-                        <input type="text" name="zoho_last_invoice_id" class="form-control" value="{{ old('zoho_last_invoice_id', $user->zoho_last_invoice_id) }}">
-                    </div>
-
                     <div class="col-12"><h6 class="mb-0 mt-2">Circle Membership Details</h6></div>
                     @php
                         $selectedCircleValue = (string) old('active_circle_id', $user->active_circle_id ?? $effectiveCircleId ?? '');
