@@ -34,52 +34,92 @@
     </div>
 @endif
 
+@php
+    $circleCategories = collect();
+
+    if (($categoryFeatureEnabled ?? false) && method_exists($circle, 'categories')) {
+        try {
+            $circleCategories = $circle->categories ?? collect();
+        } catch (\Throwable $e) {
+            $circleCategories = collect();
+        }
+    }
+
+    $circleStatus = data_get($circle, 'status') ?: 'pending';
+    $circleType = data_get($circle, 'type') ?: '—';
+    $circleSlug = data_get($circle, 'slug') ?: '—';
+    $circleCity = data_get($circle, 'city.name') ?: '—';
+    $circleCountry = data_get($circle, 'city.country') ?: (data_get($circle, 'country') ?: '—');
+    $circleFounder = data_get($circle, 'founder.display_name')
+        ?: trim((string) data_get($circle, 'founder.first_name', '') . ' ' . (string) data_get($circle, 'founder.last_name', ''));
+    $circleFounder = trim($circleFounder) !== '' ? trim($circleFounder) : '—';
+
+    $circleDescription = data_get($circle, 'description') ?: '—';
+    $circlePurpose = data_get($circle, 'purpose') ?: '—';
+    $circleAnnouncement = data_get($circle, 'announcement') ?: '—';
+
+    $industryTags = data_get($circle, 'industry_tags');
+    if (is_array($industryTags)) {
+        $industryTagsText = implode(', ', array_filter($industryTags));
+    } elseif (is_string($industryTags) && trim($industryTags) !== '') {
+        $industryTagsText = $industryTags;
+    } else {
+        $industryTagsText = '—';
+    }
+@endphp
+
 <div class="row g-3">
     <div class="col-lg-6">
         <div class="card h-100">
             <div class="card-header fw-semibold">Circle Overview</div>
             <div class="card-body">
                 <div class="d-flex flex-wrap gap-2 mb-3">
-                    <span class="badge badge-soft-secondary text-uppercase">{{ $circle->status ?? 'pending' }}</span>
-                    <span class="badge bg-light text-dark text-uppercase">{{ $circle->type ?? '—' }}</span>
+                    <span class="badge badge-soft-secondary text-uppercase">{{ $circleStatus }}</span>
+                    <span class="badge bg-light text-dark text-uppercase">{{ $circleType }}</span>
                 </div>
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Slug</dt>
-                    <dd class="col-sm-8">{{ $circle->slug ?? '—' }}</dd>
+                    <dd class="col-sm-8">{{ $circleSlug }}</dd>
 
                     <dt class="col-sm-4">City</dt>
-                    <dd class="col-sm-8">{{ $circle->city?->name ?? '—' }}</dd>
+                    <dd class="col-sm-8">{{ $circleCity }}</dd>
 
                     <dt class="col-sm-4">Country</dt>
-                    <dd class="col-sm-8">{{ $circle->city?->country ?? '—' }}</dd>
+                    <dd class="col-sm-8">{{ $circleCountry }}</dd>
 
                     <dt class="col-sm-4">Founder</dt>
-                    <dd class="col-sm-8">{{ $circle->founder?->display_name ?? '—' }}</dd>
+                    <dd class="col-sm-8">{{ $circleFounder }}</dd>
 
                     <dt class="col-sm-4">Created</dt>
-                    <dd class="col-sm-8">{{ optional($circle->created_at)->format('Y-m-d H:i') }}</dd>
+                    <dd class="col-sm-8">{{ optional($circle->created_at)->format('Y-m-d H:i') ?: '—' }}</dd>
                 </dl>
             </div>
         </div>
     </div>
+
     <div class="col-lg-6">
         <div class="card h-100">
             <div class="card-header fw-semibold">Narrative & Tags</div>
             <div class="card-body">
-                <p class="text-muted mb-2"><strong>Description:</strong> {{ $circle->description ?: '—' }}</p>
-                <p class="text-muted mb-2"><strong>Purpose:</strong> {{ $circle->purpose ?: '—' }}</p>
-                <p class="text-muted mb-2"><strong>Announcement:</strong> {{ $circle->announcement ?: '—' }}</p>
-                <p class="text-muted mb-2"><strong>Industry Tags:</strong> {{ $circle->industry_tags ? implode(', ', $circle->industry_tags) : '—' }}</p>
-                <div>
-                    <strong class="text-muted">Categories:</strong>
-                    <div class="mt-2 d-flex flex-wrap gap-2">
-                        @forelse($circle->categories as $category)
-                            <span class="badge bg-light text-dark border">{{ $category->category_name }}</span>
-                        @empty
-                            <span class="text-muted">No categories assigned</span>
-                        @endforelse
+                <p class="text-muted mb-2"><strong>Description:</strong> {{ $circleDescription }}</p>
+                <p class="text-muted mb-2"><strong>Purpose:</strong> {{ $circlePurpose }}</p>
+                <p class="text-muted mb-2"><strong>Announcement:</strong> {{ $circleAnnouncement }}</p>
+                <p class="text-muted mb-2"><strong>Industry Tags:</strong> {{ $industryTagsText }}</p>
+
+                @if($categoryFeatureEnabled ?? false)
+                    <div>
+                        <strong class="text-muted">Categories:</strong>
+                        <div class="mt-2 d-flex flex-wrap gap-2">
+                            @forelse($circleCategories as $category)
+                                <span class="badge bg-light text-dark border">
+                                    {{ data_get($category, 'category_name', '—') }}
+                                </span>
+                            @empty
+                                <span class="text-muted">No categories assigned</span>
+                            @endforelse
+                        </div>
                     </div>
-                </div>
+                @endif
             </div>
         </div>
     </div>
@@ -104,12 +144,12 @@
                     return null;
                 }
 
-                $name = $user->name
-                    ?? $user->display_name
-                    ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+                $name = data_get($user, 'name')
+                    ?: data_get($user, 'display_name')
+                    ?: trim((string) data_get($user, 'first_name', '') . ' ' . (string) data_get($user, 'last_name', ''));
 
                 $name = trim((string) $name);
-                $email = trim((string) ($user->email ?? ''));
+                $email = trim((string) data_get($user, 'email', ''));
 
                 if ($name !== '' && $email !== '') {
                     return $name . ' (' . $email . ')';
@@ -118,10 +158,40 @@
                 return $name !== '' ? $name : ($email !== '' ? $email : null);
             };
 
-            $meetingMode = $circle->meeting_mode ? ucfirst(strtolower($circle->meeting_mode)) : null;
-            $meetingFrequency = $circle->meeting_frequency ? ucfirst(strtolower($circle->meeting_frequency)) : null;
-            $launchDate = optional($circle->launch_date)->format('d M Y');
-            $meetingRepeat = is_array($circle->meeting_repeat) ? $circle->meeting_repeat : null;
+            $calendar = is_array($circle->calendar ?? null) ? $circle->calendar : [];
+
+            $meetingMode = data_get($circle, 'meeting_mode');
+            if (! $meetingMode) {
+                $meetingMode = data_get($calendar, 'settings.meeting_mode');
+            }
+            $meetingMode = $meetingMode ? ucfirst(strtolower((string) $meetingMode)) : null;
+
+            $meetingFrequency = data_get($circle, 'meeting_frequency');
+            if (! $meetingFrequency) {
+                $meetingFrequency = data_get($calendar, 'settings.meeting_frequency');
+            }
+            $meetingFrequency = $meetingFrequency ? ucfirst(strtolower((string) $meetingFrequency)) : null;
+
+            $launchDateRaw = data_get($circle, 'launch_date') ?: data_get($calendar, 'settings.launch_date');
+            $launchDate = '—';
+            if (! empty($launchDateRaw)) {
+                try {
+                    $launchDate = \Illuminate\Support\Carbon::parse($launchDateRaw)->format('d M Y');
+                } catch (\Throwable $e) {
+                    $launchDate = (string) $launchDateRaw;
+                }
+            }
+
+            $meetingRepeat = data_get($circle, 'meeting_repeat');
+            if (! is_array($meetingRepeat)) {
+                $meetingRepeat = data_get($calendar, 'settings.meeting_repeat');
+            }
+            $meetingRepeat = is_array($meetingRepeat) ? $meetingRepeat : null;
+
+            $coverFileId = data_get($circle, 'cover_file_id');
+            if (! $coverFileId) {
+                $coverFileId = data_get($calendar, 'cover.file_id');
+            }
         @endphp
 
         <div class="row g-3">
@@ -129,30 +199,35 @@
                 <div class="small text-muted">Meeting Mode</div>
                 {!! $displayValue($meetingMode) !!}
             </div>
+
             <div class="col-md-4">
                 <div class="small text-muted">Meeting Frequency</div>
                 {!! $displayValue($meetingFrequency) !!}
             </div>
+
             <div class="col-md-4">
                 <div class="small text-muted">Launch Date</div>
-                {!! $displayValue($launchDate) !!}
+                {!! $displayValue($launchDate !== '—' ? $launchDate : null) !!}
             </div>
+
             <div class="col-md-4">
                 <div class="small text-muted">Circle Stage</div>
-                {!! $displayValue($circleStage) !!}
+                {!! $displayValue($circleStage ?? null) !!}
             </div>
 
             <div class="col-md-4">
                 <div class="small text-muted">Director</div>
-                {!! $displayValue($formatUser($circle->director)) !!}
+                {!! $displayValue($formatUser($circle->director ?? null)) !!}
             </div>
+
             <div class="col-md-4">
                 <div class="small text-muted">Industry Director</div>
-                {!! $displayValue($formatUser($circle->industryDirector)) !!}
+                {!! $displayValue($formatUser($circle->industryDirector ?? null)) !!}
             </div>
+
             <div class="col-md-4">
                 <div class="small text-muted">DED</div>
-                {!! $displayValue($formatUser($circle->ded)) !!}
+                {!! $displayValue($formatUser($circle->ded ?? null)) !!}
             </div>
 
             <div class="col-md-8">
@@ -160,7 +235,10 @@
                 @if ($meetingRepeat)
                     <div class="small bg-light border rounded p-2">
                         @foreach ($meetingRepeat as $key => $value)
-                            <div><span class="text-muted">{{ ucwords(str_replace('_', ' ', (string) $key)) }}:</span> <span class="fw-semibold">{{ is_scalar($value) ? $value : json_encode($value) }}</span></div>
+                            <div>
+                                <span class="text-muted">{{ ucwords(str_replace('_', ' ', (string) $key)) }}:</span>
+                                <span class="fw-semibold">{{ is_scalar($value) ? $value : json_encode($value) }}</span>
+                            </div>
                         @endforeach
                     </div>
                 @else
@@ -170,11 +248,11 @@
 
             <div class="col-md-4">
                 <div class="small text-muted">Cover</div>
-                @if ($circle->cover_file_id)
+                @if ($coverFileId)
                     <div class="d-flex flex-column gap-2">
-                        <img src="{{ url('/api/v1/files/' . $circle->cover_file_id) }}" alt="Circle Cover" class="rounded border" style="max-height: 120px; width: auto; object-fit: cover;">
+                        <img src="{{ url('/api/v1/files/' . $coverFileId) }}" alt="Circle Cover" class="rounded border" style="max-height: 120px; width: auto; object-fit: cover;">
                         <div>
-                            <a href="{{ url('/api/v1/files/' . $circle->cover_file_id) }}" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
+                            <a href="{{ url('/api/v1/files/' . $coverFileId) }}" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
                         </div>
                     </div>
                 @else
@@ -185,22 +263,21 @@
     </div>
 </div>
 
-
 <div class="card mt-3">
     <div class="card-header fw-semibold">Circle Ranking</div>
     <div class="card-body">
         <div class="row g-3">
             <div class="col-md-4">
                 <div class="small text-muted">Total Members</div>
-                <div class="fw-semibold text-dark">{{ $rankingData['total_members'] }}</div>
+                <div class="fw-semibold text-dark">{{ data_get($rankingData, 'total_members', 0) }}</div>
             </div>
             <div class="col-md-4">
                 <div class="small text-muted">Rank</div>
-                <div class="fw-semibold text-dark">{{ $rankingData['rank'] }}</div>
+                <div class="fw-semibold text-dark">{{ data_get($rankingData, 'rank', '—') }}</div>
             </div>
             <div class="col-md-4">
                 <div class="small text-muted">Circle Title</div>
-                <div class="fw-semibold text-dark">{{ $rankingData['title'] }}</div>
+                <div class="fw-semibold text-dark">{{ data_get($rankingData, 'title', '—') }}</div>
             </div>
         </div>
     </div>
@@ -215,7 +292,7 @@
             <ul class="list-group list-group-flush">
                 @foreach ($meetingRows as $meetingRow)
                     <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
-                        <span><strong>{{ $meetingRow['label'] }}:</strong> {{ $meetingRow['value'] }}</span>
+                        <span><strong>{{ data_get($meetingRow, 'label', 'Meeting') }}:</strong> {{ data_get($meetingRow, 'value', '—') }}</span>
                     </li>
                 @endforeach
             </ul>
@@ -262,14 +339,16 @@
                     @forelse ($circle->members as $membership)
                         @php
                             $member = $membership->user;
-                            $memberName = trim((string) ($member?->first_name ?? '').' '.(string) ($member?->last_name ?? ''));
+                            $memberName = trim((string) ($member?->first_name ?? '') . ' ' . (string) ($member?->last_name ?? ''));
                             if ($memberName === '') {
                                 $memberName = trim((string) ($member?->display_name ?? ''));
                             }
+
                             $memberCompany = trim((string) ($member?->company_name ?? ''));
                             if ($memberCompany === '') {
                                 $memberCompany = trim((string) ($member?->business_name ?? ''));
                             }
+
                             $memberCity = trim((string) ($member?->city ?? ''));
                         @endphp
                         <tr>
@@ -290,11 +369,13 @@
                                     </select>
                                     <button class="btn btn-sm btn-outline-primary">Update</button>
                                 </form>
+
                                 @if ($membership->roleRef)
                                     <div class="small text-muted mt-1">
                                         {{ $membership->roleRef->name }} ({{ $membership->roleRef->key }})
                                     </div>
                                 @endif
+
                                 @if ($membership->role_id)
                                     <div class="small text-muted">Role ID: {{ $membership->role_id }}</div>
                                 @endif
