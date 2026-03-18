@@ -355,3 +355,5 @@
     addCategoryBtn?.addEventListener('click', addCategoryFromPicker);
 </script>
 @endpush
+</script>
+@endpush
