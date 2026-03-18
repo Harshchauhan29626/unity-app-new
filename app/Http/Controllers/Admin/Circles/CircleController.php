@@ -837,7 +837,7 @@ class CircleController extends Controller
             return '';
         }
 
-        return $user->adminDisplayInlineLabel();
+        return $user->adminFounderDropdownLabel();
     }
 
     private function sanitizeFilterInput(mixed $value): string

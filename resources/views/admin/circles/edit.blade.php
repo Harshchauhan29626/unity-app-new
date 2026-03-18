@@ -73,7 +73,7 @@
                         <select name="founder_user_id" class="form-select" required>
                             <option value="">Select a member</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
+                                <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ $user->adminFounderDropdownLabel() }}</option>
                             @endforeach
                         </select>
                         <div class="form-text">Defaults to the logged-in admin user.</div>

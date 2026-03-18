@@ -424,6 +424,15 @@ class User extends Authenticatable
         return implode(' — ', $this->adminDisplayParts());
     }
 
+    public function adminFounderDropdownLabel(): string
+    {
+        return implode(', ', [
+            $this->adminName(),
+            $this->adminCompanyLabel(),
+            $this->adminCityLabel(),
+        ]);
+    }
+
     public function isMembershipExpired(): bool
     {
         $membershipEndsAt = $this->membership_ends_at ?? $this->membership_expiry;

@@ -326,22 +326,7 @@
             </div>
         </form>
 
-        <form method="GET" action="{{ route('admin.circles.show', $circle) }}" class="row g-2 align-items-end mb-3">
-            <div class="col-12 col-md-5">
-                <label class="form-label mb-1" for="peer_name">Peer name</label>
-                <input id="peer_name" type="text" name="peer_name" value="{{ $peerFilters['peer_name'] ?? '' }}" class="form-control form-control-sm" placeholder="Search peer name">
-            </div>
-            <div class="col-12 col-md-5">
-                <label class="form-label mb-1" for="peer_email">Email</label>
-                <input id="peer_email" type="text" name="peer_email" value="{{ $peerFilters['peer_email'] ?? '' }}" class="form-control form-control-sm" placeholder="Search email">
-            </div>
-            <div class="col-6 col-md-1 d-grid">
-                <button type="submit" class="btn btn-sm btn-outline-primary">Filter</button>
-            </div>
-            <div class="col-6 col-md-1 d-grid">
-                <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-sm btn-outline-secondary">Reset</a>
-            </div>
-        </form>
+        <form id="peerFilterForm" method="GET" action="{{ route('admin.circles.show', $circle) }}" class="d-none"></form>
 
         <div class="table-responsive" style="overflow-x: auto;">
             <table class="table align-middle" style="white-space: nowrap;">
@@ -353,6 +338,39 @@
                         <th>Status</th>
                         <th>Joined At</th>
                         <th class="text-end">Actions</th>
+                    </tr>
+                    <tr>
+                        <th>
+                            <input
+                                id="peer_name"
+                                type="text"
+                                name="peer_name"
+                                form="peerFilterForm"
+                                value="{{ $peerFilters['peer_name'] ?? '' }}"
+                                class="form-control form-control-sm"
+                                placeholder="Search peer name"
+                            >
+                        </th>
+                        <th>
+                            <input
+                                id="peer_email"
+                                type="text"
+                                name="peer_email"
+                                form="peerFilterForm"
+                                value="{{ $peerFilters['peer_email'] ?? '' }}"
+                                class="form-control form-control-sm"
+                                placeholder="Search email"
+                            >
+                        </th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                        <th class="text-end">
+                            <div class="d-inline-flex gap-1 justify-content-end">
+                                <button type="submit" form="peerFilterForm" class="btn btn-sm btn-outline-primary">Filter</button>
+                                <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
