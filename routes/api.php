@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\TestimonialController;
+use App\Http\Controllers\Api\UserContactController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
 use App\Http\Controllers\Api\V1\Billing\ZohoBillingWebhookController;
@@ -84,6 +85,9 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/industries/tree', [IndustryController::class, 'tree']);
     Route::get('/collaboration-types', [CollaborationTypeController::class, 'index']);
+
+    Route::post('/contacts/sync', [UserContactController::class, 'syncContacts']);
+    Route::get('/contacts', [UserContactController::class, 'getContacts']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
