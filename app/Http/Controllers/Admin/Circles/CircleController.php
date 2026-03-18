@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
 
@@ -270,9 +271,23 @@ class CircleController extends Controller
     {
         $validated = $request->validated();
         $circlePackage = $this->resolveCirclePackage($validated['circle_package'] ?? null);
+        $baseSlug = Str::slug((string) ($validated['name'] ?? ''));
+
+        if ($baseSlug === '') {
+            $baseSlug = 'circle';
+        }
+
+        $slug = $baseSlug;
+        $counter = 1;
+
+        while (Circle::where('slug', $slug)->exists()) {
+            $slug = $baseSlug.'-'.$counter;
+            $counter++;
+        }
 
         $payload = [
             'name' => $validated['name'] ?? null,
+            'slug' => $slug,
             'type' => $validated['type'] ?? null,
             'status' => $validated['status'] ?? null,
             'city_id' => $validated['city_id'] ?? null,

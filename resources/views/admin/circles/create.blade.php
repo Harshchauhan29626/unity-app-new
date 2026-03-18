@@ -115,6 +115,58 @@
                         <label class="form-label">Industry Tags</label>
                         <input type="text" name="industry_tags" class="form-control" value="{{ $industryTagsValue }}" placeholder="e.g. Finance, SaaS, Retail">
                     </div>
+
+                    <div class="col-12">
+                        <label class="form-label d-block">Categories</label>
+                        <div class="form-text mb-2">Select a category from dropdown and click Add</div>
+                        <div class="row g-3 align-items-start">
+                            <div class="col-lg-5">
+                                <div class="input-group">
+                                    <select id="categoryPicker" class="form-select">
+                                        <option value="">Select category</option>
+                                        @foreach(($categories ?? collect()) as $category)
+                                            <option value="{{ $category->id }}">{{ $category->category_name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <button type="button" class="btn btn-outline-primary" id="addCategoryBtn">Add Category</button>
+                                </div>
+                            </div>
+                            <div class="col-lg-7">
+                                <div class="border rounded p-3 bg-white" style="max-height: 220px; overflow-y: auto;">
+                                    <div class="small fw-semibold text-muted mb-2">Available / Selected Categories</div>
+                                    <div class="row g-2" id="categoryCheckboxList">
+                                        @forelse(($categories ?? collect()) as $category)
+                                            <div class="col-12">
+                                                <div class="form-check">
+                                                    <input
+                                                        class="form-check-input"
+                                                        type="checkbox"
+                                                        name="categories[]"
+                                                        value="{{ $category->id }}"
+                                                        id="category_{{ $category->id }}"
+                                                        @checked(in_array($category->id, $selectedCategoryIds ?? []))
+                                                    >
+                                                    <label class="form-check-label" for="category_{{ $category->id }}">
+                                                        {{ $category->category_name }}
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        @empty
+                                            <div class="col-12">
+                                                <div class="text-muted small">No categories available.</div>
+                                            </div>
+                                        @endforelse
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        @error('categories')
+                            <div class="text-danger small mt-2">{{ $message }}</div>
+                        @enderror
+                        @error('categories.*')
+                            <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
+                    </div>
                 </div>
             </div>
         </div>
@@ -272,5 +324,36 @@
         url.searchParams.set('country', event.target.value);
         window.location.href = url.toString();
     });
+
+
+    const categoryPicker = document.getElementById('categoryPicker');
+    const addCategoryBtn = document.getElementById('addCategoryBtn');
+    const categoryCheckboxes = document.getElementById('categoryCheckboxList');
+
+    const addCategoryFromPicker = () => {
+        const selectedId = categoryPicker?.value;
+        if (!selectedId || !categoryCheckboxes) {
+            return;
+        }
+
+        const targetCheckbox = Array.from(categoryCheckboxes.querySelectorAll('input[name="categories[]"]'))
+            .find((checkbox) => checkbox.value === selectedId);
+
+        if (!targetCheckbox) {
+            return;
+        }
+
+        targetCheckbox.checked = true;
+        targetCheckbox.dispatchEvent(new Event('change'));
+        targetCheckbox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        if (categoryPicker) {
+            categoryPicker.value = '';
+        }
+    };
+
+    addCategoryBtn?.addEventListener('click', addCategoryFromPicker);
+</script>
+@endpush
 </script>
 @endpush

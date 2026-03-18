@@ -154,6 +154,7 @@ class CircleController extends BaseApiController
         return DB::transaction(function () use ($data, $authUser) {
             $circle = new Circle();
             $circle->fill($data);
+            $circle->slug = Circle::generateUniqueSlug((string) ($data['name'] ?? 'circle'));
             $circle->founder_user_id = $authUser->id;
             $circle->save();
 
