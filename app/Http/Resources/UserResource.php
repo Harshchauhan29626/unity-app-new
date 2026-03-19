@@ -55,6 +55,9 @@ class UserResource extends JsonResource
                     ] : null,
                 ];
             }),
+            'active_circle_name' => $this->relationLoaded('activeCircle')
+                ? optional($this->activeCircle)->name
+                : null,
             'coins_balance'       => $this->coins_balance,
             'business_type'       => $this->business_type,
             'turnover_range'      => $this->turnover_range,
