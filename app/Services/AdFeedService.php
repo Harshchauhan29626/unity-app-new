@@ -10,9 +10,19 @@ class AdFeedService
 {
     public function timelineAds(?int $limit = null): Collection
     {
+        $now = now();
+
         $query = Ad::query()
-            ->currentlyVisible()
-            ->forPlacement('timeline')
+            ->whereRaw('LOWER(placement) = ?', ['timeline'])
+            ->where('is_active', true)
+            ->where(function ($builder) use ($now) {
+                $builder->whereNull('starts_at')
+                    ->orWhere('starts_at', '<=', $now);
+            })
+            ->where(function ($builder) use ($now) {
+                $builder->whereNull('ends_at')
+                    ->orWhere('ends_at', '>=', $now);
+            })
             ->orderByRaw('CASE WHEN timeline_position IS NULL THEN 1 ELSE 0 END')
             ->orderBy('timeline_position')
             ->orderBy('sort_order')
