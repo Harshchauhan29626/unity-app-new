@@ -13,10 +13,6 @@ class AdFeedService
         $query = Ad::query()
             ->currentlyVisible()
             ->forPlacement('timeline')
-            ->where(function ($builder) {
-                $builder->whereNull('page_name')
-                    ->orWhereRaw('LOWER(page_name) = ?', ['feed']);
-            })
             ->orderByRaw('CASE WHEN timeline_position IS NULL THEN 1 ELSE 0 END')
             ->orderBy('timeline_position')
             ->orderBy('sort_order')
