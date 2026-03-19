@@ -8,6 +8,8 @@ use Illuminate\Support\Collection;
 
 class AdFeedService
 {
+    private const AUTO_AD_INTERVAL = 5;
+
     public function timelineAds(?int $limit = null): Collection
     {
         $now = now();
@@ -45,7 +47,7 @@ class AdFeedService
 
         $postItems = $posts->values()->all();
 
-        $positioned = $ads
+        $manualPositionAds = $ads
             ->filter(fn (Ad $ad) => ! is_null($ad->timeline_position) && (int) $ad->timeline_position > 0)
             ->groupBy(fn (Ad $ad) => (int) $ad->timeline_position)
             ->map(function (Collection $group) {
@@ -57,7 +59,7 @@ class AdFeedService
             })
             ->sortKeys();
 
-        $unpositioned = $ads
+        $automaticAds = $ads
             ->filter(fn (Ad $ad) => is_null($ad->timeline_position) || (int) $ad->timeline_position <= 0)
             ->sortBy([
                 ['sort_order', 'asc'],
@@ -67,20 +69,28 @@ class AdFeedService
             ->values()
             ->all();
 
+        $manualMerged = $this->mergeManualPositionAds($postItems, $manualPositionAds);
+
+        return $this->distributeAutomaticAds($manualMerged, $automaticAds);
+    }
+
+    private function mergeManualPositionAds(array $postItems, Collection $manualPositionAds): array
+    {
         $result = [];
         $postIndex = 0;
         $slot = 1;
+
         $maxSlot = max(
-            count($postItems) + $positioned->flatten(1)->count(),
-            (int) ($positioned->keys()->max() ?? 0)
+            count($postItems) + $manualPositionAds->flatten(1)->count(),
+            (int) ($manualPositionAds->keys()->max() ?? 0)
         );
 
         while ($slot <= $maxSlot || $postIndex < count($postItems)) {
-            if ($positioned->has($slot)) {
-                foreach ($positioned->get($slot) as $ad) {
+            if ($manualPositionAds->has($slot)) {
+                foreach ($manualPositionAds->get($slot) as $ad) {
                     $result[] = $this->transformAd($ad);
                 }
-                $positioned->forget($slot);
+                $manualPositionAds->forget($slot);
             }
 
             if ($postIndex < count($postItems)) {
@@ -91,14 +101,38 @@ class AdFeedService
             $slot++;
         }
 
-        foreach ($positioned as $group) {
+        foreach ($manualPositionAds as $group) {
             foreach ($group as $ad) {
                 $result[] = $this->transformAd($ad);
             }
         }
 
-        foreach ($unpositioned as $ad) {
-            $result[] = $this->transformAd($ad);
+        return $result;
+    }
+
+    private function distributeAutomaticAds(array $items, array $automaticAds): Collection
+    {
+        if (empty($automaticAds)) {
+            return collect($items)->values();
+        }
+
+        $result = [];
+        $postCount = 0;
+        $autoAdIndex = 0;
+
+        foreach ($items as $item) {
+            $result[] = $item;
+
+            if (($item['type'] ?? null) !== 'post') {
+                continue;
+            }
+
+            $postCount++;
+
+            if ($postCount % self::AUTO_AD_INTERVAL === 0 && isset($automaticAds[$autoAdIndex])) {
+                $result[] = $this->transformAd($automaticAds[$autoAdIndex]);
+                $autoAdIndex++;
+            }
         }
 
         return collect($result)->values();
