@@ -15,6 +15,7 @@ class AdFeedService
         $query = Ad::query()
             ->whereRaw('LOWER(placement) = ?', ['timeline'])
             ->where('is_active', true)
+            ->whereNull('deleted_at')
             ->where(function ($builder) use ($now) {
                 $builder->whereNull('starts_at')
                     ->orWhere('starts_at', '<=', $now);
