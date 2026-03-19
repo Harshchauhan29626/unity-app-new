@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\V1\CoinHistoryController;
 use App\Http\Controllers\Api\V1\CoinsController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
+use App\Http\Controllers\Api\V1\AdController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
 use App\Http\Controllers\Api\V1\FollowController;
@@ -168,6 +169,9 @@ Route::prefix('v1')->group(function () {
         // Posts & feed
         Route::post('/posts/{post}/report', [PostReportController::class, 'store']);
         Route::get('/posts/feed', [PostController::class, 'feed']);
+        Route::get('/ads', [AdController::class, 'index']);
+        Route::get('/ads/timeline', [AdController::class, 'timeline']);
+        Route::get('/ads/{id}', [AdController::class, 'show']);
         Route::get('/posts/saved', [PostSaveController::class, 'index']);
         Route::post('/posts', [PostController::class, 'store']);
         Route::get('/posts/{id}', [PostController::class, 'show']);

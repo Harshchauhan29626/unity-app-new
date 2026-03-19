@@ -11,14 +11,16 @@ use App\Models\File;
 use App\Models\Post;
 use App\Models\PostComment;
 use App\Models\PostLike;
+use App\Services\AdFeedService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class PostController extends BaseApiController
 {
-    public function feed(Request $request)
+    public function feed(Request $request, AdFeedService $adFeedService)
     {
         $user = $request->user();
+        $perPage = max(1, min((int) $request->integer('per_page', 20), 50));
 
         $query = Post::query()
             ->with([
@@ -31,47 +33,59 @@ class PostController extends BaseApiController
             ])
             ->orderByDesc('created_at');
 
-        // For now, just show all public posts.
-        // Do NOT filter by moderation status so that newly created posts appear immediately.
         $query->where('visibility', 'public');
         $query->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at');
 
-        $posts = $query->get();
+        $posts = $query->paginate($perPage)->appends($request->query());
 
-        $items = $posts->map(function (Post $post) {
-            return [
-                'id'                => $post->id,
-                'content_text'      => $post->content_text,
-                'media'             => $post->media ?? [],
-                'tags'              => $post->tags ?? [],
-                'visibility'        => $post->visibility,
-                'moderation_status' => $post->moderation_status,
-                'author'            => $post->relationLoaded('author') && $post->author ? [
-                    'id'               => $post->author->id,
-                    'display_name'     => $post->author->display_name,
-                    'first_name'       => $post->author->first_name,
-                    'last_name'        => $post->author->last_name,
-                    'profile_photo_url'=> $post->author->profile_photo_url,
-                ] : null,
-                'circle'            => $post->relationLoaded('circle') && $post->circle ? [
-                    'id'   => $post->circle->id,
-                    'name' => $post->circle->name,
-                ] : null,
-                'likes_count'       => isset($post->likes_count) ? (int) $post->likes_count : 0,
-                'comments_count'    => isset($post->comments_count) ? (int) $post->comments_count : 0,
-                'is_liked_by_me'    => (bool) ($post->is_liked_by_me ?? false),
-                'saves_count'       => isset($post->saves_count) ? (int) $post->saves_count : 0,
-                'is_saved'          => (bool) ($post->is_saved_by_me ?? false),
-                'created_at'        => $post->created_at,
-                'updated_at'        => $post->updated_at,
-            ];
+        $postItems = $posts->getCollection()->map(function (Post $post) {
+            return $this->formatPostFeedItem($post);
         });
+
+        $timelineAds = $adFeedService->timelineAds();
+        $items = $adFeedService->mergeTimelineFeed($postItems, $timelineAds);
 
         return $this->success([
             'items' => $items,
-            'total' => $items->count(),
+            'pagination' => [
+                'current_page' => $posts->currentPage(),
+                'last_page' => $posts->lastPage(),
+                'per_page' => $posts->perPage(),
+                'total' => $posts->total(),
+            ],
         ]);
+    }
+
+    private function formatPostFeedItem(Post $post): array
+    {
+        return [
+            'type'              => 'post',
+            'id'                => $post->id,
+            'content_text'      => $post->content_text,
+            'media'             => $post->media ?? [],
+            'tags'              => $post->tags ?? [],
+            'visibility'        => $post->visibility,
+            'moderation_status' => $post->moderation_status,
+            'author'            => $post->relationLoaded('author') && $post->author ? [
+                'id'               => $post->author->id,
+                'display_name'     => $post->author->display_name,
+                'first_name'       => $post->author->first_name,
+                'last_name'        => $post->author->last_name,
+                'profile_photo_url'=> $post->author->profile_photo_url,
+            ] : null,
+            'circle'            => $post->relationLoaded('circle') && $post->circle ? [
+                'id'   => $post->circle->id,
+                'name' => $post->circle->name,
+            ] : null,
+            'likes_count'       => isset($post->likes_count) ? (int) $post->likes_count : 0,
+            'comments_count'    => isset($post->comments_count) ? (int) $post->comments_count : 0,
+            'is_liked_by_me'    => (bool) ($post->is_liked_by_me ?? false),
+            'saves_count'       => isset($post->saves_count) ? (int) $post->saves_count : 0,
+            'is_saved'          => (bool) ($post->is_saved_by_me ?? false),
+            'created_at'        => $post->created_at,
+            'updated_at'        => $post->updated_at,
+        ];
     }
 
     public function store(StorePostRequest $request)

@@ -29,6 +29,7 @@ use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\Admin\CircularController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\AdController;
 
 Route::get('/', function () {
     return view('landing');
@@ -126,6 +127,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/event-gallery/media', [EventGalleryController::class, 'storeMedia'])->name('event-gallery.media.store');
         Route::delete('/event-gallery/media/{id}', [EventGalleryController::class, 'destroyMedia'])->name('event-gallery.media.destroy');
         Route::resource('categories', CategoryController::class)->except(['show']);
+        Route::get('/ads', [AdController::class, 'index'])->name('ads.index');
+        Route::get('/ads/create', [AdController::class, 'create'])->name('ads.create');
+        Route::post('/ads', [AdController::class, 'store'])->name('ads.store');
+        Route::get('/ads/{ad}/edit', [AdController::class, 'edit'])->name('ads.edit');
+        Route::put('/ads/{ad}', [AdController::class, 'update'])->name('ads.update');
+        Route::patch('/ads/{ad}/toggle-status', [AdController::class, 'toggleStatus'])->name('ads.toggle-status');
+        Route::delete('/ads/{ad}', [AdController::class, 'destroy'])->name('ads.destroy');
         Route::get('/posts', [PostModerationController::class, 'index'])->name('posts.index');
         Route::get('/posts/{post}', [PostModerationController::class, 'show'])->name('posts.show');
         Route::get('/post-reports', [PostReportsController::class, 'index'])->name('post-reports.index');
