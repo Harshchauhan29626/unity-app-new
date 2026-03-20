@@ -3,16 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Exports\CategoriesExport;
 use App\Http\Requests\Admin\Categories\StoreCategoryRequest;
 use App\Http\Requests\Admin\Categories\UpdateCategoryRequest;
-use App\Imports\CategoriesImport;
 use App\Models\Category;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
-use Maatwebsite\Excel\Facades\Excel;
 
 class CategoryController extends Controller
 {
@@ -91,10 +89,54 @@ class CategoryController extends Controller
         }
     }
 
-    public function export()
+    public function export(Request $request)
     {
         try {
-            return Excel::download(new CategoriesExport(), 'categories.xlsx');
+            $search = trim((string) $request->query('q', ''));
+            $hasNameColumn = Schema::hasColumn('categories', 'name');
+            $nameColumn = $hasNameColumn ? 'name' : 'category_name';
+
+            $categories = Category::query()
+                ->with('sector')
+                ->when($search !== '', fn ($query) => $query->where($nameColumn, 'ILIKE', '%' . $search . '%'))
+                ->orderBy($nameColumn)
+                ->get();
+
+            return response()->streamDownload(
+                function () use ($categories): void {
+                    $handle = fopen('php://output', 'w');
+
+                    if ($handle === false) {
+                        throw new \RuntimeException('Could not open output stream for CSV export.');
+                    }
+
+                    fwrite($handle, "\xEF\xBB\xBF");
+                    fputcsv($handle, ['ID', 'Category Name', 'Sector', 'Remarks']);
+
+                    foreach ($categories as $category) {
+                        $name = (string) ($category->name ?? $category->category_name ?? '');
+                        $sectorName = (string) (
+                            $category->getRelationValue('sector')?->name
+                            ?? $category->sector
+                            ?? $category->sector_id
+                            ?? ''
+                        );
+
+                        fputcsv($handle, [
+                            $category->id,
+                            $name,
+                            $sectorName,
+                            (string) ($category->remarks ?? ''),
+                        ]);
+                    }
+
+                    fclose($handle);
+                },
+                'categories.csv',
+                [
+                    'Content-Type' => 'text/csv; charset=UTF-8',
+                ]
+            );
         } catch (\Throwable $e) {
             return redirect()
                 ->back()
@@ -105,11 +147,66 @@ class CategoryController extends Controller
     public function import(Request $request): RedirectResponse
     {
         $request->validate([
-            'file' => 'required|mimes:xlsx,xls,csv',
+            'file' => 'required|mimes:csv,txt',
         ]);
 
         try {
-            Excel::import(new CategoriesImport(), $request->file('file'));
+            $file = $request->file('file');
+            $stream = fopen($file->getRealPath(), 'r');
+
+            if ($stream === false) {
+                throw new \RuntimeException('Unable to read uploaded CSV file.');
+            }
+
+            $headers = fgetcsv($stream);
+            if (! is_array($headers)) {
+                fclose($stream);
+                throw new \RuntimeException('Invalid CSV header row.');
+            }
+
+            $headers = array_map(static function ($header): string {
+                $normalized = strtolower(trim((string) $header));
+                return $normalized === "\xEF\xBB\xBFid" ? 'id' : $normalized;
+            }, $headers);
+
+            $hasNameColumn = Schema::hasColumn('categories', 'name');
+            $hasSectorIdColumn = Schema::hasColumn('categories', 'sector_id');
+
+            while (($row = fgetcsv($stream)) !== false) {
+                if ($row === [null] || $row === []) {
+                    continue;
+                }
+
+                $record = array_combine($headers, array_pad($row, count($headers), null));
+
+                if (! is_array($record)) {
+                    continue;
+                }
+
+                $name = trim((string) ($record['name'] ?? $record['category_name'] ?? ''));
+                if ($name === '') {
+                    continue;
+                }
+
+                $payload = ['remarks' => $record['remarks'] ?? null];
+
+                if ($hasNameColumn) {
+                    $payload['name'] = $name;
+                } else {
+                    $payload['category_name'] = $name;
+                }
+
+                if ($hasSectorIdColumn) {
+                    $payload['sector_id'] = $record['sector_id'] ?? null;
+                } else {
+                    $payload['sector'] = $record['sector'] ?? $record['sector_id'] ?? null;
+                }
+
+                $identifier = $hasNameColumn ? ['name' => $name] : ['category_name' => $name];
+                Category::query()->updateOrCreate($identifier, $payload);
+            }
+
+            fclose($stream);
         } catch (\Throwable $e) {
             return redirect()
                 ->back()

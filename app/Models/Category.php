@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -20,20 +20,19 @@ class Category extends Model
         'remarks',
     ];
 
-    protected function name(): Attribute
+    public function getNameAttribute(): ?string
     {
-        return Attribute::make(
-            get: fn () => $this->attributes['category_name'] ?? null,
-            set: fn (?string $value) => ['category_name' => $value]
-        );
+        return $this->attributes['name'] ?? $this->attributes['category_name'] ?? null;
     }
 
-    protected function sectorId(): Attribute
+    public function getSectorIdAttribute(): ?string
     {
-        return Attribute::make(
-            get: fn () => $this->attributes['sector'] ?? null,
-            set: fn (?string $value) => ['sector' => $value]
-        );
+        return $this->attributes['sector_id'] ?? $this->attributes['sector'] ?? null;
+    }
+
+    public function sector(): BelongsTo
+    {
+        return $this->belongsTo(Sector::class, 'sector_id');
     }
 
     public function circleMappings(): HasMany
