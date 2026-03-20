@@ -196,7 +196,7 @@ class SendActivityEmails
 
         if ($activityTypeNormalized === 'business_deal') {
             $data['dealAmountInr'] = isset($activityModel->deal_amount)
-                ? '₹' . number_format((float) $activityModel->deal_amount, 2)
+                ? number_format((float) $activityModel->deal_amount, 0)
                 : null;
         }
 
