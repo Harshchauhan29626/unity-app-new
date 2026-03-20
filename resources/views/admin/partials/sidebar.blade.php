@@ -56,13 +56,6 @@
     $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
     $activityExpanded = $activityActive || ! $isGlobalAdmin;
 
-    $postsMenu = $isGlobalAdmin ? [
-        ['label' => 'All Posts', 'route' => 'admin.posts.index'],
-        ['label' => 'Post Reports', 'route' => 'admin.post-reports.index'],
-        ['label' => 'Ads', 'route' => 'admin.ads.index'],
-    ] : [];
-    $postsActive = request()->routeIs('admin.posts.*') || request()->routeIs('admin.post-reports.*') || request()->routeIs('admin.ads.*');
-
     $pendingRequestsMenu = [
         ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
         ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
@@ -100,25 +93,6 @@
                     <div class="collapse {{ $activityExpanded ? 'show' : '' }}" id="activitiesSubmenu">
                         <ul class="nav flex-column ms-3">
                             @foreach ($activityMenu as $item)
-                                <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
-                                        {{ $item['label'] }}
-                                    </a>
-                                </li>
-                            @endforeach
-                        </ul>
-                    </div>
-                </li>
-            @endif
-            @if ($postsMenu)
-                <li class="nav-item menu-parent {{ $postsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $postsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#postsSubmenu" role="button" aria-expanded="{{ $postsActive ? 'true' : 'false' }}" aria-controls="postsSubmenu">
-                        <span><i class="bi bi-chat-dots me-2"></i>Posts &amp; Timeline</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
-                    </a>
-                    <div class="collapse {{ $postsActive ? 'show' : '' }}" id="postsSubmenu">
-                        <ul class="nav flex-column ms-3">
-                            @foreach ($postsMenu as $item)
                                 <li class="nav-item">
                                     <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
                                         {{ $item['label'] }}
@@ -172,7 +146,7 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            ['activitiesSubmenu', 'postsSubmenu', 'pendingRequestsSubmenu'].forEach((submenuId) => {
+            ['activitiesSubmenu', 'pendingRequestsSubmenu'].forEach((submenuId) => {
                 const submenu = document.getElementById(submenuId);
                 if (!submenu) {
                     return;
