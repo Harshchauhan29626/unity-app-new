@@ -34,7 +34,8 @@ class AppVersionController extends Controller
                     'latest_version' => $version->latest_version,
                     'min_version' => $version->min_version,
                     'update_type' => $version->update_type,
-                    'store_url' => $this->storeUrlForPlatform($platform),
+                    'playstore_url' => $this->playStoreUrl(),
+                    'appstore_url' => $this->appStoreUrl(),
                 ],
             ]);
         } catch (Throwable $exception) {
@@ -48,9 +49,13 @@ class AppVersionController extends Controller
         }
     }
 
-    private function storeUrlForPlatform(string $platform): string
+    private function playStoreUrl(): string
     {
-        return config("app_links.$platform.store_url")
-            ?? config('app_links.android.store_url', '');
+        return (string) config('app_links.android.store_url', '');
+    }
+
+    private function appStoreUrl(): string
+    {
+        return (string) config('app_links.ios.store_url', '');
     }
 }

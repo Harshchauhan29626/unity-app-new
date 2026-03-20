@@ -30,7 +30,6 @@ class AppVersionController extends Controller
                 'message' => 'App version updated successfully',
                 'data' => [
                     'latest_version' => $appVersion->latest_version,
-                    'store_url' => $this->storeUrlForPlatform($appVersion->platform),
                 ],
             ]);
         } catch (Throwable $exception) {
@@ -42,11 +41,5 @@ class AppVersionController extends Controller
                 'data' => null,
             ], 500);
         }
-    }
-
-    private function storeUrlForPlatform(string $platform): string
-    {
-        return config("app_links.$platform.store_url")
-            ?? config('app_links.android.store_url', '');
     }
 }
