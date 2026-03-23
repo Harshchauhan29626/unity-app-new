@@ -36,8 +36,12 @@ class AuthController extends BaseApiController
         $user->company_name   = $data['company_name'] ?? null;
         $user->designation    = $data['designation'] ?? null;
         $user->city_id        = $user->city_id ?? null;
-        $user->membership_status = 'free_peer';
-        $user->membership_expiry = null;
+        $trialEndsAt = now()->addDays(3);
+
+        $user->membership_status = User::STATUS_FREE_TRIAL;
+        $user->membership_starts_at = now();
+        $user->membership_ends_at = $trialEndsAt;
+        $user->membership_expiry = $trialEndsAt;
         $user->coins_balance  = $user->coins_balance ?? 0;
 
         // Store the hashed password in password_hash (not password)
@@ -88,6 +92,9 @@ class AuthController extends BaseApiController
                 'data'    => null,
             ], 401);
         }
+
+        $user->expireFreeTrialIfNeeded();
+        $user->refresh();
 
         if (($user->status ?? 'active') !== 'active') {
             // Manual test: inactive user login should return 403 and no token.
@@ -206,6 +213,9 @@ class AuthController extends BaseApiController
 
         $otpRecord->used_at = now();
         $otpRecord->save();
+
+        $user->expireFreeTrialIfNeeded();
+        $user->refresh();
 
         if ($user->membership_status === 'suspended') {
             return $this->error('Account is suspended', 403);
@@ -350,6 +360,8 @@ class AuthController extends BaseApiController
     public function me(): JsonResponse
     {
         $user = Auth::guard('sanctum')->user();
+        $user->expireFreeTrialIfNeeded();
+        $user->refresh();
 
         return $this->success(new UserResource($user->loadMissing('city')));
     }

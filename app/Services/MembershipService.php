@@ -90,6 +90,7 @@ class MembershipService
 
         $userUpdate = [
             'membership_status' => $membershipStatus,
+            'membership_ends_at' => $endsAt,
             'membership_expiry' => $endsAt,
         ];
 

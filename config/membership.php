@@ -2,6 +2,7 @@
 
 return [
     'statuses' => [
+        'free_trial_peer',
         'free_peer',
         'Only Unity Peer',
         'Circle Peer',

@@ -30,6 +30,7 @@ class MembershipSyncService
             'zoho_last_invoice_id' => $invoice['invoice_id'] ?? $subscription['invoice_id'] ?? null,
             'membership_starts_at' => $startAt,
             'membership_ends_at' => $endAt,
+            'membership_expiry' => $endAt,
             'last_payment_at' => now(),
         ], static fn ($value) => ! is_null($value));
 

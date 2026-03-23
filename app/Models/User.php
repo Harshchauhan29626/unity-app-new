@@ -17,7 +17,10 @@ use Throwable;
 
 class User extends Authenticatable
 {
-    private const FREE_PEER_STATUS_CANDIDATES = ['Free Peer', 'Free_peer', 'free_peer'];
+    public const STATUS_FREE_TRIAL = 'free_trial_peer';
+    public const STATUS_FREE = 'free_peer';
+
+    private const FREE_PEER_STATUS_CANDIDATES = [self::STATUS_FREE, 'Free Peer', 'Free_peer'];
 
     use HasApiTokens;
     use HasFactory;
@@ -133,6 +136,7 @@ class User extends Authenticatable
     protected static function booted(): void
     {
         static::saving(function (self $user): void {
+            $user->syncMembershipExpiryAttributes();
             $user->syncCoinMilestoneAttributes();
             $user->syncContributionMilestoneAttributes();
         });
@@ -212,6 +216,44 @@ class User extends Authenticatable
         }
 
         return $dirty;
+    }
+
+    public function syncMembershipExpiryAttributes(): bool
+    {
+        $targetExpiry = null;
+
+        if ($this->isDirty('membership_ends_at')) {
+            $targetExpiry = $this->membership_ends_at;
+        } elseif ($this->isDirty('membership_expiry')) {
+            $targetExpiry = $this->membership_expiry;
+        } elseif (! $this->membershipDatesMatch()) {
+            $targetExpiry = $this->membership_ends_at ?? $this->membership_expiry;
+        } else {
+            return false;
+        }
+
+        $this->membership_ends_at = $targetExpiry;
+        $this->membership_expiry = $targetExpiry;
+
+        return true;
+    }
+
+    public function membershipDatesMatch(): bool
+    {
+        return $this->normalizedMembershipDate($this->membership_ends_at) === $this->normalizedMembershipDate($this->membership_expiry);
+    }
+
+    private function normalizedMembershipDate(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d H:i:s.uP');
+        }
+
+        return (string) $value;
     }
 
     public function links(): HasMany
@@ -445,8 +487,32 @@ class User extends Authenticatable
         return $membershipEndsAt !== null && $membershipEndsAt->isPast();
     }
 
+    public function hasExpiredFreeTrial(): bool
+    {
+        return (string) $this->membership_status === self::STATUS_FREE_TRIAL
+            && $this->membership_ends_at !== null
+            && $this->membership_ends_at->lessThanOrEqualTo(now());
+    }
+
+    public function expireFreeTrialIfNeeded(): bool
+    {
+        if (! $this->hasExpiredFreeTrial()) {
+            return false;
+        }
+
+        $this->forceFill([
+            'membership_status' => self::STATUS_FREE,
+        ])->save();
+
+        return true;
+    }
+
     public function getEffectiveMembershipStatusAttribute(): ?string
     {
+        if ($this->hasExpiredFreeTrial()) {
+            return self::STATUS_FREE;
+        }
+
         if ($this->isMembershipExpired()) {
             return self::freePeerMembershipStatus();
         }
@@ -464,7 +530,7 @@ class User extends Authenticatable
             }
         }
 
-        return self::FREE_PEER_STATUS_CANDIDATES[2];
+        return self::STATUS_FREE;
     }
 
     public function requestedConnections(): HasMany
@@ -633,7 +699,7 @@ class User extends Authenticatable
 
     public function isFreeMember(): bool
     {
-        return (string) $this->membership_status === 'free_peer';
+        return in_array((string) $this->effective_membership_status, [self::STATUS_FREE, self::STATUS_FREE_TRIAL], true);
     }
 
     public function isPaidMember(): bool

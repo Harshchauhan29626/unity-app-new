@@ -171,6 +171,7 @@
                         <label class="form-label">Membership Status</label>
                         @php
                             $membershipStatusLabels = [
+                                'free_trial_peer' => 'Free Trial Peer',
                                 'free_peer' => 'Free Peer',
                                 'Only Unity Peer' => 'Only Unity Peer',
                                 'Circle Peer' => 'Circle Peer',
@@ -203,8 +204,14 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Membership Expiry</label>
-                        <input type="datetime-local" name="membership_expiry" class="form-control" value="{{ old('membership_expiry', optional($user->membership_expiry)->format('Y-m-d\TH:i')) }}">
+                        <input type="datetime-local" name="membership_expiry" class="form-control" value="{{ old('membership_expiry', optional($user->membership_ends_at)->format('Y-m-d\TH:i')) }}">
                     </div>
+                    @if(old('membership_status', $user->membership_status) === 'free_trial_peer')
+                        <div class="col-md-4">
+                            <label class="form-label">Trial Expiry Date</label>
+                            <input type="text" class="form-control" value="{{ old('membership_expiry', optional($user->membership_ends_at)->format('Y-m-d H:i:s')) }}" readonly>
+                        </div>
+                    @endif
                     <div class="col-md-4">
                         <label class="form-label">Coins Balance</label>
                         <input type="number" name="coins_balance" class="form-control" min="0" value="{{ old('coins_balance', $user->coins_balance) }}">

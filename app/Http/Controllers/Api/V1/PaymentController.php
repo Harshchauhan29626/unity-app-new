@@ -149,7 +149,7 @@ class PaymentController extends Controller
 
         return response()->json([
             'membership_status' => $updatedUser->membership_status,
-            'membership_expiry' => $updatedUser->membership_expiry,
+            'membership_expiry' => $updatedUser->membership_ends_at,
         ]);
     }
 }

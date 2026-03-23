@@ -31,6 +31,8 @@ class UsersController extends Controller
 
     public function index(Request $request): View
     {
+        $this->expireTrialUsersForAdminPanel();
+
         [$query, $filters, $perPage] = $this->buildUserQuery($request);
 
         $users = $query->paginate($perPage)->appends($request->query());
@@ -143,6 +145,7 @@ class UsersController extends Controller
         }
 
         $validated['social_links'] = $this->parseSocialLinks($request->input('social_links'));
+        $validated = $this->syncMembershipExpiryInput($validated, $request);
         $validated['is_sponsored_member'] = $request->boolean('is_sponsored_member');
         $validated['membership_status'] = $validated['membership_status'] ?: ($membershipStatuses[0] ?? null);
         $validated['coins_balance'] = $validated['coins_balance'] ?? 0;
@@ -192,7 +195,9 @@ class UsersController extends Controller
             abort(403);
         }
 
-        $user = User::query()->with(['city', 'roles'])->findOrFail($userId);
+        $user = User::query()->findOrFail($userId);
+        $this->expireTrialUserForAdminPanel($user);
+        $user->refresh()->load(['city', 'roles']);
         $cities = City::query()->orderBy('name')->get();
         $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
         $roles = Role::query()
@@ -369,6 +374,7 @@ class UsersController extends Controller
         }
 
         $validated['social_links'] = $this->parseSocialLinks($request->input('social_links'));
+        $validated = $this->syncMembershipExpiryInput($validated, $request, $user);
 
         $booleanFields = ['is_sponsored_member'];
         foreach ($booleanFields as $field) {
@@ -378,6 +384,7 @@ class UsersController extends Controller
         // Manual test: update a user to inactive and verify admin list shows "Inactive".
         $updatable = Arr::except($validated, ['role_ids', 'profile_photo_file_id', 'cover_photo_file_id', 'status', 'circle_id', 'active_circle_id', 'circle_city', 'circle_country', 'circle_meeting_mode', 'circle_meeting_frequency']);
         if ($user->membership_status !== $validated['membership_status']) {
+            $updatable['membership_ends_at'] = null;
             $updatable['membership_expiry'] = null;
         }
         $currentAdminRoleIds = $user->roles()->whereIn('roles.id', $adminRoleIds)->pluck('roles.id');
@@ -774,6 +781,68 @@ class UsersController extends Controller
     private function membershipStatuses(): array
     {
         return config('membership.statuses', []);
+    }
+
+    private function expireTrialUsersForAdminPanel(): void
+    {
+        User::query()
+            ->where('membership_status', User::STATUS_FREE_TRIAL)
+            ->whereNotNull('membership_ends_at')
+            ->where('membership_ends_at', '<=', now())
+            ->update([
+                'membership_status' => User::STATUS_FREE,
+            ]);
+    }
+
+    private function expireTrialUserForAdminPanel(User $user): void
+    {
+        if ($user->membership_status === User::STATUS_FREE_TRIAL
+            && $user->membership_ends_at
+            && $user->membership_ends_at->lessThanOrEqualTo(now())) {
+            $user->membership_status = User::STATUS_FREE;
+            $user->save();
+        }
+    }
+
+    private function syncMembershipExpiryInput(array $validated, Request $request, ?User $user = null): array
+    {
+        $rawMembershipEndsAt = $request->input('membership_ends_at');
+        $rawMembershipExpiry = $request->input('membership_expiry');
+
+        $hasMembershipEndsAtInput = $rawMembershipEndsAt !== null;
+        $hasMembershipExpiryInput = $rawMembershipExpiry !== null;
+
+        if (! $hasMembershipEndsAtInput && ! $hasMembershipExpiryInput) {
+            return $validated;
+        }
+
+        $currentMembershipEndsAtDate = $user?->membership_ends_at?->format('Y-m-d');
+        $currentMembershipEndsAtDateTime = $user?->membership_ends_at?->format('Y-m-d\TH:i');
+
+        $membershipEndsAtChanged = $hasMembershipEndsAtInput
+            && $rawMembershipEndsAt !== ''
+            && $rawMembershipEndsAt !== $currentMembershipEndsAtDate;
+
+        $membershipExpiryChanged = $hasMembershipExpiryInput
+            && $rawMembershipExpiry !== ''
+            && $rawMembershipExpiry !== $currentMembershipEndsAtDateTime;
+
+        if (($rawMembershipEndsAt === '' || $rawMembershipEndsAt === null) && ($rawMembershipExpiry === '' || $rawMembershipExpiry === null)) {
+            $resolvedExpiry = null;
+        } elseif ($membershipEndsAtChanged) {
+            $resolvedExpiry = $validated['membership_ends_at'] ?? null;
+        } elseif ($membershipExpiryChanged) {
+            $resolvedExpiry = $validated['membership_expiry'] ?? null;
+        } else {
+            $resolvedExpiry = $validated['membership_ends_at']
+                ?? $validated['membership_expiry']
+                ?? null;
+        }
+
+        $validated['membership_ends_at'] = $resolvedExpiry;
+        $validated['membership_expiry'] = $resolvedExpiry;
+
+        return $validated;
     }
 
     private function csvToArray(?string $value): array

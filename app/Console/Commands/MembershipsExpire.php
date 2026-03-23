@@ -53,6 +53,7 @@ class MembershipsExpire extends Command
 
                 User::query()->where('id', $userId)->update([
                     'membership_status' => 'free_peer',
+                    'membership_ends_at' => null,
                     'membership_expiry' => null,
                 ]);
             });

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\User;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class UserResource extends JsonResource
@@ -12,6 +13,8 @@ class UserResource extends JsonResource
         $coverPhotoUrl = $coverPhotoId
             ? url('/api/v1/files/' . $coverPhotoId)
             : null;
+
+        $membershipStatus = $this->effective_membership_status ?? $this->membership_status;
 
         return [
             'id'                  => $this->id,
@@ -26,8 +29,13 @@ class UserResource extends JsonResource
             'email'               => $this->email,
             'phone'               => $this->phone,
             'city'                => new CityResource($this->whenLoaded('city')),
-            'membership_status'   => $this->effective_membership_status,
-            'membership_expiry'   => $this->membership_ends_at ?? $this->membership_expiry,
+            'membership_status'   => $membershipStatus,
+            'membership_expiry'   => $this->membership_ends_at,
+            'membership_status_label' => match ($membershipStatus) {
+                User::STATUS_FREE_TRIAL => 'Free Trial Peer',
+                User::STATUS_FREE => 'Free Peer',
+                default => $membershipStatus,
+            },
             'membership_starts_at' => $this->membership_starts_at,
             'membership_ends_at' => $this->membership_ends_at,
             'zoho_plan_code' => $this->zoho_plan_code,
