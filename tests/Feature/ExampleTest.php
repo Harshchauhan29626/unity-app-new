@@ -3,9 +3,14 @@
 namespace Tests\Feature;
 
 // use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Console\Commands\ExpireTrialUsers;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -18,6 +23,71 @@ class ExampleTest extends TestCase
         $response = $this->get('/');
 
         $response->assertStatus(200);
+    }
+
+
+    public function test_user_resource_returns_trial_membership_label(): void
+    {
+        $user = new User([
+            'membership_status' => User::STATUS_FREE_TRIAL,
+            'membership_expiry' => Carbon::parse('2026-03-26T00:00:00Z'),
+        ]);
+
+        $resource = (new UserResource($user))->toArray(request());
+
+        $this->assertSame(User::STATUS_FREE_TRIAL, $resource['membership_status']);
+        $this->assertSame('Free Trial Peer', $resource['membership_status_label']);
+    }
+
+    public function test_expire_trial_command_downgrades_only_expired_trial_users(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-23 12:00:00'));
+
+        Schema::dropIfExists('users');
+        Schema::create('users', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('first_name', 100)->nullable();
+            $table->string('last_name', 100)->nullable();
+            $table->string('display_name', 150)->nullable();
+            $table->string('email')->nullable();
+            $table->string('password_hash')->nullable();
+            $table->string('public_profile_slug', 80)->nullable();
+            $table->string('membership_status', 50)->default('visitor');
+            $table->timestamp('membership_ends_at')->nullable();
+            $table->timestamp('membership_expiry')->nullable();
+            $table->timestamp('membership_starts_at')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+        });
+
+        User::query()->create([
+            'id' => (string) Str::uuid(),
+            'membership_status' => User::STATUS_FREE_TRIAL,
+            'membership_ends_at' => now()->copy()->subMinute(),
+        ]);
+
+        $activeTrial = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'membership_status' => User::STATUS_FREE_TRIAL,
+            'membership_ends_at' => now()->copy()->addMinute(),
+        ]);
+
+        $freePeer = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'membership_status' => User::STATUS_FREE,
+            'membership_ends_at' => now()->copy()->subMinute(),
+        ]);
+
+        Artisan::resolve(ExpireTrialUsers::class);
+        $this->artisan('users:expire-trial')->assertExitCode(0);
+
+        $expiredStatuses = User::query()->pluck('membership_status')->all();
+
+        $this->assertContains(User::STATUS_FREE, $expiredStatuses);
+        $this->assertSame(User::STATUS_FREE_TRIAL, $activeTrial->fresh()->membership_status);
+        $this->assertSame(User::STATUS_FREE, $freePeer->fresh()->membership_status);
+
+        Carbon::setTestNow();
     }
 
     public function test_member_resource_returns_extended_profile_fields(): void

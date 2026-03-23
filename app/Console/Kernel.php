@@ -11,5 +11,6 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('collaborations:expire')->dailyAt('00:10');
         $schedule->command('memberships:expire-users')->hourly();
+        $schedule->command('users:expire-trial')->hourly();
     }
 }

@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -48,6 +50,39 @@ class RegisterTest extends TestCase
         );
     }
 
+
+    public function test_registration_assigns_free_trial_membership_for_new_users(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-23 09:00:00'));
+
+        $payload = [
+            'first_name' => 'Trial',
+            'last_name' => 'User',
+            'email' => 'trial-user@example.com',
+            'phone' => '4444444444',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ];
+
+        $response = $this->postJson('/api/v1/auth/register', $payload);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.user.membership_status', User::STATUS_FREE_TRIAL);
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'trial-user@example.com',
+            'membership_status' => User::STATUS_FREE_TRIAL,
+        ]);
+
+        $user = User::query()->where('email', 'trial-user@example.com')->firstOrFail();
+
+        $this->assertTrue($user->membership_starts_at->equalTo(now()));
+        $this->assertTrue($user->membership_ends_at->equalTo(now()->copy()->addDays(3)));
+        $this->assertTrue($user->membership_expiry->equalTo(now()->copy()->addDays(3)));
+
+        Carbon::setTestNow();
+    }
+
     public function test_registration_rejects_duplicate_email(): void
     {
         $payload = [
@@ -82,6 +117,9 @@ class RegisterTest extends TestCase
             $table->string('designation', 100)->nullable();
             $table->uuid('city_id')->nullable();
             $table->string('membership_status', 50)->default('visitor');
+            $table->timestamp('membership_expiry')->nullable();
+            $table->timestamp('membership_starts_at')->nullable();
+            $table->timestamp('membership_ends_at')->nullable();
             $table->bigInteger('coins_balance')->default(0);
             $table->string('public_profile_slug', 80)->nullable()->unique();
             $table->rememberToken();

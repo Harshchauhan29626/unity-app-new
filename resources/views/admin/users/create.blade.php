@@ -142,6 +142,7 @@
                         <label class="form-label">Membership Status</label>
                         @php
                             $membershipStatusLabels = [
+                                'free_trial_peer' => 'Free Trial Peer',
                                 'free_peer' => 'Free Peer',
                                 'Only Unity Peer' => 'Only Unity Peer',
                                 'Circle Peer' => 'Circle Peer',
