@@ -31,6 +31,8 @@ class UsersController extends Controller
 
     public function index(Request $request): View
     {
+        $this->expireTrialUsersForAdminPanel();
+
         [$query, $filters, $perPage] = $this->buildUserQuery($request);
 
         $users = $query->paginate($perPage)->appends($request->query());
@@ -193,7 +195,9 @@ class UsersController extends Controller
             abort(403);
         }
 
-        $user = User::query()->with(['city', 'roles'])->findOrFail($userId);
+        $user = User::query()->findOrFail($userId);
+        $this->expireTrialUserForAdminPanel($user);
+        $user->refresh()->load(['city', 'roles']);
         $cities = City::query()->orderBy('name')->get();
         $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
         $roles = Role::query()
@@ -777,6 +781,27 @@ class UsersController extends Controller
     private function membershipStatuses(): array
     {
         return config('membership.statuses', []);
+    }
+
+    private function expireTrialUsersForAdminPanel(): void
+    {
+        User::query()
+            ->where('membership_status', User::STATUS_FREE_TRIAL)
+            ->whereNotNull('membership_ends_at')
+            ->where('membership_ends_at', '<=', now())
+            ->update([
+                'membership_status' => User::STATUS_FREE,
+            ]);
+    }
+
+    private function expireTrialUserForAdminPanel(User $user): void
+    {
+        if ($user->membership_status === User::STATUS_FREE_TRIAL
+            && $user->membership_ends_at
+            && $user->membership_ends_at->lessThanOrEqualTo(now())) {
+            $user->membership_status = User::STATUS_FREE;
+            $user->save();
+        }
     }
 
     private function syncMembershipExpiryInput(array $validated, Request $request, ?User $user = null): array
