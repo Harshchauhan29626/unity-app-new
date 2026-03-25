@@ -24,7 +24,7 @@ class CircleJoinRequestsController extends Controller
         $admin = Auth::guard('admin')->user();
         $actor = AdminAccess::resolveAppUser($admin);
 
-        $query = CircleJoinRequest::query()->with(['user', 'circle', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy']);
+        $query = CircleJoinRequest::query()->with(['user', 'circle', 'category:id,category_name,sector', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy']);
         $query->visibleToAdminUser($admin);
 
         $search = trim((string) $request->query('search', ''));
@@ -65,7 +65,7 @@ class CircleJoinRequestsController extends Controller
         $admin = Auth::guard('admin')->user();
         $actor = AdminAccess::resolveAppUser($admin);
 
-        $record = CircleJoinRequest::query()->with(['user', 'circle', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy'])->findOrFail($id);
+        $record = CircleJoinRequest::query()->with(['user', 'circle', 'category:id,category_name,sector', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy'])->findOrFail($id);
         abort_unless($this->canAccessRecord($admin, $actor, $record), 403);
 
         return view('admin.circle_join_requests.show', [

@@ -301,6 +301,11 @@ class User extends Authenticatable
         return $this->hasMany(CircleSubscription::class, 'user_id');
     }
 
+    public function circleJoinRequests(): HasMany
+    {
+        return $this->hasMany(CircleJoinRequest::class, 'user_id');
+    }
+
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class, 'user_id');

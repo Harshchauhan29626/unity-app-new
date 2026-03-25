@@ -56,6 +56,7 @@ class CircleController extends BaseApiController
                 'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
                 'ded.cityRelation:id,name',
                 'city:id,name,state,district,country,country_code',
+                'categories:id,category_name,sector',
             ])
             ->withCount([
                 'members as members_count' => function ($q) {
@@ -227,6 +228,7 @@ class CircleController extends BaseApiController
                 'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
                 'ded.cityRelation:id,name',
                 'city:id,name,state,district,country,country_code',
+                'categories:id,category_name,sector',
             ])
             ->withCount([
                 'members as members_count' => function ($q) {

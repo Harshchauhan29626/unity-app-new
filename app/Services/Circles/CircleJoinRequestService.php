@@ -3,6 +3,7 @@
 namespace App\Services\Circles;
 
 use App\Models\Circle;
+use App\Models\CircleCategoryMapping;
 use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
 use App\Models\Role;
@@ -20,9 +21,9 @@ class CircleJoinRequestService
     ) {
     }
 
-    public function submitRequest(User $user, Circle $circle, ?string $reason): CircleJoinRequest
+    public function submitRequest(User $user, Circle $circle, ?string $reason, ?int $categoryId = null): CircleJoinRequest
     {
-        return DB::transaction(function () use ($user, $circle, $reason) {
+        return DB::transaction(function () use ($user, $circle, $reason, $categoryId) {
             $alreadyMember = CircleMember::query()
                 ->where('circle_id', $circle->id)
                 ->where('user_id', $user->id)
@@ -48,10 +49,24 @@ class CircleJoinRequestService
                 ]);
             }
 
+            if ($categoryId !== null) {
+                $categoryMapped = CircleCategoryMapping::query()
+                    ->where('circle_id', $circle->id)
+                    ->where('category_id', $categoryId)
+                    ->exists();
+
+                if (! $categoryMapped) {
+                    throw ValidationException::withMessages([
+                        'category_id' => ['The selected category is not mapped to this circle.'],
+                    ]);
+                }
+            }
+
             $request = CircleJoinRequest::query()->create([
                 'user_id' => $user->id,
                 'circle_id' => $circle->id,
                 'reason_for_joining' => $reason,
+                'category_id' => $categoryId,
                 'status' => CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
                 'requested_at' => now(),
             ]);

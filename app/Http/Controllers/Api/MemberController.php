@@ -104,7 +104,24 @@ class MemberController extends BaseApiController
 
     public function show(Request $request, string $id)
     {
-        $user = User::with(['city', 'activeCircle.cityRef'])->find($id);
+        $user = User::with([
+            'city',
+            'activeCircle.cityRef',
+            'circleMemberships' => function ($query) {
+                $query->whereNull('deleted_at')
+                    ->orderByDesc('joined_at')
+                    ->orderByDesc('created_at');
+            },
+            'circleMemberships.circle:id,name,slug,city,cover_file_id',
+            'circleMemberships.circle.categories:id,category_name,sector',
+            'circleJoinRequests' => function ($query) {
+                $query->orderByDesc('requested_at')
+                    ->orderByDesc('created_at')
+                    ->limit(20);
+            },
+            'circleJoinRequests.circle:id,name',
+            'circleJoinRequests.category:id,category_name,sector',
+        ])->find($id);
 
         if (! $user) {
             return $this->error('Member not found', 404);

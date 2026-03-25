@@ -22,7 +22,7 @@ class CircleJoinRequestAdminController extends BaseApiController
     {
         $this->ensureCanView($request->user());
 
-        $query = CircleJoinRequest::query()->with(['user', 'circle', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy']);
+        $query = CircleJoinRequest::query()->with(['user', 'circle', 'category:id,category_name,sector', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy']);
         $this->applyUserScope($query, $request->user());
 
         $validated = $request->validated();
@@ -60,7 +60,7 @@ class CircleJoinRequestAdminController extends BaseApiController
     {
         $this->ensureCanView($request->user());
 
-        $record = CircleJoinRequest::query()->with(['user', 'circle', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy'])->findOrFail($id);
+        $record = CircleJoinRequest::query()->with(['user', 'circle', 'category:id,category_name,sector', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy'])->findOrFail($id);
         $this->ensureCanAccessRecord($request->user(), $record);
 
         return $this->success($record);

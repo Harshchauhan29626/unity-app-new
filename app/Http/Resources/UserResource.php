@@ -63,6 +63,66 @@ class UserResource extends JsonResource
                     ] : null,
                 ];
             }),
+            'circles' => $this->whenLoaded('circleMemberships', function () {
+                return $this->circleMemberships->map(function ($membership): array {
+                    $circle = $membership->circle;
+                    $categories = $circle && $circle->relationLoaded('categories')
+                        ? $circle->categories->map(static function ($category): array {
+                            return [
+                                'id' => $category->id,
+                                'name' => $category->category_name,
+                                'sector' => $category->sector,
+                            ];
+                        })->values()->all()
+                        : [];
+
+                    return [
+                        'circle_id' => $membership->circle_id,
+                        'name' => $circle?->name,
+                        'slug' => $circle?->slug,
+                        'status' => $membership->status,
+                        'membership_status' => $membership->status,
+                        'role' => $membership->role,
+                        'joined_at' => $membership->joined_at,
+                        'expires_at' => $membership->paid_ends_at ?? null,
+                        'paid_starts_at' => $membership->paid_starts_at ?? null,
+                        'paid_ends_at' => $membership->paid_ends_at ?? null,
+                        'joined_via' => $membership->joined_via ?? null,
+                        'joined_via_payment' => isset($membership->joined_via_payment) ? (bool) $membership->joined_via_payment : null,
+                        'payment_status' => $membership->payment_status ?? null,
+                        'zoho_subscription_id' => $membership->zoho_subscription_id ?? null,
+                        'addon_code' => $membership->zoho_addon_code ?? null,
+                        'addon_name' => $circle?->zoho_addon_name,
+                        'categories' => $categories,
+                        'circle' => $circle ? [
+                            'id' => $circle->id,
+                            'name' => $circle->name,
+                            'city' => $circle->city_display,
+                            'cover_image_url' => $circle->cover_image_url,
+                        ] : null,
+                    ];
+                })->values();
+            }),
+            'circle_join_requests' => $this->whenLoaded('circleJoinRequests', function () {
+                return $this->circleJoinRequests->map(static function ($joinRequest): array {
+                    return [
+                        'id' => $joinRequest->id,
+                        'circle_id' => $joinRequest->circle_id,
+                        'circle_name' => $joinRequest->circle?->name,
+                        'status' => $joinRequest->status,
+                        'reason_for_joining' => $joinRequest->reason_for_joining,
+                        'category_id' => $joinRequest->category_id,
+                        'category' => $joinRequest->category ? [
+                            'id' => $joinRequest->category->id,
+                            'name' => $joinRequest->category->category_name,
+                            'sector' => $joinRequest->category->sector,
+                        ] : null,
+                        'requested_at' => $joinRequest->requested_at,
+                        'paid_at' => $joinRequest->paid_at ?: $joinRequest->fee_paid_at,
+                        'payment_status' => $joinRequest->payment_status,
+                    ];
+                })->values();
+            }),
             'coins_balance'       => $this->coins_balance,
             'business_type'       => $this->business_type,
             'turnover_range'      => $this->turnover_range,

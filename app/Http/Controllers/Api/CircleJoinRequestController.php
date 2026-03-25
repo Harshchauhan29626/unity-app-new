@@ -26,9 +26,14 @@ class CircleJoinRequestController extends BaseApiController
         }
 
         try {
-            $record = $this->service->submitRequest($request->user(), $circle, $request->validated('reason_for_joining'));
+            $record = $this->service->submitRequest(
+                $request->user(),
+                $circle,
+                $request->validated('reason_for_joining'),
+                $request->validated('category_id')
+            );
 
-            return $this->success($this->transformJoinRequest($record->load(['circle:id,name', 'user:id,display_name,email,phone,company_name,city'])), 'Circle join request submitted successfully.', 201);
+            return $this->success($this->transformJoinRequest($record->load(['circle:id,name', 'user:id,display_name,email,phone,company_name,city', 'category:id,category_name,sector'])), 'Circle join request submitted successfully.', 201);
         } catch (ValidationException $exception) {
             return $this->error('Validation failed.', 422, $exception->errors());
         }
@@ -41,7 +46,7 @@ class CircleJoinRequestController extends BaseApiController
         $items = CircleJoinRequest::query()
             ->where('user_id', $request->user()->id)
             ->when($status, fn ($q) => $q->where('status', $status))
-            ->with(['circle:id,name'])
+            ->with(['circle:id,name', 'category:id,category_name,sector'])
             ->latest('created_at')
             ->paginate(20);
 
@@ -58,7 +63,7 @@ class CircleJoinRequestController extends BaseApiController
 
     public function show(Request $request, string $id): JsonResponse
     {
-        $record = CircleJoinRequest::query()->with(['circle', 'user', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy'])->findOrFail($id);
+        $record = CircleJoinRequest::query()->with(['circle', 'user', 'category:id,category_name,sector', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy'])->findOrFail($id);
 
         if ((string) $record->user_id !== (string) $request->user()->id) {
             return $this->error('Forbidden.', 403);
@@ -87,8 +92,15 @@ class CircleJoinRequestController extends BaseApiController
 
         return array_merge($request->toArray(), [
             'status_label' => $isPaid ? 'Paid' : $this->statusLabel($status),
-            'payment_status' => $isPaid ? 'paid' : 'unpaid',
+            'payment_status' => $request->payment_status ?: ($isPaid ? 'paid' : 'unpaid'),
             'display_status' => $isPaid ? 'Paid' : $this->statusLabel($status),
+            'category' => $request->relationLoaded('category') && $request->category
+                ? [
+                    'id' => $request->category->id,
+                    'name' => $request->category->category_name,
+                    'sector' => $request->category->sector,
+                ]
+                : null,
         ]);
     }
 

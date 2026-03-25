@@ -38,6 +38,13 @@ class CircleJoinRequest extends Model
         'circle_id',
         'reason_for_joining',
         'status',
+        'category_id',
+        'circle_subscription_id',
+        'payment_id',
+        'payment_reference',
+        'payment_status',
+        'paid_at',
+        'approved_membership_id',
         'requested_at',
         'cd_approved_by',
         'cd_approved_at',
@@ -62,6 +69,7 @@ class CircleJoinRequest extends Model
         'id_rejected_at' => 'datetime',
         'fee_marked_at' => 'datetime',
         'fee_paid_at' => 'datetime',
+        'paid_at' => 'datetime',
         'notes' => 'array',
     ];
 
@@ -115,6 +123,21 @@ class CircleJoinRequest extends Model
     public function circle(): BelongsTo
     {
         return $this->belongsTo(Circle::class, 'circle_id');
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class, 'category_id');
+    }
+
+    public function circleSubscription(): BelongsTo
+    {
+        return $this->belongsTo(CircleSubscription::class, 'circle_subscription_id');
+    }
+
+    public function payment(): BelongsTo
+    {
+        return $this->belongsTo(Payment::class, 'payment_id');
     }
 
     public function cdApprovedBy(): BelongsTo

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1\Billing;
 
 use App\Http\Controllers\Controller;
-use App\Models\CircleMember;
 use App\Models\CircleSubscription;
 use App\Models\User;
 use App\Services\Billing\MembershipSyncService;
@@ -12,7 +11,6 @@ use App\Support\Zoho\ZohoBillingService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -201,12 +199,10 @@ class ZohoBillingWebhookController extends Controller
                 'circle_id' => $subscription->circle_id,
             ]);
 
-            $this->circleJoinRequestPaymentSyncService->updateUserCircleMembershipTier($user);
-
-            $this->upsertPaidCircleMember($subscription, $paidAt, $startedAt, $expiresAt);
-
-            $user->refresh();
-            $this->safeSyncJoinRequestPayment($user);
+            $this->circleJoinRequestPaymentSyncService->syncPaidSubscription($subscription, [
+                'payment_reference' => $identifiers['reference_id'] ?? null,
+                'payment_number' => $identifiers['payment_number'] ?? null,
+            ]);
 
             return response()->json(['success' => true]);
         } catch (Throwable $throwable) {
@@ -440,88 +436,6 @@ class ZohoBillingWebhookController extends Controller
         }
 
         return null;
-    }
-
-    private function upsertPaidCircleMember(CircleSubscription $subscription, Carbon $paidAt, Carbon $startedAt, Carbon $expiresAt): void
-    {
-        $member = CircleMember::withTrashed()
-            ->where('circle_id', $subscription->circle_id)
-            ->where('user_id', $subscription->user_id)
-            ->first();
-
-        $updates = [
-            'status' => 'active',
-            'role' => $member?->role ?: 'member',
-            'joined_at' => $member?->joined_at ?: $startedAt,
-            'left_at' => null,
-        ];
-
-        if (Schema::hasColumn('circle_members', 'joined_via')) {
-            $updates['joined_via'] = 'payment';
-        }
-
-        if (Schema::hasColumn('circle_members', 'joined_via_payment')) {
-            $updates['joined_via_payment'] = true;
-        }
-
-        if (Schema::hasColumn('circle_members', 'payment_status')) {
-            $updates['payment_status'] = 'paid';
-        }
-
-        if (Schema::hasColumn('circle_members', 'paid_at')) {
-            $updates['paid_at'] = $paidAt;
-        }
-
-        if (Schema::hasColumn('circle_members', 'paid_starts_at')) {
-            $updates['paid_starts_at'] = $startedAt;
-        }
-
-        if (Schema::hasColumn('circle_members', 'paid_ends_at')) {
-            $updates['paid_ends_at'] = $expiresAt;
-        }
-
-        if (Schema::hasColumn('circle_members', 'billing_term')) {
-            $updates['billing_term'] = 'yearly';
-        }
-
-        if (Schema::hasColumn('circle_members', 'zoho_subscription_id')) {
-            $updates['zoho_subscription_id'] = $subscription->zoho_subscription_id;
-        }
-
-        if (Schema::hasColumn('circle_members', 'zoho_addon_code')) {
-            $updates['zoho_addon_code'] = $subscription->zoho_addon_code;
-        }
-
-        if ($member) {
-            if ($member->trashed()) {
-                $member->restore();
-            }
-            $member->forceFill($updates)->save();
-        } else {
-            CircleMember::query()->create(array_merge($updates, [
-                'circle_id' => $subscription->circle_id,
-                'user_id' => $subscription->user_id,
-            ]));
-        }
-
-        Log::info('circle member updated', [
-            'circle_id' => $subscription->circle_id,
-            'user_id' => $subscription->user_id,
-        ]);
-    }
-
-
-    private function safeSyncJoinRequestPayment(User $user): void
-    {
-        try {
-            $this->circleJoinRequestPaymentSyncService->markRequestPaidFromUserCircle($user);
-        } catch (Throwable $exception) {
-            Log::warning('circle join request payment sync failed', [
-                'user_id' => $user->id,
-                'active_circle_id' => $user->active_circle_id,
-                'error' => $exception->getMessage(),
-            ]);
-        }
     }
 
     private function firstString(array $payload, array $keys): ?string
