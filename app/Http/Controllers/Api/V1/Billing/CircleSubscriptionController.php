@@ -131,6 +131,14 @@ class CircleSubscriptionController extends BaseApiController
                 $createPayload['zoho_decrypted_hosted_page_id'] = $checkout['decrypted_hostedpage_id'] ?? null;
             }
 
+            if (Schema::hasColumn('circle_subscriptions', 'hostedpage_id')) {
+                $createPayload['hostedpage_id'] = $checkout['hostedpage_id'] ?? null;
+            }
+
+            if (Schema::hasColumn('circle_subscriptions', 'decrypted_hosted_page_id')) {
+                $createPayload['decrypted_hosted_page_id'] = $checkout['decrypted_hostedpage_id'] ?? null;
+            }
+
             $subscription = CircleSubscription::query()->create($createPayload);
 
             Log::info('circle subscription checkout created', [
@@ -139,6 +147,8 @@ class CircleSubscriptionController extends BaseApiController
                 'circle_subscription_id' => $subscription->id,
                 'hostedpage_id' => $subscription->zoho_hosted_page_id,
                 'reference_id' => $createPayload['reference_id'] ?? null,
+                'saved_hostedpage_id' => $createPayload['hostedpage_id'] ?? null,
+                'saved_decrypted_hosted_page_id' => $createPayload['decrypted_hosted_page_id'] ?? null,
             ]);
 
             return $this->success([

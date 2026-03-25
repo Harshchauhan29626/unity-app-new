@@ -23,6 +23,8 @@ class CircleSubscription extends Model
         'zoho_payment_id',
         'zoho_hosted_page_id',
         'zoho_decrypted_hosted_page_id',
+        'hostedpage_id',
+        'decrypted_hosted_page_id',
         'reference_id',
         'zoho_addon_id',
         'zoho_addon_code',
@@ -35,6 +37,7 @@ class CircleSubscription extends Model
         'paid_at',
         'raw_checkout_response',
         'raw_webhook_payload',
+        'raw_final_payload',
     ];
 
     protected $casts = [
@@ -44,6 +47,7 @@ class CircleSubscription extends Model
         'paid_at' => 'datetime',
         'raw_checkout_response' => 'array',
         'raw_webhook_payload' => 'array',
+        'raw_final_payload' => 'array',
     ];
 
     protected static function booted(): void

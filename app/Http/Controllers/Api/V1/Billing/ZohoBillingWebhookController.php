@@ -202,6 +202,24 @@ class ZohoBillingWebhookController extends Controller
                     'raw_webhook_payload' => $payload,
                 ])->save();
 
+                if (Schema::hasColumn('circle_subscriptions', 'raw_final_payload')) {
+                    $lockedSubscription->forceFill([
+                        'raw_final_payload' => $payload,
+                    ])->save();
+                }
+
+                if (Schema::hasColumn('circle_subscriptions', 'hostedpage_id') && ($identifiers['hostedpage_id'] ?? null)) {
+                    $lockedSubscription->forceFill([
+                        'hostedpage_id' => $identifiers['hostedpage_id'],
+                    ])->save();
+                }
+
+                if (Schema::hasColumn('circle_subscriptions', 'decrypted_hosted_page_id') && ($identifiers['decrypted_hostedpage_id'] ?? null)) {
+                    $lockedSubscription->forceFill([
+                        'decrypted_hosted_page_id' => $identifiers['decrypted_hostedpage_id'],
+                    ])->save();
+                }
+
                 Log::info('circle subscription payment activation persisted', [
                     'circle_subscription_id' => $lockedSubscription->id,
                     'status' => $lockedSubscription->status,
@@ -403,23 +421,6 @@ class ZohoBillingWebhookController extends Controller
         $customerId = (string) ($identifiers['customer_id'] ?? '');
         $addonCode = (string) ($identifiers['addon_code'] ?? '');
 
-        $findByReference = function (bool $pendingOnly = true) use ($referenceId): ?CircleSubscription {
-            if ($referenceId === '') {
-                return null;
-            }
-
-            return CircleSubscription::query()
-                ->when($pendingOnly, fn ($query) => $query->where('status', 'pending'))
-                ->latest('created_at')
-                ->get()
-                ->first(function (CircleSubscription $subscription) use ($referenceId) {
-                    return $referenceId === (string) data_get($subscription->raw_checkout_response, 'reference_id')
-                        || $referenceId === (string) data_get($subscription->raw_checkout_response, 'hostedpage.reference_id')
-                        || $referenceId === (string) data_get($subscription->raw_checkout_response, 'hostedpage.data.reference_id')
-                        || $referenceId === (string) data_get($subscription->raw_checkout_response, '_circle_checkout.reference_id');
-                });
-        };
-
         $findByHostedPage = function (bool $pendingOnly = true) use ($hostedPageId, $decryptedHostedPageId): ?CircleSubscription {
             if ($hostedPageId === '' && $decryptedHostedPageId === '') {
                 return null;
@@ -430,6 +431,9 @@ class ZohoBillingWebhookController extends Controller
                 ->where(function ($query) use ($hostedPageId, $decryptedHostedPageId): void {
                     if ($hostedPageId !== '') {
                         $query->orWhere('zoho_hosted_page_id', $hostedPageId);
+                        if (Schema::hasColumn('circle_subscriptions', 'hostedpage_id')) {
+                            $query->orWhere('hostedpage_id', $hostedPageId);
+                        }
                     }
 
                     if ($decryptedHostedPageId !== '') {
@@ -438,10 +442,31 @@ class ZohoBillingWebhookController extends Controller
                         if (Schema::hasColumn('circle_subscriptions', 'zoho_decrypted_hosted_page_id')) {
                             $query->orWhere('zoho_decrypted_hosted_page_id', $decryptedHostedPageId);
                         }
+                        if (Schema::hasColumn('circle_subscriptions', 'decrypted_hosted_page_id')) {
+                            $query->orWhere('decrypted_hosted_page_id', $decryptedHostedPageId);
+                        }
                     }
                 })
                 ->latest('created_at')
                 ->first();
+        };
+
+        $findByReference = function (bool $pendingOnly = true) use ($referenceId): ?CircleSubscription {
+            if ($referenceId === '') {
+                return null;
+            }
+
+            return CircleSubscription::query()
+                ->when($pendingOnly, fn ($query) => $query->where('status', 'pending'))
+                ->latest('created_at')
+                ->get()
+                ->first(function (CircleSubscription $subscription) use ($referenceId) {
+                    return $referenceId === (string) ($subscription->reference_id ?? '')
+                        || $referenceId === (string) data_get($subscription->raw_checkout_response, 'reference_id')
+                        || $referenceId === (string) data_get($subscription->raw_checkout_response, 'hostedpage.reference_id')
+                        || $referenceId === (string) data_get($subscription->raw_checkout_response, 'hostedpage.data.reference_id')
+                        || $referenceId === (string) data_get($subscription->raw_checkout_response, '_circle_checkout.reference_id');
+                });
         };
 
         $findBySubscription = function (bool $pendingOnly = true) use ($subscriptionId, $addonCode): ?CircleSubscription {
@@ -457,19 +482,19 @@ class ZohoBillingWebhookController extends Controller
                 ->first();
         };
 
-        if ($referenceId !== '') {
-            $byReference = $findByReference(true);
-
-            if ($byReference) {
-                return ['subscription' => $byReference, 'strategy' => 'reference_id_pending'];
-            }
-        }
-
         if ($hostedPageId !== '') {
             $byHostedPage = $findByHostedPage(true);
 
             if ($byHostedPage) {
                 return ['subscription' => $byHostedPage, 'strategy' => 'hosted_page_pending'];
+            }
+        }
+
+        if ($referenceId !== '') {
+            $byReference = $findByReference(true);
+
+            if ($byReference) {
+                return ['subscription' => $byReference, 'strategy' => 'reference_id_pending'];
             }
         }
 
