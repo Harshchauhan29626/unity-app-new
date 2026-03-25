@@ -22,6 +22,8 @@ class CircleSubscription extends Model
         'zoho_subscription_id',
         'zoho_payment_id',
         'zoho_hosted_page_id',
+        'zoho_decrypted_hosted_page_id',
+        'reference_id',
         'zoho_addon_id',
         'zoho_addon_code',
         'zoho_addon_name',

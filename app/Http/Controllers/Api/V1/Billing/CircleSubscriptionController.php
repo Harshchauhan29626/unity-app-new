@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -99,7 +100,7 @@ class CircleSubscriptionController extends BaseApiController
 
             $checkout = $this->zohoBillingService->createHostedPageForCircleAddon($user, $circle);
 
-            $subscription = CircleSubscription::query()->create([
+            $createPayload = [
                 'user_id' => $user->id,
                 'circle_id' => $circle->id,
                 'zoho_customer_id' => $checkout['customer_id'] ?? $user->zoho_customer_id,
@@ -112,19 +113,31 @@ class CircleSubscriptionController extends BaseApiController
                 'currency_code' => $circle->circle_price_currency,
                 'status' => 'pending',
                 'raw_checkout_response' => $checkout['raw'] ?? null,
-            ]);
+            ];
+
+            if (Schema::hasColumn('circle_subscriptions', 'reference_id')) {
+                $createPayload['reference_id'] = $checkout['reference_id'] ?? null;
+            }
+
+            if (Schema::hasColumn('circle_subscriptions', 'zoho_decrypted_hosted_page_id')) {
+                $createPayload['zoho_decrypted_hosted_page_id'] = $checkout['decrypted_hostedpage_id'] ?? null;
+            }
+
+            $subscription = CircleSubscription::query()->create($createPayload);
 
             Log::info('circle subscription checkout created', [
                 'user_id' => $user->id,
                 'circle_id' => $circle->id,
                 'circle_subscription_id' => $subscription->id,
                 'hostedpage_id' => $subscription->zoho_hosted_page_id,
+                'reference_id' => $createPayload['reference_id'] ?? null,
             ]);
 
             return $this->success([
                 'circle_subscription_id' => $subscription->id,
                 'checkout_url' => $checkout['checkout_url'] ?? null,
                 'hostedpage_id' => $checkout['hostedpage_id'] ?? null,
+                'reference_id' => $checkout['reference_id'] ?? null,
             ], 'Circle checkout URL created successfully.');
         } catch (ValidationException $validationException) {
             return $this->error(

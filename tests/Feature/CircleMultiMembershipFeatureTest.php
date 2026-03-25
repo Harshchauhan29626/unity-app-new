@@ -271,6 +271,8 @@ class CircleMultiMembershipFeatureTest extends TestCase
             $table->string('zoho_payment_id')->nullable();
             $table->string('zoho_addon_code')->nullable();
             $table->string('zoho_addon_name')->nullable();
+            $table->string('reference_id')->nullable();
+            $table->string('zoho_decrypted_hosted_page_id')->nullable();
             $table->string('status')->nullable();
             $table->timestamp('started_at')->nullable();
             $table->timestamp('paid_at')->nullable();

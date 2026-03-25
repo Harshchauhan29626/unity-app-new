@@ -199,9 +199,11 @@ class ZohoBillingService
 
         return [
             'hostedpage_id' => (string) data_get($response, 'hostedpage.hostedpage_id', ''),
+            'decrypted_hostedpage_id' => (string) data_get($response, 'hostedpage.decrypted_hostedpage_id', ''),
             'checkout_url' => (string) data_get($response, 'hostedpage.url', ''),
             'customer_id' => $customerId,
             'subscription_id' => $subscriptionId,
+            'reference_id' => $referenceId,
             'raw' => $response,
         ];
     }
@@ -709,13 +711,31 @@ class ZohoBillingService
 
     private function ensurePortalEnabled(User $user, string $customerId, string $email, string $phone): void
     {
-        $this->client->request('PUT', '/customers/' . $customerId, [
-            'is_portal_enabled' => true,
-            'email' => $email,
-            'mobile' => $phone,
-            'phone' => $phone,
-            'contact_persons' => [$this->buildPrimaryContactPerson($user, $email, $phone)],
-        ]);
+        try {
+            $this->client->request('PUT', '/customers/' . $customerId, [
+                'is_portal_enabled' => true,
+                'email' => $email,
+                'mobile' => $phone,
+                'phone' => $phone,
+                'contact_persons' => [$this->buildPrimaryContactPerson($user, $email, $phone)],
+            ]);
+        } catch (Throwable $throwable) {
+            $message = strtolower($throwable->getMessage());
+            $isInactivePortalError = str_contains($message, '31016')
+                || str_contains($message, 'portal cannot be enabled for inactive contacts');
+
+            if ($isInactivePortalError) {
+                Log::warning('zoho portal enable skipped for inactive contact', [
+                    'user_id' => $user->id,
+                    'customer_id' => $customerId,
+                    'error' => $throwable->getMessage(),
+                ]);
+
+                return;
+            }
+
+            throw $throwable;
+        }
     }
 
     private function buildPrimaryContactPerson(User $user, string $email, string $phone): array

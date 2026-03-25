@@ -12,6 +12,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -134,6 +135,20 @@ class ZohoBillingWebhookController extends Controller
             $resolved = $this->findPendingCircleSubscription($identifiers);
             $subscription = $resolved['subscription'];
             $matchStrategy = $resolved['strategy'];
+
+            if (! $subscription) {
+                $subscription = $this->recoverPendingSubscriptionFromHostedPageStatus($identifiers, $payloadType);
+
+                if ($subscription) {
+                    $matchStrategy = 'hosted_page_status_recovery';
+
+                    Log::info('pending circle subscription recovered using hosted page status', [
+                        'circle_subscription_id' => $subscription->id,
+                        'user_id' => $subscription->user_id,
+                        'circle_id' => $subscription->circle_id,
+                    ]);
+                }
+            }
 
             if (! $subscription) {
                 Log::warning('webhook received but no match found', [
@@ -318,6 +333,7 @@ class ZohoBillingWebhookController extends Controller
                 'payment.reference_id', 'data.payment.reference_id',
                 'invoice.reference_id', 'data.invoice.reference_id',
                 'subscription.reference_id', 'data.subscription.reference_id',
+                'hostedpage.reference_id', 'data.hostedpage.reference_id',
             ]),
             'amount' => data_get($payload, 'customerpayment.amount')
                 ?? data_get($payload, 'data.customerpayment.amount')
@@ -365,9 +381,14 @@ class ZohoBillingWebhookController extends Controller
             'hostedpage_id' => $this->firstString($payload, [
                 'payment.invoices.0.hosted_page_id', 'data.payment.invoices.0.hosted_page_id',
                 'hostedpage.hostedpage_id', 'data.hostedpage.hostedpage_id',
+                'hostedpage.decrypted_hostedpage_id', 'data.hostedpage.decrypted_hostedpage_id',
                 'customerpayment.hostedpage_id', 'data.customerpayment.hostedpage_id',
                 'payment.hostedpage_id', 'data.payment.hostedpage_id',
                 'hostedpage_id',
+            ]),
+            'decrypted_hostedpage_id' => $this->firstString($payload, [
+                'hostedpage.decrypted_hostedpage_id', 'data.hostedpage.decrypted_hostedpage_id',
+                'decrypted_hostedpage_id',
             ]),
         ];
     }
@@ -376,6 +397,7 @@ class ZohoBillingWebhookController extends Controller
     {
         $referenceId = (string) ($identifiers['reference_id'] ?? '');
         $hostedPageId = (string) ($identifiers['hostedpage_id'] ?? '');
+        $decryptedHostedPageId = (string) ($identifiers['decrypted_hostedpage_id'] ?? '');
         $subscriptionId = (string) ($identifiers['subscription_id'] ?? '');
         $invoiceId = (string) ($identifiers['invoice_id'] ?? '');
         $customerId = (string) ($identifiers['customer_id'] ?? '');
@@ -397,14 +419,26 @@ class ZohoBillingWebhookController extends Controller
                 });
         };
 
-        $findByHostedPage = function (bool $pendingOnly = true) use ($hostedPageId): ?CircleSubscription {
-            if ($hostedPageId === '') {
+        $findByHostedPage = function (bool $pendingOnly = true) use ($hostedPageId, $decryptedHostedPageId): ?CircleSubscription {
+            if ($hostedPageId === '' && $decryptedHostedPageId === '') {
                 return null;
             }
 
             return CircleSubscription::query()
                 ->when($pendingOnly, fn ($query) => $query->where('status', 'pending'))
-                ->where('zoho_hosted_page_id', $hostedPageId)
+                ->where(function ($query) use ($hostedPageId, $decryptedHostedPageId): void {
+                    if ($hostedPageId !== '') {
+                        $query->orWhere('zoho_hosted_page_id', $hostedPageId);
+                    }
+
+                    if ($decryptedHostedPageId !== '') {
+                        $query->orWhere('zoho_hosted_page_id', $decryptedHostedPageId);
+
+                        if (Schema::hasColumn('circle_subscriptions', 'zoho_decrypted_hosted_page_id')) {
+                            $query->orWhere('zoho_decrypted_hosted_page_id', $decryptedHostedPageId);
+                        }
+                    }
+                })
                 ->latest('created_at')
                 ->first();
         };
@@ -508,6 +542,52 @@ class ZohoBillingWebhookController extends Controller
         return ['subscription' => null, 'strategy' => 'no_match'];
     }
 
+    private function recoverPendingSubscriptionFromHostedPageStatus(array $identifiers, string $payloadType): ?CircleSubscription
+    {
+        $addonCode = (string) ($identifiers['addon_code'] ?? '');
+        $subscriptionId = (string) ($identifiers['subscription_id'] ?? '');
+
+        $candidates = CircleSubscription::query()
+            ->where('status', 'pending')
+            ->whereNotNull('zoho_hosted_page_id')
+            ->when($addonCode !== '', fn ($query) => $query->where('zoho_addon_code', $addonCode))
+            ->when($subscriptionId !== '', fn ($query) => $query->where('zoho_subscription_id', $subscriptionId))
+            ->latest('created_at')
+            ->limit(15)
+            ->get();
+
+        foreach ($candidates as $candidate) {
+            try {
+                $hostedPage = $this->zohoBillingService->getHostedPage((string) $candidate->zoho_hosted_page_id);
+                $parsed = $this->zohoBillingService->parseHostedPageForMembership($hostedPage);
+
+                Log::info('circle hosted page recovery probe', [
+                    'payload_type' => $payloadType,
+                    'circle_subscription_id' => $candidate->id,
+                    'hostedpage_id' => $candidate->zoho_hosted_page_id,
+                    'parsed_status' => $parsed['status'] ?? null,
+                    'is_paid' => $parsed['is_paid'] ?? false,
+                    'parsed_subscription_id' => $parsed['subscription_id'] ?? null,
+                ]);
+
+                if (! ($parsed['is_paid'] ?? false)) {
+                    continue;
+                }
+
+                return $candidate;
+            } catch (Throwable $throwable) {
+                Log::warning('circle hosted page recovery probe failed', [
+                    'payload_type' => $payloadType,
+                    'circle_subscription_id' => $candidate->id,
+                    'hostedpage_id' => $candidate->zoho_hosted_page_id,
+                    'error' => $throwable->getMessage(),
+                ]);
+            }
+        }
+
+        return null;
+    }
+
     private function firstString(array $payload, array $keys): ?string
     {
         foreach ($keys as $key) {
@@ -578,3 +658,14 @@ class ZohoBillingWebhookController extends Controller
         return substr($name, 0, 1) . '***@' . $domain;
     }
 }
+        if (Schema::hasColumn('circle_subscriptions', 'reference_id') && $referenceId !== '') {
+            $byReferenceColumn = CircleSubscription::query()
+                ->where('status', 'pending')
+                ->where('reference_id', $referenceId)
+                ->latest('created_at')
+                ->first();
+
+            if ($byReferenceColumn) {
+                return ['subscription' => $byReferenceColumn, 'strategy' => 'reference_column_pending'];
+            }
+        }
