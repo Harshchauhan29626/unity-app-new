@@ -51,6 +51,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/users', [UsersController::class, 'store'])->name('users.store');
         Route::get('/users/{user}/edit', [UsersController::class, 'edit'])->name('users.edit');
         Route::put('/users/{user}', [UsersController::class, 'update'])->name('users.update');
+        Route::delete('/users/{user}/circle-members/{circleMember}', [UsersController::class, 'removeCircleMembership'])->name('users.circle-members.destroy');
         Route::post('/users/{user}/roles/remove', [UsersController::class, 'removeRole'])->name('users.roles.remove');
         Route::get('/activities', [ActivitiesController::class, 'index'])->name('activities.index');
         Route::post('/activities/export', [ActivitiesController::class, 'export'])->name('activities.export');

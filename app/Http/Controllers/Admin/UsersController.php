@@ -547,6 +547,30 @@ class UsersController extends Controller
             ->with('status', 'User updated successfully.');
     }
 
+    public function removeCircleMembership(Request $request, string $userId, string $circleMemberId): RedirectResponse
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+
+        $user = User::query()->findOrFail($userId);
+
+        $member = CircleMember::query()
+            ->where('id', $circleMemberId)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $member->forceFill([
+            'left_at' => now(),
+        ])->save();
+
+        $member->delete();
+
+        return redirect()
+            ->route('admin.users.edit', $user->id)
+            ->with('status', 'Circle membership removed successfully.');
+    }
+
     public function removeRole(Request $request, string $userId): RedirectResponse
     {
         $user = User::query()->findOrFail($userId);
