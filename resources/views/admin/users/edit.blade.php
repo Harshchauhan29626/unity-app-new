@@ -297,6 +297,11 @@
                         <label class="form-label">Circle Expiry Date</label>
                         <input type="date" name="circle_expires_at" class="form-control" value="{{ old('circle_expires_at', optional($user->circle_expires_at)->format('Y-m-d')) }}">
                     </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" name="add_circle_membership" value="1" class="btn btn-outline-primary w-100">
+                            Add Circle
+                        </button>
+                    </div>
 
                     @if (! $isJoinedToEffectiveCircle)
                         <div class="col-12">

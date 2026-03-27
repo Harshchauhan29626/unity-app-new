@@ -335,11 +335,17 @@ class UsersController extends Controller
             'membership_ends_at' => ['nullable', 'date', 'after_or_equal:membership_starts_at'],
             'zoho_plan_code' => ['nullable', 'string', 'max:100', Rule::in($this->membershipPlanCodes($user->zoho_plan_code))],
             'active_circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
-            'additional_circle_id' => ['nullable', 'uuid', 'exists:circles,id', 'different:active_circle_id'],
+            'additional_circle_id' => [
+                'nullable',
+                'uuid',
+                'exists:circles,id',
+                'different:active_circle_id',
+                Rule::requiredIf($request->has('add_circle_membership')),
+            ],
             'active_circle_addon_code' => ['nullable', 'string', 'max:100'],
             'active_circle_addon_name' => ['nullable', 'string', 'max:255'],
-            'circle_joined_at' => ['nullable', 'date'],
-            'circle_expires_at' => ['nullable', 'date', 'after_or_equal:circle_joined_at'],
+            'circle_joined_at' => [Rule::requiredIf($request->has('add_circle_membership')), 'nullable', 'date'],
+            'circle_expires_at' => [Rule::requiredIf($request->has('add_circle_membership')), 'nullable', 'date', 'after_or_equal:circle_joined_at'],
             'coins_balance' => ['required', 'integer', 'min:0'],
             'influencer_stars' => ['nullable', 'integer', 'min:0'],
             'is_sponsored_member' => ['boolean'],
@@ -543,8 +549,12 @@ class UsersController extends Controller
             }
         });
 
+        $statusMessage = $request->has('add_circle_membership')
+            ? 'Circle membership added successfully.'
+            : 'User updated successfully.';
+
         return redirect()->route('admin.users.edit', $user->id)
-            ->with('status', 'User updated successfully.');
+            ->with('status', $statusMessage);
     }
 
     public function removeCircleMembership(Request $request, string $userId, string $circleMemberId): RedirectResponse
