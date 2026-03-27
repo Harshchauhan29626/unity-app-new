@@ -3,6 +3,7 @@
 namespace App\Services\Circles;
 
 use App\Models\CircleJoinRequest;
+use App\Models\CircleMember;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -83,8 +84,42 @@ class CircleJoinRequestPaymentSyncService
 
     public function updateUserCircleMembershipTier(User $user): void
     {
-        // Intentionally no-op.
-        // Circle membership truth is maintained in circle_members/circle_subscriptions.
-        // Do not write circle-specific tier labels into users.membership_status enum.
+        try {
+            $currentStatus = (string) ($user->membership_status ?? '');
+
+            // Keep Unity/other non-circle statuses untouched.
+            $allowedToOverride = [
+                '',
+                User::STATUS_FREE,
+                User::STATUS_FREE_TRIAL,
+                'Circle Peer',
+                'Multi Circle Peer',
+            ];
+
+            if (! in_array($currentStatus, $allowedToOverride, true)) {
+                return;
+            }
+
+            $joinedStatus = (string) config('circle.member_joined_status', 'approved');
+            $activeCircleCount = CircleMember::query()
+                ->where('user_id', $user->id)
+                ->where('status', $joinedStatus)
+                ->whereNull('deleted_at')
+                ->count();
+
+            if ($activeCircleCount <= 0) {
+                return;
+            }
+
+            $nextStatus = $activeCircleCount > 1 ? 'Multi Circle Peer' : 'Circle Peer';
+            if ($currentStatus !== $nextStatus) {
+                $user->forceFill(['membership_status' => $nextStatus])->save();
+            }
+        } catch (Throwable $exception) {
+            Log::warning('Failed to sync user circle membership tier', [
+                'user_id' => $user->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 }

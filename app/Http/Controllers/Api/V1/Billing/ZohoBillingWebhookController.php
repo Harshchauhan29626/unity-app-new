@@ -209,6 +209,7 @@ class ZohoBillingWebhookController extends Controller
                 ]);
 
                 $this->finalizePaidCircleJoin($user, $subscription, $paidAt, $startedAt, $expiresAt);
+                $this->circleJoinRequestPaymentSyncService->updateUserCircleMembershipTier($user);
             });
 
             return response()->json(['success' => true]);
