@@ -17,7 +17,7 @@
             ...($isGlobalAdmin ? [
                 ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                 ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
-                ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index'],
+                ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
             ] : []),
         ]
         : [
@@ -30,7 +30,7 @@
             ...($isGlobalAdmin ? [
                 ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                 ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
-                ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index'],
+                ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
             ] : []),
             ['icon' => 'bi-wallet2', 'label' => 'Wallet & Finance', 'route' => '#'],
             ['icon' => 'bi-chat-dots', 'label' => 'Posts & Moderation', 'route' => '#'],
@@ -61,9 +61,8 @@
     $postsMenu = $isGlobalAdmin ? [
         ['label' => 'All Posts', 'route' => 'admin.posts.index'],
         ['label' => 'Post Reports', 'route' => 'admin.post-reports.index'],
-        ['label' => 'Ads', 'route' => 'admin.ads.index'],
     ] : [];
-    $postsActive = request()->routeIs('admin.posts.*') || request()->routeIs('admin.post-reports.*') || request()->routeIs('admin.ads.*');
+    $postsActive = request()->routeIs('admin.posts.*') || request()->routeIs('admin.post-reports.*');
 
     $pendingRequestsMenu = [
         ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
@@ -155,7 +154,7 @@
                             <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
                         </span>
                     @else
-                        <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                        <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
                             <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
                         </a>
                     @endif
