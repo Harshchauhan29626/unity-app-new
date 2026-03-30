@@ -22,7 +22,7 @@ class ReferralCodeService
         do {
             $attempts++;
             $code = $prefix . str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
-            $exists = DB::table('referraldata')->where('referral_code', $code)->exists();
+            $exists = DB::table('referral_links')->where('referral_code', $code)->exists();
         } while ($exists && $attempts < 50);
 
         if ($exists) {

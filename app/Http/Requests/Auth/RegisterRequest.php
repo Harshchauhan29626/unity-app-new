@@ -43,9 +43,7 @@ class RegisterRequest extends FormRequest
                 'string',
                 'max:32',
                 'regex:/^[A-Z]+\d{4}$/',
-                Rule::exists('referraldata', 'referral_code')->where(static function ($query) {
-                    $query->whereNull('referred_user_id');
-                }),
+                Rule::exists('referral_links', 'referral_code'),
             ],
         ];
     }
@@ -55,7 +53,7 @@ class RegisterRequest extends FormRequest
         return [
             'phone.unique' => 'This phone number is already registered.',
             'referral_code.regex' => 'Referral code format is invalid.',
-            'referral_code.exists' => 'The selected referral code is invalid or already used.',
+            'referral_code.exists' => 'The selected referral code is invalid.',
         ];
     }
 }

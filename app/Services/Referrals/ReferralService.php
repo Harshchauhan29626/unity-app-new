@@ -24,8 +24,8 @@ class ReferralService
 
     public function generateOrGetReferral(User $user): array
     {
-        $existing = ReferralData::query()
-            ->where('referrer_user_id', $user->id)
+        $existing = DB::table('referral_links')
+            ->where('user_id', $user->id)
             ->orderBy('id', 'asc')
             ->first();
 
@@ -33,7 +33,6 @@ class ReferralService
             Log::info('referral.code.existing_returned', [
                 'referrer_user_id' => (string) $user->id,
                 'referral_code' => (string) $existing->referral_code,
-                'referral_row_id' => (int) $existing->id,
             ]);
 
             return [
@@ -47,15 +46,12 @@ class ReferralService
         $code = $this->referralCodeService->generateUniqueCode($name);
         $link = $this->referralCodeService->buildReferralLink($code);
 
-        ReferralData::query()->create([
-            'referrer_user_id' => $user->id,
-            'referred_user_id' => null,
+        DB::table('referral_links')->insert([
+            'user_id' => $user->id,
             'referral_code' => $code,
             'referral_link' => $link,
-            'referrer_email' => $user->email,
-            'coins' => 0,
-            'reward_status' => 'pending',
-            'used_at' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         Log::info('referral.code.generated', [
@@ -70,28 +66,44 @@ class ReferralService
         ];
     }
 
-    public function validateReferralCode(string $code): ?ReferralData
+    public function validateReferralCode(string $code): ?array
     {
         $normalized = strtoupper(trim($code));
 
-        $row = ReferralData::query()
-            ->with(['referrer:id,first_name,last_name,display_name'])
-            ->where('referral_code', $normalized)
-            ->whereNull('referred_user_id')
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
+        $row = DB::table('referral_links as rl')
+            ->join('users as u', 'u.id', '=', 'rl.user_id')
+            ->where('rl.referral_code', $normalized)
+            ->select([
+                'rl.user_id',
+                'rl.referral_code',
+                'rl.referral_link',
+                'u.first_name',
+                'u.last_name',
+                'u.display_name',
+                'u.email',
+            ])
             ->first();
 
         Log::info('referral.code.validated', [
             'referral_code' => $normalized,
             'valid' => $row !== null,
-            'referral_row_id' => $row?->id,
+            'referrer_user_id' => $row?->user_id,
         ]);
 
-        return $row;
+        if (! $row) {
+            return null;
+        }
+
+        return [
+            'referrer_user_id' => (string) $row->user_id,
+            'referral_code' => (string) $row->referral_code,
+            'referral_link' => (string) $row->referral_link,
+            'referrer_name' => trim((string) (($row->display_name ?: '') ?: (($row->first_name ?? '') . ' ' . ($row->last_name ?? '')))),
+            'referrer_email' => (string) ($row->email ?? ''),
+        ];
     }
 
-    public function validateReferralCodeOrFail(?string $code): ?ReferralData
+    public function validateReferralCodeOrFail(?string $code): ?array
     {
         if (blank($code)) {
             return null;
@@ -100,12 +112,12 @@ class ReferralService
         $row = $this->validateReferralCode((string) $code);
 
         if (! $row) {
-            Log::warning('referral.code.invalid_or_used', [
+            Log::warning('referral.code.invalid', [
                 'referral_code' => strtoupper(trim((string) $code)),
             ]);
 
             throw ValidationException::withMessages([
-                'referral_code' => ['The selected referral code is invalid or already used.'],
+                'referral_code' => ['The selected referral code is invalid.'],
             ]);
         }
 
@@ -117,28 +129,34 @@ class ReferralService
         $normalized = strtoupper(trim($code));
 
         return DB::transaction(function () use ($newUser, $normalized) {
-            $row = ReferralData::query()
+            $link = DB::table('referral_links')
                 ->where('referral_code', $normalized)
-                ->whereNull('referred_user_id')
-                ->orderByDesc('created_at')
-                ->orderByDesc('id')
                 ->lockForUpdate()
                 ->first();
 
-            if (! $row) {
-                Log::warning('referral.registration.row_not_found', [
-                    'referred_user_id' => (string) $newUser->id,
-                    'referral_code' => $normalized,
-                ]);
-
+            if (! $link) {
                 throw ValidationException::withMessages([
-                    'referral_code' => ['The selected referral code is invalid or already used.'],
+                    'referral_code' => ['The selected referral code is invalid.'],
                 ]);
             }
 
-            if ((string) $row->referrer_user_id === (string) $newUser->id) {
+            if ((string) $link->user_id === (string) $newUser->id) {
                 throw ValidationException::withMessages([
                     'referral_code' => ['A user cannot refer themselves.'],
+                ]);
+            }
+
+            $alreadyReferred = ReferralData::query()
+                ->where('referred_user_id', $newUser->id)
+                ->exists();
+
+            if ($alreadyReferred) {
+                Log::warning('referral.registration.duplicate_referred_user', [
+                    'referred_user_id' => (string) $newUser->id,
+                ]);
+
+                throw ValidationException::withMessages([
+                    'referral_code' => ['Referral already applied for this user.'],
                 ]);
             }
 
@@ -147,11 +165,6 @@ class ReferralService
                 ->exists();
 
             if ($alreadyRewarded) {
-                Log::warning('referral.registration.duplicate_reward_prevented', [
-                    'referred_user_id' => (string) $newUser->id,
-                    'referral_code' => $normalized,
-                ]);
-
                 throw ValidationException::withMessages([
                     'referral_code' => ['Referral reward already processed for this user.'],
                 ]);
@@ -159,15 +172,22 @@ class ReferralService
 
             $rewardCoins = (int) config('coins.activity_rewards.referral_signup', 100);
 
-            $row->forceFill([
+            $data = ReferralData::query()->create([
+                'referrer_user_id' => $link->user_id,
                 'referred_user_id' => $newUser->id,
+                'referral_code' => $normalized,
+                'referrer_email' => null,
                 'coins' => $rewardCoins,
                 'reward_status' => 'granted',
                 'used_at' => now(),
-                'updated_at' => now(),
-            ])->save();
+            ]);
 
-            $referrer = User::query()->find($row->referrer_user_id);
+            $referrer = User::query()->find($link->user_id);
+
+            if ($referrer && blank($data->referrer_email)) {
+                $data->referrer_email = $referrer->email;
+                $data->save();
+            }
 
             if ($referrer && $rewardCoins > 0) {
                 $this->coinsService->reward(
@@ -181,7 +201,7 @@ class ReferralService
                     'referrer_user_id' => (string) $referrer->id,
                     'referred_user_id' => (string) $newUser->id,
                     'coins' => $rewardCoins,
-                    'referral_row_id' => (int) $row->id,
+                    'referral_data_id' => (int) $data->id,
                 ]);
             }
 
@@ -197,25 +217,25 @@ class ReferralService
                         'referred_user_name' => trim((string) ($newUser->display_name ?: ($newUser->first_name . ' ' . $newUser->last_name))),
                         'referral_code_used' => $normalized,
                     ],
-                    $row
+                    $data
                 );
 
                 $this->sendReferralEmail($referrer, $newUser, $normalized);
             }
 
             Log::info('referral.registration.applied', [
-                'referral_row_id' => (int) $row->id,
-                'referrer_user_id' => (string) $row->referrer_user_id,
+                'referral_data_id' => (int) $data->id,
+                'referrer_user_id' => (string) $link->user_id,
                 'referred_user_id' => (string) $newUser->id,
                 'referral_code' => $normalized,
             ]);
 
             return [
-                'referrer_user_id' => (string) $row->referrer_user_id,
-                'referrer_email' => (string) ($row->referrer_email ?? ''),
-                'referral_code' => (string) $row->referral_code,
-                'coins' => (int) $row->coins,
-                'reward_status' => (string) $row->reward_status,
+                'referrer_user_id' => (string) $link->user_id,
+                'referrer_email' => (string) ($data->referrer_email ?? ''),
+                'referral_code' => $normalized,
+                'coins' => (int) $rewardCoins,
+                'reward_status' => 'granted',
             ];
         });
     }
@@ -247,29 +267,24 @@ class ReferralService
 
     public function getMyReferralSummary(User $user): array
     {
-        $available = ReferralData::query()
-            ->where('referrer_user_id', $user->id)
-            ->whereNull('referred_user_id')
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
+        $link = DB::table('referral_links')
+            ->where('user_id', $user->id)
+            ->orderBy('id', 'asc')
             ->first();
 
-        $latest = $available ?: ReferralData::query()
-            ->where('referrer_user_id', $user->id)
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->first();
-
-        if (! $latest) {
+        if (! $link) {
             $generated = $this->generateOrGetReferral($user);
-            $latest = (object) $generated;
+            $link = (object) [
+                'referral_code' => $generated['referral_code'],
+                'referral_link' => $generated['referral_link'],
+            ];
         }
 
         $stats = $this->getReferralStats($user);
 
         return array_merge([
-            'referral_code' => (string) ($latest->referral_code ?? ''),
-            'referral_link' => (string) ($latest->referral_link ?? ''),
+            'referral_code' => (string) ($link->referral_code ?? ''),
+            'referral_link' => (string) ($link->referral_link ?? ''),
         ], $stats);
     }
 

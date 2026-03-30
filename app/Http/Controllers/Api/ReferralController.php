@@ -60,9 +60,7 @@ class ReferralController extends BaseApiController
 
         return $this->success([
             'valid' => $row !== null,
-            'referrer_name' => $row
-                ? trim((string) (($row->referrer?->display_name) ?: (($row->referrer?->first_name ?? '') . ' ' . ($row->referrer?->last_name ?? ''))))
-                : null,
+            'referrer_name' => $row['referrer_name'] ?? null,
         ]);
     }
 

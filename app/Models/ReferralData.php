@@ -13,7 +13,6 @@ class ReferralData extends Model
         'referrer_user_id',
         'referred_user_id',
         'referral_code',
-        'referral_link',
         'referrer_email',
         'coins',
         'reward_status',
