@@ -45,7 +45,16 @@ class AuthController extends BaseApiController
                 throw new \RuntimeException('User creation failed: model was not persisted.');
             }
 
+            $userExistsInTable = DB::table('users')
+                ->where('id', (string) $user->id)
+                ->exists();
+
+            if (! $userExistsInTable) {
+                throw new \RuntimeException('User creation failed: user row not found in users table.');
+            }
+
             Log::info('auth.register.after_user_created', [
+                'user_exists_in_users_table' => $userExistsInTable,
                 'user_id' => (string) $user->id,
                 'email' => (string) $user->email,
                 'first_name' => (string) ($user->first_name ?? ''),
@@ -156,6 +165,12 @@ class AuthController extends BaseApiController
             'user_id' => (string) $user->id,
             'email' => (string) $user->email,
         ]);
+
+        $persisted = DB::table('users')->where('id', (string) $user->id)->exists();
+
+        if (! $persisted) {
+            throw new \RuntimeException('Registration failed: user was not persisted in users table.');
+        }
 
         return $user;
     }
