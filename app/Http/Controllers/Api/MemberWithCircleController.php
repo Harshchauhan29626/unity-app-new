@@ -32,10 +32,10 @@ class MemberWithCircleController extends BaseApiController
         ]);
     }
 
-    public function show(string $member)
+    public function show(string $identifier)
     {
         $availableOptionalColumns = $this->availableOptionalColumns();
-        $identifier = trim($member);
+        $identifier = trim($identifier);
 
         $query = $this->baseMemberQuery($availableOptionalColumns);
         $user = null;
