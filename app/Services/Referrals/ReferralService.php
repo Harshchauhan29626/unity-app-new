@@ -263,23 +263,19 @@ class ReferralService
             ->find($user->id);
 
         $referredUsers = ReferralData::query()
-            ->with(['referredUser:id,first_name,last_name,display_name,email,company_name,designation'])
+            ->with([
+                'referredUser',
+                'referredUser.city',
+                'referredUser.activeCircle.cityRef',
+            ])
             ->where('referrer_user_id', $user->id)
             ->whereNotNull('referred_user_id')
             ->orderByRaw('used_at DESC NULLS LAST')
             ->orderByDesc('created_at')
             ->get()
-            ->map(function (ReferralData $row): array {
-                $referred = $row->referredUser;
-
-                return [
-                    'id' => (string) ($referred?->id ?? ''),
-                    'name' => trim((string) (($referred?->display_name ?: '') ?: (($referred?->first_name ?? '') . ' ' . ($referred?->last_name ?? '')) ?: ($referred?->name ?? ''))),
-                    'email' => $referred?->email,
-                    'business_name' => data_get($referred, 'business_name') ?: $referred?->company_name,
-                    'position' => data_get($referred, 'position') ?: $referred?->designation,
-                ];
-            })
+            ->pluck('referredUser')
+            ->filter()
+            ->map(fn (User $referredUser): array => (new MemberDetailResource($referredUser))->resolve())
             ->values()
             ->all();
 
