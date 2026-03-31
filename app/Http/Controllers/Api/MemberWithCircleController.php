@@ -11,14 +11,20 @@ class MemberWithCircleController extends BaseApiController
 {
     public function index()
     {
-        $availableOptionalColumns = $this->availableOptionalColumns();
-
-        $members = $this->baseMemberQuery($availableOptionalColumns)
+        $members = User::query()
+            ->select([
+                'users.id',
+                'users.display_name',
+                'users.first_name',
+                'users.last_name',
+                'users.email',
+                'users.public_profile_slug',
+            ])
             ->orderByDesc('created_at')
             ->get();
 
         $items = $members
-            ->map(fn (User $member): array => $this->transformMember($member, $availableOptionalColumns))
+            ->map(fn (User $member): array => $this->transformListMember($member))
             ->values();
 
         return $this->success([
@@ -236,6 +242,20 @@ class MemberWithCircleController extends BaseApiController
             'meaning_and_vibe' => $this->optionalValue($member, 'coin_milestone_meaning', $availableOptionalColumns),
             'contribution_award_name' => $this->optionalValue($member, 'contribution_award_name', $availableOptionalColumns),
             'contribution_recognition' => $this->optionalValue($member, 'contribution_award_recognition', $availableOptionalColumns),
+        ];
+    }
+
+    private function transformListMember(User $member): array
+    {
+        $displayName = trim((string) ($member->display_name ?? ''));
+        $fullName = trim(trim((string) ($member->first_name ?? '')) . ' ' . trim((string) ($member->last_name ?? '')));
+
+        return [
+            'id' => $member->id,
+            'name' => $displayName !== ''
+                ? $displayName
+                : ($fullName !== '' ? $fullName : $member->email),
+            'slug' => $member->public_profile_slug,
         ];
     }
 
