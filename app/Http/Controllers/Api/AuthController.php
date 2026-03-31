@@ -73,20 +73,18 @@ class AuthController extends BaseApiController
             }
 
             return [
-                'user_id' => (string) $user->id,
+                'user' => $user,
                 'referral' => $referralMeta,
             ];
         });
 
-        $userId = (string) $registrationContext['user_id'];
+        /** @var User|null $user */
+        $user = $registrationContext['user'] ?? null;
         $referralMeta = $registrationContext['referral'];
 
-        /** @var User|null $user */
-        $user = User::query()->useWritePdo()->find($userId);
-
-        if (! $user) {
+        if (! $user instanceof User || ! $user->exists || blank($user->id)) {
             Log::error('auth.register.user_missing_after_transaction', [
-                'user_id' => $userId,
+                'user_id' => $user?->id,
                 'email' => (string) ($data['email'] ?? ''),
                 'has_referral_code' => filled($normalizedReferralCode),
             ]);
@@ -146,6 +144,18 @@ class AuthController extends BaseApiController
         }
 
         $user->save();
+
+        Log::info('auth.register.after_user_saved', [
+            'user_id' => (string) $user->id,
+            'email' => (string) $user->email,
+        ]);
+
+        $user->refresh();
+
+        Log::info('auth.register.after_user_refresh', [
+            'user_id' => (string) $user->id,
+            'email' => (string) $user->email,
+        ]);
 
         return $user;
     }
