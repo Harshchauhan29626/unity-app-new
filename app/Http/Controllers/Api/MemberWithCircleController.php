@@ -103,6 +103,7 @@ class MemberWithCircleController extends BaseApiController
         return [
             'updated_at',
             'profile_photo_file_id',
+            'profile_photo_url',
             'cover_photo_file_id',
             'membership_starts_at',
             'membership_ends_at',
@@ -121,6 +122,7 @@ class MemberWithCircleController extends BaseApiController
             'experience_years',
             'experience_summary',
             'short_bio',
+            'address',
             'long_bio_html',
             'industry_tags',
             'skills',
@@ -156,7 +158,14 @@ class MemberWithCircleController extends BaseApiController
         $cityName = $member->city?->name ?? $member->getAttribute('city');
         $membershipStatus = $member->membership_status;
         $profilePhotoId = $this->optionalValue($member, 'profile_photo_file_id', $availableOptionalColumns);
+        $legacyProfilePhotoUrl = $this->optionalValue($member, 'profile_photo_url', $availableOptionalColumns);
         $coverPhotoId = $this->optionalValue($member, 'cover_photo_file_id', $availableOptionalColumns);
+        $socialMedia = $this->optionalValue($member, 'social_links', $availableOptionalColumns);
+        $businessDescription = $this->optionalValue($member, 'short_bio', $availableOptionalColumns)
+            ?: $this->optionalValue($member, 'experience_summary', $availableOptionalColumns);
+        $photoUrl = $profilePhotoId
+            ? url('/api/v1/files/' . $profilePhotoId)
+            : $legacyProfilePhotoUrl;
 
         $circles = $member->circleMembers
             ->map(function ($circleMember): array {
@@ -179,7 +188,10 @@ class MemberWithCircleController extends BaseApiController
             'last_name' => $member->last_name,
             'display_name' => $member->display_name,
             'name' => $name,
+            'mobile' => $member->phone,
+            'photo' => $photoUrl,
             'company_name' => $member->company_name,
+            'company' => $member->company_name,
             'designation' => $member->designation,
             'email' => $member->email,
             'phone' => $member->phone,
@@ -206,6 +218,7 @@ class MemberWithCircleController extends BaseApiController
                     'name' => $member->activeCircle->name,
                 ]
                 : null,
+            'active_circle_name' => $member->activeCircle?->name,
             'circles_count' => $circles->count(),
             'circles' => $circles,
             'circle_memberships' => $circles,
@@ -217,6 +230,7 @@ class MemberWithCircleController extends BaseApiController
             'experience_years' => $this->optionalValue($member, 'experience_years', $availableOptionalColumns),
             'experience_summary' => $this->optionalValue($member, 'experience_summary', $availableOptionalColumns),
             'bio' => $this->optionalValue($member, 'short_bio', $availableOptionalColumns),
+            'business_description' => $businessDescription,
             'long_bio_html' => $this->optionalValue($member, 'long_bio_html', $availableOptionalColumns),
             'industry_tags' => $this->optionalValue($member, 'industry_tags', $availableOptionalColumns) ?? [],
             'skills' => $this->optionalValue($member, 'skills', $availableOptionalColumns) ?? [],
@@ -226,11 +240,13 @@ class MemberWithCircleController extends BaseApiController
             'hobbies_interests' => $this->optionalValue($member, 'hobbies_interests', $availableOptionalColumns) ?? [],
             'leadership_roles' => $this->optionalValue($member, 'leadership_roles', $availableOptionalColumns) ?? [],
             'special_recognitions' => $this->optionalValue($member, 'special_recognitions', $availableOptionalColumns) ?? [],
-            'social_links' => $this->optionalValue($member, 'social_links', $availableOptionalColumns),
-            'profile_photo_url' => $profilePhotoId ? url('/api/v1/files/' . $profilePhotoId) : null,
-            'profile_image_url' => $profilePhotoId ? url('/api/v1/files/' . $profilePhotoId) : null,
+            'social_links' => $socialMedia,
+            'social_media' => $socialMedia,
+            'website' => $this->extractWebsite($socialMedia),
+            'profile_photo_url' => $photoUrl,
+            'profile_image_url' => $photoUrl,
             'cover_photo_url' => $coverPhotoId ? url('/api/v1/files/' . $coverPhotoId) : null,
-            'address' => null,
+            'address' => $this->optionalValue($member, 'address', $availableOptionalColumns),
             'state' => null,
             'country' => null,
             'pincode' => null,
@@ -285,5 +301,16 @@ class MemberWithCircleController extends BaseApiController
                 ->title()
                 ->toString(),
         };
+    }
+
+    private function extractWebsite(mixed $socialMedia): ?string
+    {
+        if (is_array($socialMedia)) {
+            $website = $socialMedia['website'] ?? null;
+
+            return is_string($website) && trim($website) !== '' ? $website : null;
+        }
+
+        return null;
     }
 }
