@@ -117,7 +117,7 @@ class AuthController extends BaseApiController
         $displayName = trim($data['first_name'] . ' ' . ($data['last_name'] ?? ''));
 
         $user = new User();
-        $user->id = Str::uuid();
+        $user->id = (string) Str::uuid();
         $user->first_name = $data['first_name'];
         $user->last_name = $data['last_name'] ?? null;
         $user->display_name = $displayName;

@@ -149,19 +149,22 @@ class ReferralService
                 ]);
             }
 
+            $newUserId = (string) $newUser->id;
+            $referrerUserId = (string) $link->user_id;
+
             $alreadyReferred = ReferralData::query()
-                ->where('referred_user_id', $newUser->id)
+                ->where('referred_user_id', $newUserId)
                 ->exists();
 
             Log::info('referral.registration.referred_lookup', [
-                'referred_user_id' => (string) $newUser->id,
+                'referred_user_id' => $newUserId,
                 'already_referred' => $alreadyReferred,
                 'referral_code' => $normalized,
             ]);
 
             if ($alreadyReferred) {
                 Log::warning('referral.registration.duplicate_referred_user', [
-                    'referred_user_id' => (string) $newUser->id,
+                    'referred_user_id' => $newUserId,
                 ]);
 
                 throw ValidationException::withMessages([
@@ -170,7 +173,7 @@ class ReferralService
             }
 
             $alreadyRewarded = CoinsLedger::query()
-                ->where('reference', 'referral_signup:' . $newUser->id)
+                ->where('reference', 'referral_signup:' . $newUserId)
                 ->exists();
 
             if ($alreadyRewarded) {
@@ -182,15 +185,15 @@ class ReferralService
             $rewardCoins = (int) config('coins.activity_rewards.referral_signup', 100);
 
             Log::info('referral.registration.before_insert', [
-                'referrer_user_id' => (string) $link->user_id,
-                'referred_user_id' => (string) $newUser->id,
+                'referrer_user_id' => $referrerUserId,
+                'referred_user_id' => $newUserId,
                 'referral_code' => $normalized,
                 'coins' => $rewardCoins,
             ]);
 
             $data = ReferralData::query()->create([
-                'referrer_user_id' => $link->user_id,
-                'referred_user_id' => $newUser->id,
+                'referrer_user_id' => $referrerUserId,
+                'referred_user_id' => $newUserId,
                 'referral_code' => $normalized,
                 'referrer_email' => null,
                 'coins' => $rewardCoins,
@@ -206,11 +209,11 @@ class ReferralService
 
             Log::info('referral.registration.insert_success', [
                 'referral_data_id' => (int) $data->id,
-                'referred_user_id' => (string) $newUser->id,
-                'referrer_user_id' => (string) $link->user_id,
+                'referred_user_id' => $newUserId,
+                'referrer_user_id' => $referrerUserId,
             ]);
 
-            $referrer = User::query()->find($link->user_id);
+            $referrer = User::query()->find($referrerUserId);
 
             if ($referrer && blank($data->referrer_email)) {
                 $data->referrer_email = $referrer->email;
@@ -221,13 +224,13 @@ class ReferralService
                 $this->coinsService->reward(
                     $referrer,
                     $rewardCoins,
-                    'referral_signup:' . $newUser->id,
-                    $newUser->id
+                    'referral_signup:' . $newUserId,
+                    $newUserId
                 );
 
                 Log::info('referral.reward.granted', [
                     'referrer_user_id' => (string) $referrer->id,
-                    'referred_user_id' => (string) $newUser->id,
+                    'referred_user_id' => $newUserId,
                     'coins' => $rewardCoins,
                     'referral_data_id' => (int) $data->id,
                 ]);
@@ -241,7 +244,7 @@ class ReferralService
                     [
                         'title' => 'New Referral Joined',
                         'body' => 'A new peer has joined using your referral code.',
-                        'referred_user_id' => (string) $newUser->id,
+                        'referred_user_id' => $newUserId,
                         'referred_user_name' => trim((string) ($newUser->display_name ?: ($newUser->first_name . ' ' . $newUser->last_name))),
                         'referral_code_used' => $normalized,
                     ],
@@ -253,13 +256,13 @@ class ReferralService
 
             Log::info('referral.registration.applied', [
                 'referral_data_id' => (int) $data->id,
-                'referrer_user_id' => (string) $link->user_id,
-                'referred_user_id' => (string) $newUser->id,
+                'referrer_user_id' => $referrerUserId,
+                'referred_user_id' => $newUserId,
                 'referral_code' => $normalized,
             ]);
 
             return [
-                'referrer_user_id' => (string) $link->user_id,
+                'referrer_user_id' => $referrerUserId,
                 'referrer_email' => (string) ($data->referrer_email ?? ''),
                 'referral_code' => $normalized,
                 'coins' => (int) $rewardCoins,
