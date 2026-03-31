@@ -39,68 +39,10 @@ class AuthController extends BaseApiController
 
         $referralService->validateReferralCodeOrFail($normalizedReferralCode);
 
-        $registrationContext = DB::transaction(function () use ($data, $referralService, $normalizedReferralCode) {
-            $user = $this->createRegisteredUser($data);
+        $transactionUser = $this->createRegisteredUser($data);
 
-            if (! $user->exists) {
-                throw new \RuntimeException('User creation failed: model was not persisted.');
-            }
-
-            $userExistsInTable = DB::table('users')
-                ->where('id', (string) $user->id)
-                ->exists();
-
-            if (! $userExistsInTable) {
-                throw new \RuntimeException('User creation failed: user row not found in users table.');
-            }
-
-            Log::info('auth.register.after_user_created', [
-                'user_exists_in_users_table' => $userExistsInTable,
-                'user_id' => (string) $user->id,
-                'email' => (string) $user->email,
-                'first_name' => (string) ($user->first_name ?? ''),
-                'last_name' => (string) ($user->last_name ?? ''),
-                'phone' => (string) ($user->phone ?? ''),
-                'display_name' => (string) ($user->display_name ?? ''),
-            ]);
-
-            $referralMeta = null;
-
-            if (filled($normalizedReferralCode)) {
-                Log::info('auth.register.before_referral_apply', [
-                    'user_id' => (string) $user->id,
-                    'referral_code' => (string) $normalizedReferralCode,
-                ]);
-
-                $referralMeta = $referralService->applyReferralOnRegistration($user, (string) $normalizedReferralCode);
-
-                Log::info('auth.register.after_referral_apply', [
-                    'user_id' => (string) $user->id,
-                    'referral_code' => (string) $normalizedReferralCode,
-                    'referrer_user_id' => (string) ($referralMeta['referrer_user_id'] ?? ''),
-                    'reward_status' => (string) ($referralMeta['reward_status'] ?? ''),
-                ]);
-            }
-
-            return [
-                'user' => $user,
-                'referral' => $referralMeta,
-            ];
-        });
-
-        /** @var User|null $transactionUser */
-        $transactionUser = $registrationContext['user'] ?? null;
-        $referralMeta = $registrationContext['referral'];
-
-        if (! $transactionUser instanceof User || ! $transactionUser->exists || blank($transactionUser->id)) {
-            Log::error('auth.register.user_missing_after_transaction', [
-                'user_id' => $transactionUser?->id,
-                'email' => (string) ($data['email'] ?? ''),
-                'has_referral_code' => filled($normalizedReferralCode),
-                'referral_code' => (string) ($normalizedReferralCode ?? ''),
-            ]);
-
-            throw new \RuntimeException('Registration failed: user record was not found after creation.');
+        if (! $transactionUser->exists || blank($transactionUser->id)) {
+            throw new \RuntimeException('Registration failed: user model was not persisted.');
         }
 
         $persistedUser = User::query()
@@ -114,6 +56,30 @@ class AuthController extends BaseApiController
             ]);
 
             throw new \RuntimeException('Registration failed: persisted user row was not found in users table.');
+        }
+
+        Log::info('auth.register.database_existence_check', [
+            'user_id' => (string) $persistedUser->id,
+            'email' => (string) $persistedUser->email,
+            'exists' => true,
+        ]);
+
+        $referralMeta = null;
+
+        if (filled($normalizedReferralCode)) {
+            Log::info('auth.register.before_referral_apply', [
+                'user_id' => (string) $persistedUser->id,
+                'referral_code' => (string) $normalizedReferralCode,
+            ]);
+
+            $referralMeta = $referralService->applyReferralOnRegistration($persistedUser, (string) $normalizedReferralCode);
+
+            Log::info('auth.register.after_referral_apply', [
+                'user_id' => (string) $persistedUser->id,
+                'referral_code' => (string) $normalizedReferralCode,
+                'referrer_user_id' => (string) ($referralMeta['referrer_user_id'] ?? ''),
+                'reward_status' => (string) ($referralMeta['reward_status'] ?? ''),
+            ]);
         }
 
         Log::info('auth.register.before_token_creation', [
