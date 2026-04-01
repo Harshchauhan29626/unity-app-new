@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Api\V1\Forms;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Forms\SubmitBecomeMentorRequest;
 use App\Http\Resources\BecomeMentorSubmissionResource;
+use App\Mail\WebsiteFormConfirmationMail;
 use App\Models\BecomeMentorSubmission;
+use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 
 class BecomeMentorController extends BaseApiController
@@ -112,6 +115,15 @@ class BecomeMentorController extends BaseApiController
                 'status' => 'new',
             ]);
 
+            $this->sendConfirmationEmail(
+                email: $submission->email,
+                recipientName: trim($submission->first_name . ' ' . $submission->last_name) ?: $submission->first_name,
+                subject: 'Your Mentor Application Has Been Received',
+                formTitle: 'Become a Mentor',
+                confirmationMessage: 'Your mentor application has been received successfully.',
+                submissionId: (string) $submission->id,
+            );
+
             Log::info('Mentor form submission stored successfully', [
                 'submission_id' => $submission->id,
                 'email' => $submission->email,
@@ -135,6 +147,46 @@ class BecomeMentorController extends BaseApiController
                 'message' => 'Unable to submit mentor form right now. Please try again later.',
                 'data' => null,
             ], 500);
+        }
+    }
+
+    private function sendConfirmationEmail(
+        string $email,
+        string $recipientName,
+        string $subject,
+        string $formTitle,
+        string $confirmationMessage,
+        string $submissionId,
+    ): void {
+        $mailable = new WebsiteFormConfirmationMail($subject, $recipientName, $formTitle, $confirmationMessage);
+
+        try {
+            Mail::to($email)->send($mailable);
+            app(EmailLogService::class)->logMailableSent($mailable, [
+                'to_email' => $email,
+                'to_name' => $recipientName,
+                'template_key' => 'website_form_confirmation',
+                'source_module' => 'WebsiteForms',
+                'related_type' => BecomeMentorSubmission::class,
+                'related_id' => $submissionId,
+                'payload' => ['form_title' => $formTitle],
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('Mentor confirmation email failed', [
+                'email' => $email,
+                'submission_id' => $submissionId,
+                'error' => $exception->getMessage(),
+            ]);
+
+            app(EmailLogService::class)->logMailableFailed($mailable, [
+                'to_email' => $email,
+                'to_name' => $recipientName,
+                'template_key' => 'website_form_confirmation',
+                'source_module' => 'WebsiteForms',
+                'related_type' => BecomeMentorSubmission::class,
+                'related_id' => $submissionId,
+                'payload' => ['form_title' => $formTitle],
+            ], $exception);
         }
     }
 }

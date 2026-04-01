@@ -8,14 +8,17 @@ use App\Http\Requests\Forms\SubmitEntrepreneurCertificationRequest;
 use App\Http\Requests\Forms\SubmitLeadershipCertificationRequest;
 use App\Http\Requests\Forms\SubmitPartnerWithUsRequest;
 use App\Http\Requests\Forms\SubmitSmeBusinessStoryRequest;
+use App\Mail\WebsiteFormConfirmationMail;
 use App\Models\BecomeSpeakerSubmission;
 use App\Models\EntrepreneurCertificationSubmission;
 use App\Models\FileModel;
 use App\Models\LeadershipCertificationSubmission;
 use App\Models\PartnerWithUsSubmission;
 use App\Models\SmeBusinessStorySubmission;
+use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -205,6 +208,16 @@ class WebsiteFormsController extends BaseApiController
                 'status' => 'new',
             ]);
 
+            $this->sendConfirmationEmail(
+                email: $submission->email,
+                recipientName: trim($submission->first_name . ' ' . $submission->last_name) ?: $submission->first_name,
+                subject: 'Your Speaker Application Has Been Received',
+                formTitle: 'Become a Speaker',
+                confirmationMessage: 'Your speaker application has been received successfully.',
+                relatedType: BecomeSpeakerSubmission::class,
+                submissionId: (string) $submission->id,
+            );
+
             Log::info('Become a speaker submission stored successfully', [
                 'submission_id' => $submission->id,
                 'image_file_id' => $storedImage?->id,
@@ -266,6 +279,16 @@ class WebsiteFormsController extends BaseApiController
                 'status' => 'new',
             ]);
 
+            $this->sendConfirmationEmail(
+                email: $submission->email,
+                recipientName: $submission->full_name,
+                subject: 'Your SME Business Story Has Been Received',
+                formTitle: 'Share your SME Business Story',
+                confirmationMessage: 'Your SME business story has been received successfully.',
+                relatedType: SmeBusinessStorySubmission::class,
+                submissionId: (string) $submission->id,
+            );
+
             Log::info('SME business story submission stored successfully', [
                 'submission_id' => $submission->id,
                 'email' => $submission->email,
@@ -320,6 +343,16 @@ class WebsiteFormsController extends BaseApiController
                 'status' => 'new',
             ]);
 
+            $this->sendConfirmationEmail(
+                email: $submission->email,
+                recipientName: $submission->full_name,
+                subject: 'Your Leadership Certification Request Has Been Received',
+                formTitle: 'Leadership Certification',
+                confirmationMessage: 'Your leadership certification request has been received successfully.',
+                relatedType: LeadershipCertificationSubmission::class,
+                submissionId: (string) $submission->id,
+            );
+
             Log::info('Leadership certification submission stored successfully', [
                 'submission_id' => $submission->id,
                 'email' => $submission->email,
@@ -371,6 +404,16 @@ class WebsiteFormsController extends BaseApiController
                 'contact_no' => $data['contact_no'],
                 'status' => 'new',
             ]);
+
+            $this->sendConfirmationEmail(
+                email: $submission->email,
+                recipientName: $submission->full_name,
+                subject: 'Your Entrepreneur Certification Request Has Been Received',
+                formTitle: 'Entrepreneur Certification',
+                confirmationMessage: 'Your entrepreneur certification request has been received successfully.',
+                relatedType: EntrepreneurCertificationSubmission::class,
+                submissionId: (string) $submission->id,
+            );
 
             Log::info('Entrepreneur certification submission stored successfully', [
                 'submission_id' => $submission->id,
@@ -429,6 +472,16 @@ class WebsiteFormsController extends BaseApiController
                 'why_partner_with_peers_global' => $data['why_partner_with_peers_global'],
                 'status' => 'new',
             ]);
+
+            $this->sendConfirmationEmail(
+                email: $submission->email_id,
+                recipientName: $submission->full_name,
+                subject: 'Your Partnership Request Has Been Received',
+                formTitle: 'Partner with Us',
+                confirmationMessage: 'Your partnership request has been received successfully.',
+                relatedType: PartnerWithUsSubmission::class,
+                submissionId: (string) $submission->id,
+            );
 
             Log::info('Partner with us submission stored successfully', [
                 'submission_id' => $submission->id,
@@ -559,5 +612,47 @@ class WebsiteFormsController extends BaseApiController
             'message' => 'Submission not found.',
             'data' => null,
         ], 404);
+    }
+
+    private function sendConfirmationEmail(
+        string $email,
+        string $recipientName,
+        string $subject,
+        string $formTitle,
+        string $confirmationMessage,
+        string $relatedType,
+        string $submissionId,
+    ): void {
+        $mailable = new WebsiteFormConfirmationMail($subject, $recipientName, $formTitle, $confirmationMessage);
+
+        try {
+            Mail::to($email)->send($mailable);
+            app(EmailLogService::class)->logMailableSent($mailable, [
+                'to_email' => $email,
+                'to_name' => $recipientName,
+                'template_key' => 'website_form_confirmation',
+                'source_module' => 'WebsiteForms',
+                'related_type' => $relatedType,
+                'related_id' => $submissionId,
+                'payload' => ['form_title' => $formTitle],
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('Website form confirmation email failed', [
+                'email' => $email,
+                'related_type' => $relatedType,
+                'submission_id' => $submissionId,
+                'error' => $exception->getMessage(),
+            ]);
+
+            app(EmailLogService::class)->logMailableFailed($mailable, [
+                'to_email' => $email,
+                'to_name' => $recipientName,
+                'template_key' => 'website_form_confirmation',
+                'source_module' => 'WebsiteForms',
+                'related_type' => $relatedType,
+                'related_id' => $submissionId,
+                'payload' => ['form_title' => $formTitle],
+            ], $exception);
+        }
     }
 }
