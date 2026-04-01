@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 
 class UserSearchController extends Controller
 {
@@ -26,8 +25,7 @@ class UserSearchController extends Controller
                     ->orWhere('last_name', 'ILIKE', "%{$search}%")
                     ->orWhere('email', 'ILIKE', "%{$search}%")
                     ->orWhere('company_name', 'ILIKE', "%{$search}%")
-                    ->orWhere('city', 'ILIKE', "%{$search}%")
-                    ->orWhere('phone', 'ILIKE', "%{$search}%");
+                    ->orWhere('city', 'ILIKE', "%{$search}%");
             })
             ->with(['circleMembers' => function ($query) {
                 $query->where('status', 'approved')
@@ -38,12 +36,6 @@ class UserSearchController extends Controller
             ->orderByRaw("COALESCE(NULLIF(display_name,''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)),''), email) ASC")
             ->limit(10)
             ->get(['id', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'company', 'business_name', 'city']);
-
-        if ($users->isEmpty()) {
-            Log::info('admin.users.search.no_results', [
-                'search' => $search,
-            ]);
-        }
 
         $results = $users->map(function (User $user): array {
             [$name, $company, $city, $circle] = $user->adminDisplayParts();

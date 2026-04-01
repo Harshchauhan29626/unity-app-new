@@ -5,107 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Activity\StoreReferralRequest;
 use App\Events\ActivityCreated;
-use App\Http\Requests\Api\GenerateReferralCodeRequest;
-use App\Http\Resources\ReferralMemberResource;
 use App\Models\Referral;
 use App\Models\User;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
-use App\Services\Referrals\ReferralService;
 use Illuminate\Http\Request;
 use Throwable;
 
 class ReferralController extends BaseApiController
 {
-    public function me(Request $request, ReferralService $referralService)
-    {
-        return $this->success($referralService->getMyReferralSummary($request->user()));
-    }
-
-    public function generate(GenerateReferralCodeRequest $request, ReferralService $referralService)
-    {
-        $payload = $referralService->generateOrGetReferral($request->user());
-        $isExisting = (bool) ($payload['is_existing'] ?? false);
-        unset($payload['is_existing']);
-
-        return $this->success(
-            $payload,
-            $isExisting ? 'Referral code fetched successfully.' : 'Referral code generated successfully.'
-        );
-    }
-
-    public function members(Request $request, ReferralService $referralService)
-    {
-        $paginator = $referralService->getReferralMembers($request->user(), (int) $request->input('per_page', 20));
-
-        return $this->success([
-            'items' => ReferralMemberResource::collection($paginator->items()),
-            'pagination' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-            ],
-        ]);
-    }
-
-    public function stats(Request $request, ReferralService $referralService)
-    {
-        return $this->success($referralService->getReferralStats($request->user()));
-    }
-
-    public function validateCode(string $code, ReferralService $referralService)
-    {
-        $row = $referralService->validateReferralCode($code);
-
-        return $this->success([
-            'valid' => $row !== null,
-            'referrer_name' => $row['referrer_name'] ?? null,
-        ]);
-    }
-
-    public function validateSelf(Request $request, ReferralService $referralService)
-    {
-        $user = $request->user();
-        $payload = $referralService->generateOrGetReferral($user);
-        $user->loadMissing(['activeCircle:id,name']);
-
-        $resolvedName = trim((string) (($user->display_name ?: '') ?: (($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))));
-        $resolvedCity = is_string($user->city)
-            ? $user->city
-            : data_get($user, 'city.name');
-
-        $activeCircle = $user->activeCircle;
-        $fallbackCircle = null;
-
-        if (! $activeCircle && method_exists($user, 'circles')) {
-            $fallbackCircle = $user->circles()
-                ->select('circles.id', 'circles.name')
-                ->first();
-        }
-
-        $resolvedCircle = $activeCircle ?: $fallbackCircle;
-
-        return $this->success([
-            'valid' => true,
-            'referral_code' => $payload['referral_code'] ?? null,
-            'referral_link' => $payload['referral_link'] ?? null,
-            'referrer' => [
-                'id' => (string) $user->id,
-                'name' => $resolvedName !== '' ? $resolvedName : null,
-                'email' => $user->email,
-                'company_name' => $user->company_name ?? data_get($user, 'business_name'),
-                'city' => $resolvedCity,
-                'circle' => $resolvedCircle
-                    ? [
-                        'id' => (string) $resolvedCircle->id,
-                        'name' => (string) $resolvedCircle->name,
-                    ]
-                    : null,
-            ],
-        ]);
-    }
-
     public function index(Request $request)
     {
         $authUser = $request->user();

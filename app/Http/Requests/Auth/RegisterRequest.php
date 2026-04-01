@@ -3,25 +3,9 @@
 namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class RegisterRequest extends FormRequest
 {
-    protected function prepareForValidation(): void
-    {
-        $incomingReferralCode = $this->input('referral_code');
-
-        if (blank($incomingReferralCode) && $this->has('referralCode')) {
-            $incomingReferralCode = $this->input('referralCode');
-        }
-
-        if (! blank($incomingReferralCode)) {
-            $this->merge([
-                'referral_code' => strtoupper(trim((string) $incomingReferralCode)),
-            ]);
-        }
-    }
-
     public function authorize(): bool
     {
         return true;
@@ -44,13 +28,6 @@ class RegisterRequest extends FormRequest
             // NEW OPTIONAL FIELDS FOR REGISTRATION
             'company_name' => ['nullable', 'string', 'max:255'],
             'designation'  => ['nullable', 'string', 'max:255'],
-            'referral_code' => [
-                'nullable',
-                'string',
-                'max:32',
-                'regex:/^[A-Z]+\d{4}$/',
-                Rule::exists('referral_links', 'referral_code'),
-            ],
         ];
     }
 
@@ -58,8 +35,6 @@ class RegisterRequest extends FormRequest
     {
         return [
             'phone.unique' => 'This phone number is already registered.',
-            'referral_code.regex' => 'Referral code format is invalid.',
-            'referral_code.exists' => 'The selected referral code is invalid.',
         ];
     }
 }

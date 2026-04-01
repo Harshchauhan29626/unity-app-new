@@ -5,7 +5,6 @@ namespace App\Http\Resources;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Schema;
 
 class UserResource extends JsonResource
 {
@@ -186,12 +185,8 @@ class UserResource extends JsonResource
         $subscription = $this->resource->circleSubscriptions()
             ->where('circle_id', $membership->circle_id)
             ->orderByDesc('paid_at')
-            ->when(Schema::hasColumn('circle_subscriptions', 'started_at'), function ($query): void {
-                $query->orderByDesc('started_at');
-            })
-            ->when(Schema::hasColumn('circle_subscriptions', 'created_at'), function ($query): void {
-                $query->orderByDesc('created_at');
-            })
+            ->orderByDesc('started_at')
+            ->orderByDesc('created_at')
             ->first();
 
         return [

@@ -640,16 +640,6 @@ class User extends Authenticatable
         return $this->hasMany(ReferralLink::class, 'referrer_user_id');
     }
 
-    public function referralDataAsReferrer(): HasMany
-    {
-        return $this->hasMany(ReferralData::class, 'referrer_user_id');
-    }
-
-    public function referralDataAsReferred(): HasMany
-    {
-        return $this->hasMany(ReferralData::class, 'referred_user_id');
-    }
-
     public function visitorLeads(): HasMany
     {
         return $this->hasMany(VisitorLead::class, 'converted_user_id');

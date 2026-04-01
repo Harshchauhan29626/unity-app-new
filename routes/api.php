@@ -88,7 +88,6 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
     Route::get('/app/version', [AppVersionController::class, 'show']);
-    Route::get('/referrals/validate/{code}', [ReferralController::class, 'validateCode']);
 
     Route::get('/industries/tree', [IndustryController::class, 'tree']);
     Route::get('/collaboration-types', [CollaborationTypeController::class, 'index']);
@@ -319,11 +318,6 @@ Route::prefix('v1')->group(function () {
         }
 
         // Referrals & Visitors
-        Route::get('/referrals/validate', [ReferralController::class, 'validateSelf']);
-        Route::get('/referrals/me', [ReferralController::class, 'me']);
-        Route::post('/referrals/generate', [ReferralController::class, 'generate']);
-        Route::get('/referrals/members', [ReferralController::class, 'members']);
-        Route::get('/referrals/stats', [ReferralController::class, 'stats']);
         Route::post('/referrals/links', [ReferralController::class, 'storeLink']);
         Route::get('/referrals/links', [ReferralController::class, 'listLinks']);
         Route::get('/referrals/visitors', [ReferralController::class, 'listVisitors']);

@@ -7,186 +7,43 @@ use App\Http\Resources\UserResource;
 use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
 use App\Models\OtpCode;
-use App\Models\ReferralData;
 use App\Models\User;
 use App\Models\UserLoginHistory;
 use App\Services\EmailLogs\EmailLogService;
-use App\Services\Referrals\ReferralService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class AuthController extends BaseApiController
 {
-    public function register(RegisterRequest $request, ReferralService $referralService)
+    public function register(RegisterRequest $request)
     {
         $data = $request->validated();
-        $incomingReferralCode = $data['referral_code']
-            ?? $request->input('referral_code')
-            ?? $request->input('referralCode');
 
-        $normalizedReferralCode = filled($incomingReferralCode)
-            ? strtoupper(trim((string) $incomingReferralCode))
-            : null;
-
-        Log::info('auth.register.before_user_creation', [
-            'email' => (string) ($data['email'] ?? ''),
-            'first_name' => (string) ($data['first_name'] ?? ''),
-            'last_name' => (string) ($data['last_name'] ?? ''),
-            'phone' => (string) ($data['phone'] ?? ''),
-            'display_name' => trim((string) (($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? ''))),
-            'has_referral_code' => filled($normalizedReferralCode),
-            'referral_code' => (string) ($normalizedReferralCode ?? ''),
-        ]);
-
-        $referralService->validateReferralCodeOrFail($normalizedReferralCode);
-
-        $transactionUser = $this->createRegisteredUser($data);
-
-        if (! $transactionUser->exists || blank($transactionUser->id)) {
-            throw new \RuntimeException('Registration failed: user model was not persisted.');
-        }
-
-        $persistedUser = User::query()
-            ->useWritePdo()
-            ->find((string) $transactionUser->id);
-
-        if (! $persistedUser) {
-            Log::error('auth.register.user_not_found_on_write_connection', [
-                'user_id' => (string) $transactionUser->id,
-                'email' => (string) ($data['email'] ?? ''),
-            ]);
-
-            throw new \RuntimeException('Registration failed: persisted user row was not found in users table.');
-        }
-
-        Log::info('auth.register.database_existence_check', [
-            'user_id' => (string) $persistedUser->id,
-            'email' => (string) $persistedUser->email,
-            'exists' => true,
-        ]);
-
-        $referralMeta = null;
-
-        if (filled($normalizedReferralCode)) {
-            Log::info('auth.register.before_referral_apply', [
-                'user_id' => (string) $persistedUser->id,
-                'referral_code' => (string) $normalizedReferralCode,
-            ]);
-
-            $referralMeta = $referralService->applyReferralOnRegistration($persistedUser, (string) $normalizedReferralCode);
-
-            Log::info('auth.register.after_referral_apply', [
-                'user_id' => (string) $persistedUser->id,
-                'referral_code' => (string) $normalizedReferralCode,
-                'referrer_user_id' => (string) ($referralMeta['referrer_user_id'] ?? ''),
-                'reward_status' => (string) ($referralMeta['reward_status'] ?? ''),
-            ]);
-
-            $this->ensureReferralDataPersisted($persistedUser, $normalizedReferralCode, $referralMeta);
-        }
-
-        Log::info('auth.register.before_token_creation', [
-            'user_id' => (string) $persistedUser->id,
-            'email' => (string) $persistedUser->email,
-        ]);
-
-        $token = $persistedUser->createToken('auth_token')->plainTextToken;
-
-        Log::info('auth.register.before_response', [
-            'user_id' => (string) $persistedUser->id,
-            'email' => (string) $persistedUser->email,
-            'has_referral_meta' => $referralMeta !== null,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Registration successful.',
-            'data'    => [
-                'token' => $token,
-                'user'  => $persistedUser,
-                'referral' => $referralMeta,
-            ],
-        ], 201);
-    }
-
-    private function ensureReferralDataPersisted(User $user, string $referralCode, array $referralMeta): void
-    {
-        $alreadyExists = ReferralData::query()
-            ->where('referred_user_id', (string) $user->id)
-            ->exists();
-
-        if ($alreadyExists) {
-            Log::info('auth.register.referraldata_duplicate_skip', [
-                'referred_user_id' => (string) $user->id,
-                'referral_code' => $referralCode,
-            ]);
-
-            return;
-        }
-
-        $insertPayload = [
-            'referrer_user_id' => (string) ($referralMeta['referrer_user_id'] ?? ''),
-            'referred_user_id' => (string) $user->id,
-            'referral_code' => $referralCode,
-            'referrer_email' => (string) ($referralMeta['referrer_email'] ?? ''),
-            'coins' => (int) ($referralMeta['coins'] ?? (int) config('coins.activity_rewards.referral_signup', 100)),
-            'reward_status' => (string) ($referralMeta['reward_status'] ?? 'granted'),
-            'used_at' => now(),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ];
-
-        Log::info('auth.register.referraldata_insert_start', [
-            'payload' => $insertPayload,
-        ]);
-
-        $data = ReferralData::query()->create($insertPayload);
-
-        if (! $data->exists || ! $data->id) {
-            Log::error('auth.register.referraldata_insert_failed', [
-                'referred_user_id' => (string) $user->id,
-                'referral_code' => $referralCode,
-            ]);
-
-            throw new \RuntimeException('Referral registration failed: unable to persist referraldata row.');
-        }
-
-        Log::info('auth.register.referraldata_insert_success', [
-            'referral_data_id' => (int) $data->id,
-            'referred_user_id' => (string) $user->id,
-            'referral_code' => $referralCode,
-        ]);
-    }
-
-    private function createRegisteredUser(array $data): User
-    {
         // Build a display name from first + last name
         $displayName = trim($data['first_name'] . ' ' . ($data['last_name'] ?? ''));
 
-        $user = new User();
-        $user->id = (string) Str::uuid();
-        $user->first_name = $data['first_name'];
-        $user->last_name = $data['last_name'] ?? null;
-        $user->display_name = $displayName;
-        $user->email = $data['email'];
-        $user->phone = $data['phone'] ?? null;
-        $user->company_name = $data['company_name'] ?? null;
-        $user->designation = $data['designation'] ?? null;
-        $user->city_id = $user->city_id ?? null;
-
+        $user                 = new User();
+        $user->id             = Str::uuid();
+        $user->first_name     = $data['first_name'];
+        $user->last_name      = $data['last_name'] ?? null;
+        $user->display_name   = $displayName;
+        $user->email          = $data['email'];
+        $user->phone          = $data['phone'] ?? null;
+        $user->company_name   = $data['company_name'] ?? null;
+        $user->designation    = $data['designation'] ?? null;
+        $user->city_id        = $user->city_id ?? null;
         $trialEndsAt = now()->addDays(3);
 
         $user->membership_status = User::STATUS_FREE_TRIAL;
         $user->membership_starts_at = now();
         $user->membership_ends_at = $trialEndsAt;
         $user->membership_expiry = $trialEndsAt;
-        $user->coins_balance = $user->coins_balance ?? 0;
+        $user->coins_balance  = $user->coins_balance ?? 0;
 
         // Store the hashed password in password_hash (not password)
         $user->password_hash = Hash::make($data['password']);
@@ -196,34 +53,18 @@ class AuthController extends BaseApiController
             $user->password = null;
         }
 
-        Log::info('auth.register.before_user_save', [
-            'email' => (string) $user->email,
-            'first_name' => (string) ($user->first_name ?? ''),
-            'last_name' => (string) ($user->last_name ?? ''),
-            'phone' => (string) ($user->phone ?? ''),
-        ]);
-
         $user->save();
 
-        Log::info('auth.register.after_user_saved', [
-            'user_id' => (string) $user->id,
-            'email' => (string) $user->email,
-        ]);
+        $token = $user->createToken('auth_token')->plainTextToken;
 
-        $user->refresh();
-
-        Log::info('auth.register.after_user_refresh', [
-            'user_id' => (string) $user->id,
-            'email' => (string) $user->email,
-        ]);
-
-        $persisted = DB::table('users')->where('id', (string) $user->id)->exists();
-
-        if (! $persisted) {
-            throw new \RuntimeException('Registration failed: user was not persisted in users table.');
-        }
-
-        return $user;
+        return response()->json([
+            'success' => true,
+            'message' => 'Registration successful.',
+            'data'    => [
+                'token' => $token,
+                'user'  => $user,
+            ],
+        ], 201);
     }
 
     public function login(Request $request)

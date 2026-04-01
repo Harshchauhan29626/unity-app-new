@@ -19,7 +19,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -1093,7 +1092,6 @@ class UsersController extends Controller
                     'company_name',
                     'business_name',
                     'city',
-                    'phone',
                 ];
 
                 $hasSearchColumn = false;
@@ -1149,16 +1147,6 @@ class UsersController extends Controller
         }
 
         $perPage = in_array($perPage, [10, 20, 25, 50, 100], true) ? $perPage : 20;
-
-        if ($search !== '' || filled($phone) || ($circleId !== '' && $circleId !== 'all') || ($membership && $membership !== 'all')) {
-            Log::info('admin.users.index.filters_applied', [
-                'search' => $search,
-                'phone_filter' => $phone,
-                'circle_id' => $circleId,
-                'membership_status' => $membership,
-                'is_circle_scoped' => $isCircleScoped,
-            ]);
-        }
 
         $filters = [
             'search' => $search,
