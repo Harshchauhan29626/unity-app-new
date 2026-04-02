@@ -46,6 +46,7 @@ use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\AdController;
 use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
+use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
@@ -170,6 +171,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/circle-join-requests/{id}/reject-cd', [CircleJoinRequestAdminController::class, 'rejectCd'])->whereUuid('id');
             Route::post('/circle-join-requests/{id}/approve-id', [CircleJoinRequestAdminController::class, 'approveId'])->whereUuid('id');
             Route::post('/circle-join-requests/{id}/reject-id', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
+            Route::post('/impacts/{impact}/approve', [ImpactAdminController::class, 'approve'])->whereUuid('impact');
+            Route::post('/impacts/{impact}/reject', [ImpactAdminController::class, 'reject'])->whereUuid('impact');
         });
 
         // Circle Chat

@@ -2,6 +2,7 @@
 
 namespace App\Services\Impacts;
 
+use App\Models\AdminUser;
 use App\Models\Impact;
 use App\Models\Notification;
 use App\Models\User;
@@ -38,9 +39,12 @@ class ImpactService
         return $impact;
     }
 
-    public function approveImpact(string $impactId, string $adminId, ?string $reviewRemarks = null): Impact
+    public function approveImpact(Impact|string $impactOrId, User|AdminUser|string $adminOrId, ?string $reviewRemarks = null): Impact
     {
-        return DB::transaction(function () use ($impactId, $adminId, $reviewRemarks) {
+        return DB::transaction(function () use ($impactOrId, $adminOrId, $reviewRemarks) {
+            $impactId = $impactOrId instanceof Impact ? (string) $impactOrId->getKey() : (string) $impactOrId;
+            $adminId = $this->resolveAdminId($adminOrId);
+
             $impact = Impact::query()->with('user')->lockForUpdate()->findOrFail($impactId);
 
             if ($impact->status === 'approved') {
@@ -88,9 +92,12 @@ class ImpactService
         });
     }
 
-    public function rejectImpact(string $impactId, string $adminId, ?string $reviewRemarks = null): Impact
+    public function rejectImpact(Impact|string $impactOrId, User|AdminUser|string $adminOrId, ?string $reviewRemarks = null): Impact
     {
-        return DB::transaction(function () use ($impactId, $adminId, $reviewRemarks) {
+        return DB::transaction(function () use ($impactOrId, $adminOrId, $reviewRemarks) {
+            $impactId = $impactOrId instanceof Impact ? (string) $impactOrId->getKey() : (string) $impactOrId;
+            $adminId = $this->resolveAdminId($adminOrId);
+
             $impact = Impact::query()->lockForUpdate()->findOrFail($impactId);
 
             if ($impact->status === 'rejected') {
@@ -125,6 +132,15 @@ class ImpactService
 
             return $impact;
         });
+    }
+
+    private function resolveAdminId(User|AdminUser|string $adminOrId): string
+    {
+        if ($adminOrId instanceof User || $adminOrId instanceof AdminUser) {
+            return (string) $adminOrId->getKey();
+        }
+
+        return (string) $adminOrId;
     }
 
     private function notify(string $userId, string $type, array $payload): void
