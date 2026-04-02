@@ -51,8 +51,10 @@ use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
 use App\Http\Controllers\Api\V1\FollowController;
 use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
+use App\Http\Controllers\Api\V1\Forms\BecomeMentorController;
 use App\Http\Controllers\Api\V1\Forms\PeerRecommendationController;
 use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
+use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
 use App\Http\Controllers\Api\V1\IndustryController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
@@ -349,6 +351,20 @@ Route::prefix('v1')->group(function () {
         Route::get('/forms/register-visitor/my', [VisitorRegistrationController::class, 'myIndex']);
         Route::get('/forms/visitor-registrations/my', [VisitorRegistrationController::class, 'myIndex']);
 
+        // Website form submissions (read)
+        Route::get('/become-a-mentor', [BecomeMentorController::class, 'index']);
+        Route::get('/become-a-mentor/{id}', [BecomeMentorController::class, 'show'])->whereUuid('id');
+        Route::get('/become-a-speaker', [WebsiteFormsController::class, 'indexBecomeSpeaker']);
+        Route::get('/become-a-speaker/{id}', [WebsiteFormsController::class, 'showBecomeSpeaker'])->whereUuid('id');
+        Route::get('/share-sme-business-story', [WebsiteFormsController::class, 'indexSmeBusinessStory']);
+        Route::get('/share-sme-business-story/{id}', [WebsiteFormsController::class, 'showSmeBusinessStory'])->whereUuid('id');
+        Route::get('/leadership-certification', [WebsiteFormsController::class, 'indexLeadershipCertification']);
+        Route::get('/leadership-certification/{id}', [WebsiteFormsController::class, 'showLeadershipCertification'])->whereUuid('id');
+        Route::get('/entrepreneur-certification', [WebsiteFormsController::class, 'indexEntrepreneurCertification']);
+        Route::get('/entrepreneur-certification/{id}', [WebsiteFormsController::class, 'showEntrepreneurCertification'])->whereUuid('id');
+        Route::get('/partner-with-us', [WebsiteFormsController::class, 'indexPartnerWithUs']);
+        Route::get('/partner-with-us/{id}', [WebsiteFormsController::class, 'showPartnerWithUs'])->whereUuid('id');
+
         Route::get('/zoho/test-token', [ZohoDebugController::class, 'testToken']);
         Route::get('/zoho/org', [ZohoDebugController::class, 'org']);
         Route::post('/billing/checkout', [BillingCheckoutController::class, 'checkout']);
@@ -374,6 +390,12 @@ Route::prefix('v1')->group(function () {
 
     // Feedback (public, user optional)
     Route::post('/feedback', [FeedbackController::class, 'store']);
+    Route::post('/become-a-mentor', [BecomeMentorController::class, 'submit']);
+    Route::post('/become-a-speaker', [WebsiteFormsController::class, 'submitBecomeSpeaker']);
+    Route::post('/share-sme-business-story', [WebsiteFormsController::class, 'submitSmeBusinessStory']);
+    Route::post('/leadership-certification', [WebsiteFormsController::class, 'submitLeadershipCertification']);
+    Route::post('/entrepreneur-certification', [WebsiteFormsController::class, 'submitEntrepreneurCertification']);
+    Route::post('/partner-with-us', [WebsiteFormsController::class, 'submitPartnerWithUs']);
 
     // Ads banners (public)
     Route::get('/ads/banners', [AdsController::class, 'index']);
