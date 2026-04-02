@@ -118,6 +118,7 @@
                 <tbody>
                     @forelse ($posts as $post)
                         @php
+                            $isImpact = ($post->source_type ?? 'post') === 'impact';
                             $owner = $post->user;
                             $circleName = optional($post->circle)->name;
                             $isActive = $post->deleted_at === null;
@@ -164,7 +165,12 @@
                             <td>{{ ucfirst($post->visibility) }}</td>
                             <td>{{ $post->moderation_status ? ucfirst($post->moderation_status) : '—' }}</td>
                             <td>{{ $isActive ? 'Yes' : 'No' }}</td>
-                            <td>{{ \Illuminate\Support\Str::limit($post->content_text, 60) }}</td>
+                            <td>
+                                @if($isImpact)
+                                    <span class="badge bg-info text-dark me-1">Impact</span>
+                                @endif
+                                {{ \Illuminate\Support\Str::limit($post->content_text, 60) }}
+                            </td>
                             <td style="white-space:nowrap;">
                                 @if ($mediaUrl)
                                     <a class="btn btn-sm btn-outline-primary" target="_blank" href="{{ $mediaUrl }}">View</a>
@@ -173,19 +179,23 @@
                                 @endif
                             </td>
                             <td class="text-end" style="white-space:nowrap;">
-                                <a href="{{ route('admin.posts.show', $post) }}" class="btn btn-outline-primary btn-sm">View</a>
+                                @if($isImpact)
+                                    <a href="{{ route('admin.impacts.show', $post->id) }}" class="btn btn-outline-primary btn-sm">View</a>
+                                @else
+                                    <a href="{{ route('admin.posts.show', $post) }}" class="btn btn-outline-primary btn-sm">View</a>
 
-                                <form method="POST"
-                                      action="{{ route('admin.posts.destroy', $post) }}"
-                                      style="display:inline-block; margin-left:6px;">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit"
-                                            class="btn btn-danger btn-sm"
-                                            onclick="return confirm('Are you sure you want to remove this post?')">
-                                        Deactivate
-                                    </button>
-                                </form>
+                                    <form method="POST"
+                                          action="{{ route('admin.posts.destroy', $post) }}"
+                                          style="display:inline-block; margin-left:6px;">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit"
+                                                class="btn btn-danger btn-sm"
+                                                onclick="return confirm('Are you sure you want to remove this post?')">
+                                            Deactivate
+                                        </button>
+                                    </form>
+                                @endif
                             </td>
                         </tr>
                     @empty

@@ -31,6 +31,7 @@ use App\Http\Controllers\Admin\CircularController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\EmailLogController;
+use App\Http\Controllers\Admin\ImpactsController;
 
 Route::get('/', function () {
     return view('landing');
@@ -166,6 +167,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-id', [CircleJoinRequestsController::class, 'approveId'])->whereUuid('id')->name('circle-joining-requests.approve-id');
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-id', [CircleJoinRequestsController::class, 'rejectId'])->whereUuid('id')->name('circle-joining-requests.reject-id');
         Route::get('/email-logs', [EmailLogController::class, 'index'])->name('email-logs.index');
+
+        Route::get('/impacts/pending', [ImpactsController::class, 'pending'])->name('impacts.pending');
+        Route::get('/impacts/posts', [ImpactsController::class, 'posts'])->name('impacts.posts');
+        Route::get('/impacts/{id}', [ImpactsController::class, 'show'])->whereUuid('id')->name('impacts.show');
+        Route::post('/impacts/{id}/approve', [ImpactsController::class, 'approve'])->whereUuid('id')->name('impacts.approve');
+        Route::post('/impacts/{id}/reject', [ImpactsController::class, 'reject'])->whereUuid('id')->name('impacts.reject');
         Route::get('/email-logs/{id}', [EmailLogController::class, 'show'])->name('email-logs.show');
     });
 });

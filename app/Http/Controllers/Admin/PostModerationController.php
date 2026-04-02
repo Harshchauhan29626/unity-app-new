@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Circle;
+use App\Models\Impact;
 use App\Models\Post;
 use App\Support\AdminAccess;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -112,8 +115,110 @@ class PostModerationController extends Controller
             });
         }
 
-        $posts = $query->orderByDesc('posts.created_at')->paginate(25);
-        $posts->appends($request->query());
+        $impactQuery = Impact::query()
+            ->with(['user'])
+            ->where('status', 'approved')
+            ->whereNotNull('timeline_posted_at');
+
+        if ($circleId !== 'all' && filled($circleId)) {
+            $impactQuery->whereRaw('1 = 0');
+        }
+
+        $visibilityFilters = [
+            $filters['visibility'] ?? null,
+            $inlineVisibility !== 'any' ? $inlineVisibility : null,
+        ];
+
+        foreach ($visibilityFilters as $visibilityFilter) {
+            if (filled($visibilityFilter) && $visibilityFilter !== 'public') {
+                $impactQuery->whereRaw('1 = 0');
+            }
+        }
+
+        $moderationFilters = [
+            $filters['moderation_status'] ?? null,
+            $inlineModerationStatus !== 'any' ? $inlineModerationStatus : null,
+        ];
+
+        foreach ($moderationFilters as $moderationFilter) {
+            if (filled($moderationFilter) && $moderationFilter !== 'approved') {
+                $impactQuery->whereRaw('1 = 0');
+            }
+        }
+
+        if (($filters['active'] ?? 'all') === 'deactivated' || $inlineActive === 'no') {
+            $impactQuery->whereRaw('1 = 0');
+        }
+
+        if ($media === 'has') {
+            $impactQuery->whereRaw('1 = 0');
+        }
+
+        if ($filters['search']) {
+            $search = '%' . $filters['search'] . '%';
+            $impactQuery->where(function ($subQuery) use ($search) {
+                $subQuery->where('story_to_share', 'ILIKE', $search)
+                    ->orWhereHas('user', function ($userQuery) use ($search) {
+                        $userQuery->where('display_name', 'ILIKE', $search)
+                            ->orWhere('first_name', 'ILIKE', $search)
+                            ->orWhere('last_name', 'ILIKE', $search)
+                            ->orWhere('company_name', 'ILIKE', $search);
+                    });
+            });
+        }
+
+        if (filled($peer)) {
+            $peerQuery = '%' . $peer . '%';
+            $impactQuery->whereHas('user', function ($userQuery) use ($peerQuery) {
+                $userQuery->where(function ($subQuery) use ($peerQuery) {
+                    $subQuery->where('display_name', 'ILIKE', $peerQuery)
+                        ->orWhere('first_name', 'ILIKE', $peerQuery)
+                        ->orWhere('last_name', 'ILIKE', $peerQuery)
+                        ->orWhere('company_name', 'ILIKE', $peerQuery)
+                        ->orWhere('city', 'ILIKE', $peerQuery);
+                });
+            });
+        }
+
+        $perPage = 25;
+        $page = LengthAwarePaginator::resolveCurrentPage();
+
+        $postRows = (clone $query)->toBase()->selectRaw("posts.id as id, posts.created_at as sort_at, 'post' as source_type");
+        $impactRows = (clone $impactQuery)->toBase()->selectRaw("impacts.id as id, COALESCE(impacts.timeline_posted_at, impacts.approved_at, impacts.created_at) as sort_at, 'impact' as source_type");
+
+        $union = $postRows->unionAll($impactRows);
+        $orderedRows = DB::query()->fromSub($union, 'timeline_rows')->orderByDesc('sort_at');
+
+        $total = (clone $orderedRows)->count();
+        $pageRows = (clone $orderedRows)->forPage($page, $perPage)->get();
+
+        $postIds = $pageRows->where('source_type', 'post')->pluck('id')->values()->all();
+        $impactIds = $pageRows->where('source_type', 'impact')->pluck('id')->values()->all();
+
+        $postsById = Post::query()
+            ->with(['user', 'circle'])
+            ->whereIn('id', $postIds)
+            ->get()
+            ->keyBy(fn (Post $post) => (string) $post->id);
+
+        $impactsById = Impact::query()
+            ->with(['user'])
+            ->whereIn('id', $impactIds)
+            ->get()
+            ->keyBy(fn (Impact $impact) => (string) $impact->id);
+
+        $items = $this->hydrateTimelineRows($pageRows, $postsById, $impactsById);
+
+        $posts = new LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]
+        );
 
         $visibilities = ['public', 'connections', 'private'];
         $moderationOptions = [
@@ -139,6 +244,42 @@ class PostModerationController extends Controller
             'inlineActive' => $inlineActive,
             'media' => $media,
         ]);
+    }
+
+    private function hydrateTimelineRows($pageRows, Collection $postsById, Collection $impactsById): Collection
+    {
+        return collect($pageRows)->map(function ($row) use ($postsById, $impactsById) {
+            if ((string) $row->source_type === 'post') {
+                $post = $postsById->get((string) $row->id);
+
+                if (! $post) {
+                    return null;
+                }
+
+                $post->source_type = 'post';
+
+                return $post;
+            }
+
+            $impact = $impactsById->get((string) $row->id);
+
+            if (! $impact) {
+                return null;
+            }
+
+            return (object) [
+                'id' => (string) $impact->id,
+                'source_type' => 'impact',
+                'user' => $impact->user,
+                'circle' => null,
+                'visibility' => 'public',
+                'moderation_status' => 'approved',
+                'deleted_at' => null,
+                'content_text' => (string) $impact->story_to_share,
+                'media' => [],
+                'created_at' => $impact->timeline_posted_at ?? $impact->approved_at ?? $impact->created_at,
+            ];
+        })->filter()->values();
     }
 
     public function show(string $postId): View

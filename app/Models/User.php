@@ -69,6 +69,7 @@ class User extends Authenticatable
         'turnover_range',
         'introduced_by',
         'members_introduced_count',
+        'life_impacted_count',
         'influencer_stars',
         'target_regions',
         'target_business_categories',
@@ -126,6 +127,7 @@ class User extends Authenticatable
         'social_links' => 'array',
         'coins_balance' => 'integer',
         'is_sponsored_member' => 'boolean',
+        'life_impacted_count' => 'integer',
     ];
 
     public function getAuthPassword()
