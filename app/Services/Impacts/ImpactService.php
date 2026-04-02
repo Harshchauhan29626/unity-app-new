@@ -19,6 +19,7 @@ class ImpactService
             'impact_date' => $data['date'] ?? now()->toDateString(),
             'action' => $data['action'],
             'story_to_share' => $data['story_to_share'],
+            'life_impacted' => max(1, (int) ($data['life_impacted'] ?? 1)),
             'additional_remarks' => $data['additional_remarks'] ?? null,
             'requires_leadership_approval' => (bool) config('impact.requires_leadership_approval', true),
             'status' => 'pending',
@@ -67,7 +68,7 @@ class ImpactService
             User::query()
                 ->where('id', $impact->user_id)
                 ->update([
-                    'life_impacted_count' => DB::raw('COALESCE(life_impacted_count, 0) + 1'),
+                    'life_impacted_count' => DB::raw('COALESCE(life_impacted_count, 0) + ' . max(1, (int) ($impact->life_impacted ?? 1))),
                 ]);
 
             Log::info('impact.approved', [
@@ -79,7 +80,7 @@ class ImpactService
             Log::info('impact.life_impacted_incremented', [
                 'impact_id' => (string) $impact->id,
                 'user_id' => (string) $impact->user_id,
-                'incremented_by' => 1,
+                'incremented_by' => max(1, (int) ($impact->life_impacted ?? 1)),
             ]);
 
             $this->notify((string) $impact->user_id, 'impact_approved', [

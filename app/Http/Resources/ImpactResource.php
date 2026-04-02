@@ -15,6 +15,7 @@ class ImpactResource extends JsonResource
             'impacted_peer_id' => (string) $this->impacted_peer_id,
             'date' => optional($this->impact_date)?->toDateString(),
             'action' => (string) $this->action,
+            'life_impacted' => (int) ($this->life_impacted ?? 1),
             'story_to_share' => (string) $this->story_to_share,
             'additional_remarks' => $this->additional_remarks,
             'requires_leadership_approval' => (bool) $this->requires_leadership_approval,

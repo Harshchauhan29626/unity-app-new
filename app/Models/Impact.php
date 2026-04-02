@@ -24,6 +24,7 @@ class Impact extends Model
         'impact_date',
         'action',
         'story_to_share',
+        'life_impacted',
         'additional_remarks',
         'requires_leadership_approval',
         'status',
@@ -41,6 +42,7 @@ class Impact extends Model
         'rejected_at' => 'datetime',
         'timeline_posted_at' => 'datetime',
         'requires_leadership_approval' => 'boolean',
+        'life_impacted' => 'integer',
     ];
 
     public function user(): BelongsTo
