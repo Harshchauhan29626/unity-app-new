@@ -53,6 +53,12 @@ class ImpactService
 
             $impact = Impact::query()->with('user')->lockForUpdate()->findOrFail($impactId);
 
+            Log::info('impact.approve.started', [
+                'impact_id' => (string) $impact->id,
+                'old_status' => (string) $impact->status,
+                'admin_id' => $adminId,
+            ]);
+
             if ($impact->status === 'approved') {
                 return $impact;
             }
@@ -69,6 +75,14 @@ class ImpactService
             $impact->rejected_at = null;
             $impact->review_remarks = $reviewRemarks;
             $impact->save();
+
+            Log::info('impact.approve.saved', [
+                'impact_id' => (string) $impact->id,
+                'status' => (string) $impact->status,
+                'approved_by' => (string) $impact->approved_by,
+                'approved_at' => optional($impact->approved_at)->toISOString(),
+                'timeline_posted_at' => optional($impact->timeline_posted_at)->toISOString(),
+            ]);
 
             $incrementBy = max(1, (int) ($impact->life_impacted ?? 1));
 
@@ -90,8 +104,23 @@ class ImpactService
 
             $impact = $impact->fresh(['user', 'impactedPeer']);
 
-            $this->notificationService->sendApproved($impact);
-            $this->emailService->sendApproved($impact);
+            DB::afterCommit(function () use ($impact): void {
+                try {
+                    $this->notificationService->sendApproved($impact);
+                    $this->emailService->sendApproved($impact);
+                } catch (\Throwable $exception) {
+                    Log::error('impact.approve.side_effect_failed', [
+                        'impact_id' => (string) $impact->id,
+                        'user_id' => (string) $impact->user_id,
+                        'error' => $exception->getMessage(),
+                    ]);
+                }
+            });
+
+            Log::info('impact.approve.completed', [
+                'impact_id' => (string) $impact->id,
+                'final_status' => (string) $impact->status,
+            ]);
 
             return $impact;
         });
