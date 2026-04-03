@@ -18,6 +18,7 @@
                 ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                 ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                 ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
+                ['icon' => 'bi-lightning-charge', 'label' => 'Impact', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
             ] : []),
         ]
         : [
@@ -31,6 +32,7 @@
                 ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                 ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                 ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
+                ['icon' => 'bi-lightning-charge', 'label' => 'Impact', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
             ] : []),
             ['icon' => 'bi-wallet2', 'label' => 'Wallet & Finance', 'route' => '#'],
             ['icon' => 'bi-chat-dots', 'label' => 'Posts & Moderation', 'route' => '#'],
@@ -68,8 +70,9 @@
         ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
         ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
         ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
+        ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
     ];
-    $pendingRequestsActive = request()->routeIs('admin.visitor-registrations.*') || request()->routeIs('admin.coin-claims.*') || request()->routeIs('admin.circle-joining-requests.*');
+    $pendingRequestsActive = request()->routeIs('admin.visitor-registrations.*') || request()->routeIs('admin.coin-claims.*') || request()->routeIs('admin.circle-joining-requests.*') || request()->routeIs('admin.impacts.pending');
 @endphp
 <aside class="admin-sidebar d-flex flex-column">
     <div class="text-center mb-2">

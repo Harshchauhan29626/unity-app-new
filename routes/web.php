@@ -168,6 +168,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-id', [CircleJoinRequestsController::class, 'rejectId'])->whereUuid('id')->name('circle-joining-requests.reject-id');
         Route::get('/email-logs', [EmailLogController::class, 'index'])->name('email-logs.index');
 
+        Route::get('/impacts', [ImpactsController::class, 'index'])->name('impacts.index');
+        Route::post('/impacts', [ImpactsController::class, 'store'])->name('impacts.store');
         Route::get('/impacts/pending', [ImpactsController::class, 'pending'])->name('impacts.pending');
         Route::get('/impacts/posts', [ImpactsController::class, 'posts'])->name('impacts.posts');
         Route::get('/impacts/{id}', [ImpactsController::class, 'show'])->whereUuid('id')->name('impacts.show');
