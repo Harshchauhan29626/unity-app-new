@@ -93,7 +93,7 @@ class PostController extends BaseApiController
 
         $authors = User::query()
             ->whereIn('id', $authorIds)
-            ->get(['id', 'display_name', 'first_name', 'last_name', 'profile_photo_url'])
+            ->get(['id', 'display_name', 'first_name', 'last_name', 'profile_photo_file_id', 'profile_photo_id', 'profile_photo_url'])
             ->keyBy(fn (User $author) => (string) $author->id);
 
         $circles = Circle::query()
@@ -123,7 +123,9 @@ class PostController extends BaseApiController
                     'display_name' => $author->display_name,
                     'first_name' => $author->first_name,
                     'last_name' => $author->last_name,
-                    'profile_photo_url' => $author->profile_photo_url,
+                    'profile_photo_url' => ($author->profile_photo_file_id ?? $author->profile_photo_id)
+                        ? url('/api/v1/files/' . ($author->profile_photo_file_id ?? $author->profile_photo_id))
+                        : null,
                 ] : null,
                 'circle' => $circle ? [
                     'id' => (string) $circle->id,
