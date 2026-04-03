@@ -165,7 +165,6 @@
                         <th class="text-end">
                             <div class="d-inline-flex align-items-center gap-2">
                                 <span>Actions</span>
-                                <button type="button" class="btn btn-sm btn-primary" disabled>Import</button>
                                 <a href="{{ route('admin.impacts.export.csv', request()->query()) }}" class="btn btn-sm btn-outline-secondary">Export CSV</a>
                             </div>
                         </th>
