@@ -140,7 +140,7 @@ class ImpactsController extends Controller
             ->findOrFail($id);
 
         $totalLifeImpacted = (int) Impact::query()
-            ->where('impacted_peer_id', (string) $impact->impacted_peer_id)
+            ->where('user_id', (string) $impact->user_id)
             ->where('status', 'approved')
             ->sum(\Illuminate\Support\Facades\DB::raw('COALESCE(life_impacted, 1)'));
 
