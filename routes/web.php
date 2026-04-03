@@ -32,6 +32,7 @@ use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\EmailLogController;
 use App\Http\Controllers\Admin\ImpactsController;
+use App\Http\Controllers\Admin\LeadSubmissionsController;
 
 Route::get('/', function () {
     return view('landing');
@@ -166,6 +167,17 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-cd', [CircleJoinRequestsController::class, 'rejectCd'])->whereUuid('id')->name('circle-joining-requests.reject-cd');
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-id', [CircleJoinRequestsController::class, 'approveId'])->whereUuid('id')->name('circle-joining-requests.approve-id');
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-id', [CircleJoinRequestsController::class, 'rejectId'])->whereUuid('id')->name('circle-joining-requests.reject-id');
+
+        Route::get('/pending-requests/leads/entrepreneur-certification', [LeadSubmissionsController::class, 'entrepreneurCertification'])->name('leads.entrepreneur-certification.index');
+        Route::get('/pending-requests/leads/entrepreneur-certification/{id}', [LeadSubmissionsController::class, 'entrepreneurCertificationShow'])->name('leads.entrepreneur-certification.show');
+        Route::get('/pending-requests/leads/leadership-certification', [LeadSubmissionsController::class, 'leadershipCertification'])->name('leads.leadership-certification.index');
+        Route::get('/pending-requests/leads/leadership-certification/{id}', [LeadSubmissionsController::class, 'leadershipCertificationShow'])->name('leads.leadership-certification.show');
+        Route::get('/pending-requests/leads/partner-with-us', [LeadSubmissionsController::class, 'partnerWithUs'])->name('leads.partner-with-us.index');
+        Route::get('/pending-requests/leads/partner-with-us/{id}', [LeadSubmissionsController::class, 'partnerWithUsShow'])->name('leads.partner-with-us.show');
+        Route::get('/pending-requests/leads/become-speaker', [LeadSubmissionsController::class, 'becomeSpeaker'])->name('leads.become-speaker.index');
+        Route::get('/pending-requests/leads/become-speaker/{id}', [LeadSubmissionsController::class, 'becomeSpeakerShow'])->name('leads.become-speaker.show');
+        Route::get('/pending-requests/leads/become-mentor', [LeadSubmissionsController::class, 'becomeMentor'])->name('leads.become-mentor.index');
+        Route::get('/pending-requests/leads/become-mentor/{id}', [LeadSubmissionsController::class, 'becomeMentorShow'])->name('leads.become-mentor.show');
         Route::get('/email-logs', [EmailLogController::class, 'index'])->name('email-logs.index');
 
         Route::get('/impacts/pending', [ImpactsController::class, 'pending'])->name('impacts.pending');
