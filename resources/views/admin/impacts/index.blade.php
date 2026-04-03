@@ -73,7 +73,7 @@
                     </thead>
                     <tbody>
                     @forelse($impactActionItems as $actionItem)
-                        <tr>
+                        <tr class="impact-action-row" data-action-index="{{ $loop->index }}">
                             <td>{{ $actionItem->name }}</td>
                             <td>
                                 <span class="badge {{ $actionItem->is_active ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle' }}">
@@ -89,6 +89,14 @@
                     </tbody>
                 </table>
             </div>
+
+            @if($impactActionItems->count() > 6)
+                <div class="mt-3">
+                    <button type="button" id="impactActionsViewMoreBtn" class="btn btn-outline-secondary btn-sm">
+                        View More
+                    </button>
+                </div>
+            @endif
         </div>
     </div>
 
@@ -210,3 +218,43 @@
 
     <div class="mt-3">{{ $impacts->links() }}</div>
 @endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const rows = Array.from(document.querySelectorAll('.impact-action-row'));
+            const button = document.getElementById('impactActionsViewMoreBtn');
+
+            if (!button || rows.length <= 6) {
+                return;
+            }
+
+            let visibleLimit = 6;
+
+            const render = () => {
+                rows.forEach((row, index) => {
+                    row.style.display = index < visibleLimit ? '' : 'none';
+                });
+
+                if (visibleLimit >= rows.length) {
+                    button.style.display = 'none';
+                    return;
+                }
+
+                button.textContent = visibleLimit >= 12 ? 'View All' : 'View More';
+            };
+
+            button.addEventListener('click', () => {
+                if (visibleLimit < 12) {
+                    visibleLimit = 12;
+                } else {
+                    visibleLimit = rows.length;
+                }
+
+                render();
+            });
+
+            render();
+        });
+    </script>
+@endpush
