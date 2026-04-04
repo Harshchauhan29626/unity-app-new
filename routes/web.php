@@ -141,6 +141,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/ads/{ad}', [AdController::class, 'destroy'])->name('ads.destroy');
         Route::get('/posts', [PostModerationController::class, 'index'])->name('posts.index');
         Route::get('/posts/{post}', [PostModerationController::class, 'show'])->name('posts.show');
+        Route::post('/posts/impacts/{impact}/deactivate', [PostModerationController::class, 'deactivateImpact'])->whereUuid('impact')->name('posts.impacts.deactivate');
         Route::get('/post-reports', [PostReportsController::class, 'index'])->name('post-reports.index');
         Route::get('/post-reports/{report}', [PostReportsController::class, 'show'])->name('post-reports.show');
         Route::post('/post-reports/{report}/mark-reviewed', [PostReportsController::class, 'markReviewed'])->name('post-reports.mark-reviewed');
@@ -168,6 +169,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-id', [CircleJoinRequestsController::class, 'rejectId'])->whereUuid('id')->name('circle-joining-requests.reject-id');
         Route::get('/email-logs', [EmailLogController::class, 'index'])->name('email-logs.index');
 
+        Route::get('/impacts', [ImpactsController::class, 'index'])->name('impacts.index');
+        Route::get('/impacts/export/csv', [ImpactsController::class, 'exportCsv'])->name('impacts.export.csv');
+        Route::post('/impacts', [ImpactsController::class, 'store'])->name('impacts.store');
+        Route::post('/impacts/actions', [ImpactsController::class, 'storeAction'])->name('impacts.actions.store');
         Route::get('/impacts/pending', [ImpactsController::class, 'pending'])->name('impacts.pending');
         Route::get('/impacts/posts', [ImpactsController::class, 'posts'])->name('impacts.posts');
         Route::get('/impacts/{id}', [ImpactsController::class, 'show'])->whereUuid('id')->name('impacts.show');

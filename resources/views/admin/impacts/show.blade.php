@@ -13,6 +13,7 @@
         <p><strong>Story:</strong> {{ $impact->story_to_share }}</p>
         <p><strong>Additional Remarks:</strong> {{ $impact->additional_remarks ?: '-' }}</p>
         <p><strong>Status:</strong> {{ $impact->status }}</p>
+        <p><strong>Total Life Impacted:</strong> {{ (int) ($total_life_impacted ?? 0) }}</p>
     </div>
 
     @if($impact->status === 'pending')

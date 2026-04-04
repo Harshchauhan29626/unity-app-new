@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class PostModerationController extends Controller
@@ -33,7 +34,7 @@ class PostModerationController extends Controller
         $circleId = $request->query('circle_id', 'all');
 
         $filters = [
-            'active' => $request->input('active', 'all'),
+            'active' => $request->input('active', 'active'),
             'visibility' => $request->input('visibility'),
             'moderation_status' => $request->input('moderation_status'),
             'search' => $request->input('search'),
@@ -115,10 +116,22 @@ class PostModerationController extends Controller
             });
         }
 
+        if (($filters['active'] ?? 'active') === 'deactivated' || $inlineActive === 'no') {
+            $query->where(function ($subQuery) {
+                $subQuery->whereNotNull('posts.deleted_at')
+                    ->orWhere('posts.is_deleted', true);
+            });
+        } else {
+            $query->whereNull('posts.deleted_at')
+                ->where(function ($subQuery) {
+                    $subQuery->where('posts.is_deleted', false)
+                        ->orWhereNull('posts.is_deleted');
+                });
+        }
+
         $impactQuery = Impact::query()
             ->with(['user'])
-            ->where('status', 'approved')
-            ->whereNotNull('timeline_posted_at');
+            ->where('status', 'approved');
 
         if ($circleId !== 'all' && filled($circleId)) {
             $impactQuery->whereRaw('1 = 0');
@@ -147,7 +160,9 @@ class PostModerationController extends Controller
         }
 
         if (($filters['active'] ?? 'all') === 'deactivated' || $inlineActive === 'no') {
-            $impactQuery->whereRaw('1 = 0');
+            $impactQuery->whereNull('timeline_posted_at');
+        } else {
+            $impactQuery->whereNotNull('timeline_posted_at');
         }
 
         if ($media === 'has') {
@@ -277,6 +292,7 @@ class PostModerationController extends Controller
                 'deleted_at' => null,
                 'content_text' => (string) $impact->story_to_share,
                 'media' => [],
+                'timeline_posted_at' => $impact->timeline_posted_at,
                 'created_at' => $impact->timeline_posted_at ?? $impact->approved_at ?? $impact->created_at,
             ];
         })->filter()->values();
@@ -316,7 +332,33 @@ class PostModerationController extends Controller
 
     public function deactivate(Post $post): RedirectResponse
     {
-        return $this->destroy($post);
+        $this->ensureGlobalAdmin();
+
+        DB::transaction(function () use ($post): void {
+            if (Schema::hasColumn('posts', 'is_active')) {
+                $post->setAttribute('is_active', false);
+            }
+
+            if (array_key_exists('is_deleted', $post->getAttributes())) {
+                $post->is_deleted = true;
+            }
+
+            $post->save();
+        });
+
+        return redirect()->back()->with('success', 'Post deactivated successfully.');
+    }
+
+    public function deactivateImpact(string $impactId): RedirectResponse
+    {
+        $this->ensureGlobalAdmin();
+
+        $impact = Impact::query()->findOrFail($impactId);
+
+        $impact->timeline_posted_at = null;
+        $impact->save();
+
+        return redirect()->back()->with('success', 'Item deactivated successfully.');
     }
 
 

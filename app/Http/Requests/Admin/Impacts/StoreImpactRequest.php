@@ -1,17 +1,17 @@
 <?php
 
-namespace App\Http\Requests\Impacts;
+namespace App\Http\Requests\Admin\Impacts;
 
 use App\Models\Impact;
-use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreImpactRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user() !== null;
+        return $this->user('admin') !== null;
     }
 
     protected function prepareForValidation(): void
@@ -28,28 +28,18 @@ class StoreImpactRequest extends FormRequest
         return [
             'date' => ['required', 'date'],
             'action' => ['required', 'string', Rule::in($actions)],
-            'life_impacted' => ['nullable', 'integer', 'min:1', 'max:100'],
             'impacted_peer_id' => ['required', 'uuid', 'exists:users,id'],
             'story_to_share' => ['required', 'string', 'max:5000'],
             'additional_remarks' => ['nullable', 'string', 'max:2000'],
         ];
     }
 
-    public function withValidator($validator): void
+    public function withValidator(Validator $validator): void
     {
-        $validator->after(function ($validator): void {
-            if ((string) $this->user()?->id === (string) $this->input('impacted_peer_id')) {
-                $validator->errors()->add('impacted_peer_id', 'You cannot submit impact for yourself.');
+        $validator->after(function (Validator $validator): void {
+            if ((string) $this->input('impacted_peer_id') === (string) $this->user('admin')?->getAuthIdentifier()) {
+                $validator->errors()->add('impacted_peer_id', 'You cannot create an impact for yourself.');
             }
         });
-    }
-
-    protected function failedValidation(ValidatorContract $validator): void
-    {
-        throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
-            'success' => false,
-            'message' => 'Validation failed.',
-            'errors' => $validator->errors(),
-        ], 422));
     }
 }

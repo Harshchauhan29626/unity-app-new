@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Services\Impacts\ImpactActionService;
 
 class Impact extends Model
 {
@@ -44,6 +45,11 @@ class Impact extends Model
         'requires_leadership_approval' => 'boolean',
         'life_impacted' => 'integer',
     ];
+
+    public static function availableActions(): array
+    {
+        return app(ImpactActionService::class)->availableActions();
+    }
 
     public function user(): BelongsTo
     {

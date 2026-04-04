@@ -20,7 +20,7 @@ class ImpactController extends BaseApiController
     public function actions(): JsonResponse
     {
         return $this->success([
-            'actions' => array_values((array) config('impact.actions', [])),
+            'actions' => Impact::availableActions(),
             'requires_leadership_approval' => (bool) config('impact.requires_leadership_approval', true),
         ]);
     }
