@@ -2,7 +2,7 @@
 
 use App\Http\Middleware\AdminCircleScope;
 use App\Http\Middleware\AdminRoleMiddleware;
-use App\Http\Middleware\AllowFixedApiToken;
+use App\Http\Middleware\AllowFixedMembersToken;
 use App\Http\Middleware\EnsureAdminAuthenticated;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -24,7 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.auth' => EnsureAdminAuthenticated::class,
             'admin.role' => AdminRoleMiddleware::class,
             'admin.circle' => AdminCircleScope::class,
-            'fixed.api.token' => AllowFixedApiToken::class,
+            'fixed.members.token' => AllowFixedMembersToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

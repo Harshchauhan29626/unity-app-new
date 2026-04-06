@@ -7,7 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class AllowFixedApiToken
+class AllowFixedMembersToken
 {
     public function handle(Request $request, Closure $next): Response
     {
@@ -19,7 +19,7 @@ class AllowFixedApiToken
 
         $providedToken = substr($authorization, 7);
         $fixedToken = (string) config(
-            'services.members_list.fixed_token',
+            'services.members_with_circles.fixed_token',
             '302|cO0VMR2dmr9j8c3JtIU9dfkuZfSfvzaCCF1GVxJAdc6fdd2d'
         );
 
