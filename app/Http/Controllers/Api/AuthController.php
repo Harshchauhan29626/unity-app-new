@@ -6,6 +6,8 @@ use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
+use App\Mail\WelcomePeerMail;
+use App\Models\EmailLog;
 use App\Models\OtpCode;
 use App\Models\ReferralData;
 use App\Models\User;
@@ -96,6 +98,8 @@ class AuthController extends BaseApiController
             'email' => (string) $persistedUser->email,
         ]);
 
+        $this->sendWelcomePeerEmail($persistedUser);
+
         $token = $persistedUser->createToken('auth_token')->plainTextToken;
 
         Log::info('auth.register.before_response', [
@@ -162,6 +166,54 @@ class AuthController extends BaseApiController
             'referred_user_id' => (string) $user->id,
             'referral_code' => $referralCode,
         ]);
+    }
+
+
+    private function sendWelcomePeerEmail(User $user): void
+    {
+        if (EmailLog::query()
+            ->where('user_id', (string) $user->id)
+            ->where('template_key', 'welcome_peer')
+            ->exists()) {
+            return;
+        }
+
+        $mailable = new WelcomePeerMail($user);
+
+        try {
+            Mail::to($user->email)->send($mailable);
+
+            app(EmailLogService::class)->logMailableSent($mailable, [
+                'user_id' => (string) $user->id,
+                'to_email' => (string) $user->email,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'template_key' => 'welcome_peer',
+                'source_module' => 'auth',
+                'related_type' => 'user',
+                'related_id' => (string) $user->id,
+                'payload' => [
+                    'flow' => 'registration',
+                ],
+            ]);
+        } catch (\Throwable $exception) {
+            app(EmailLogService::class)->logMailableFailed($mailable, [
+                'user_id' => (string) $user->id,
+                'to_email' => (string) $user->email,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'template_key' => 'welcome_peer',
+                'source_module' => 'auth',
+                'related_type' => 'user',
+                'related_id' => (string) $user->id,
+                'payload' => [
+                    'flow' => 'registration',
+                ],
+            ], $exception);
+
+            Log::warning('auth.register.welcome_email_failed', [
+                'user_id' => (string) $user->id,
+                'message' => $exception->getMessage(),
+            ]);
+        }
     }
 
     private function createRegisteredUser(array $data): User

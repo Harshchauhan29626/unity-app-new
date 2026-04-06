@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Api\V1\Billing;
 
 use App\Http\Controllers\Controller;
+use App\Mail\MembershipPurchaseCongratulationsMail;
 use App\Models\CircleSubscription;
 use App\Models\CircleJoinRequest;
+use App\Models\EmailLog;
 use App\Models\User;
 use App\Services\Billing\MembershipSyncService;
+use App\Services\EmailLogs\EmailLogService;
 use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Services\Circles\PaidCircleMembershipFinalizer;
 use App\Support\Zoho\ZohoBillingService;
@@ -14,6 +17,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -80,10 +84,12 @@ class ZohoBillingWebhookController extends Controller
                 $invoice = ($invoiceList['invoices'][0] ?? []);
             }
 
-            $this->membershipSyncService->syncUserMembershipFromZoho($user, [
+            $syncedUser = $this->membershipSyncService->syncUserMembershipFromZoho($user, [
                 'subscription' => $subscription,
                 'invoice' => $invoice,
             ]);
+
+            $this->sendMembershipPurchaseCongratulationsEmail($syncedUser);
 
             return response()->json(['success' => true]);
         } catch (Throwable $throwable) {
@@ -95,6 +101,60 @@ class ZohoBillingWebhookController extends Controller
             ]);
 
             return response()->json(['success' => false, 'message' => 'Webhook sync failed'], 500);
+        }
+    }
+
+
+    private function sendMembershipPurchaseCongratulationsEmail(User $user): void
+    {
+        if ((string) ($user->membership_status ?? '') !== 'active') {
+            return;
+        }
+
+        if (EmailLog::query()
+            ->where('user_id', (string) $user->id)
+            ->where('template_key', 'membership_purchase_congratulations')
+            ->exists()) {
+            return;
+        }
+
+        $mailable = new MembershipPurchaseCongratulationsMail($user);
+
+        try {
+            Mail::to($user->email)->send($mailable);
+
+            app(EmailLogService::class)->logMailableSent($mailable, [
+                'user_id' => (string) $user->id,
+                'to_email' => (string) $user->email,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'template_key' => 'membership_purchase_congratulations',
+                'source_module' => 'billing',
+                'related_type' => 'user',
+                'related_id' => (string) $user->id,
+                'payload' => [
+                    'flow' => 'zoho_membership_webhook',
+                    'membership_status' => (string) ($user->membership_status ?? ''),
+                ],
+            ]);
+        } catch (Throwable $exception) {
+            app(EmailLogService::class)->logMailableFailed($mailable, [
+                'user_id' => (string) $user->id,
+                'to_email' => (string) $user->email,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'template_key' => 'membership_purchase_congratulations',
+                'source_module' => 'billing',
+                'related_type' => 'user',
+                'related_id' => (string) $user->id,
+                'payload' => [
+                    'flow' => 'zoho_membership_webhook',
+                    'membership_status' => (string) ($user->membership_status ?? ''),
+                ],
+            ], $exception);
+
+            Log::warning('billing.membership_purchase_congratulations_email_failed', [
+                'user_id' => (string) $user->id,
+                'message' => $exception->getMessage(),
+            ]);
         }
     }
 
