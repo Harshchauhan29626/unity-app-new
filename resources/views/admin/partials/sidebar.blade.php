@@ -66,14 +66,29 @@
     ] : [];
     $postsActive = request()->routeIs('admin.posts.*') || request()->routeIs('admin.post-reports.*');
 
+    $leadsMenu = [
+        ['label' => 'Entrepreneur Certification', 'route' => 'admin.leads.entrepreneur-certification.index'],
+        ['label' => 'Leadership Certification', 'route' => 'admin.leads.leadership-certification.index'],
+        ['label' => 'Partner With Us', 'route' => 'admin.leads.partner-with-us.index'],
+        ['label' => 'Become Speaker', 'route' => 'admin.leads.become-speaker.index'],
+        ['label' => 'Become Mentor', 'route' => 'admin.leads.become-mentor.index'],
+    ];
+
     $pendingRequestsMenu = [
         ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
         ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
         ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
         ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
     ];
-    $pendingRequestsActive = request()->routeIs('admin.visitor-registrations.*') || request()->routeIs('admin.coin-claims.*') || request()->routeIs('admin.circle-joining-requests.*') || request()->routeIs('admin.impacts.pending');
+
+    $leadsActive = request()->routeIs('admin.leads.*');
+    $pendingRequestsActive =
+        request()->routeIs('admin.visitor-registrations.*') ||
+        request()->routeIs('admin.coin-claims.*') ||
+        request()->routeIs('admin.circle-joining-requests.*') ||
+        request()->routeIs('admin.impacts.pending');
 @endphp
+
 <aside class="admin-sidebar d-flex flex-column">
     <div class="text-center mb-2">
         <a href="{{ route('admin.users.index') }}" class="d-inline-block">
@@ -86,6 +101,7 @@
             />
         </a>
     </div>
+
     <nav class="flex-grow-1">
         <ul class="nav flex-column">
             @if ($dashboardItem)
@@ -95,6 +111,7 @@
                     </a>
                 </li>
             @endif
+
             @if ($activityMenu)
                 <li class="nav-item menu-parent {{ $activityExpanded ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $activityExpanded ? 'active' : '' }}" data-bs-toggle="collapse" href="#activitiesSubmenu" role="button" aria-expanded="{{ $activityExpanded ? 'true' : 'false' }}" aria-controls="activitiesSubmenu">
@@ -114,6 +131,7 @@
                     </div>
                 </li>
             @endif
+
             @if ($postsMenu)
                 <li class="nav-item menu-parent {{ $postsActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $postsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#postsSubmenu" role="button" aria-expanded="{{ $postsActive ? 'true' : 'false' }}" aria-controls="postsSubmenu">
@@ -133,6 +151,7 @@
                     </div>
                 </li>
             @endif
+
             <li class="nav-item menu-parent {{ $pendingRequestsActive ? 'open' : '' }}">
                 <a class="nav-link d-flex justify-content-between align-items-center {{ $pendingRequestsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#pendingRequestsSubmenu" role="button" aria-expanded="{{ $pendingRequestsActive ? 'true' : 'false' }}" aria-controls="pendingRequestsSubmenu">
                     <span><i class="bi bi-hourglass-split me-2"></i>Pending Requests</span>
@@ -150,6 +169,25 @@
                     </ul>
                 </div>
             </li>
+
+            <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
+                <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
+                    <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>
+                    <i class="bi bi-chevron-right menu-arrow"></i>
+                </a>
+                <div class="collapse {{ $leadsActive ? 'show' : '' }}" id="leadsSubmenu">
+                    <ul class="nav flex-column ms-3">
+                        @foreach ($leadsMenu as $item)
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                    {{ $item['label'] }}
+                                </a>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            </li>
+
             @foreach ($navItems as $item)
                 <li class="nav-item">
                     @if ($item['route'] === '#')
@@ -165,10 +203,13 @@
             @endforeach
         </ul>
     </nav>
+
     <div class="sidebar-footer">
         <form method="POST" action="{{ route('admin.logout') }}">
             @csrf
-            <button class="btn btn-outline-secondary w-100"><i class="bi bi-box-arrow-right me-2"></i>Logout</button>
+            <button class="btn btn-outline-secondary w-100">
+                <i class="bi bi-box-arrow-right me-2"></i>Logout
+            </button>
         </form>
     </div>
 </aside>
@@ -176,7 +217,7 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            ['activitiesSubmenu', 'postsSubmenu', 'pendingRequestsSubmenu'].forEach((submenuId) => {
+            ['activitiesSubmenu', 'postsSubmenu', 'pendingRequestsSubmenu', 'leadsSubmenu'].forEach((submenuId) => {
                 const submenu = document.getElementById(submenuId);
                 if (!submenu) {
                     return;
