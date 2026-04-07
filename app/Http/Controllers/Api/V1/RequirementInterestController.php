@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Requirements\InterestRequirementRequest;
 use App\Models\Requirement;
 use App\Models\RequirementInterest;
+use App\Services\Blocks\PeerBlockService;
 use App\Services\Requirements\RequirementNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -13,12 +14,27 @@ use Throwable;
 
 class RequirementInterestController extends Controller
 {
-    public function __construct(private readonly RequirementNotificationService $requirementNotificationService)
+    public function __construct(private readonly RequirementNotificationService $requirementNotificationService,
+        private readonly PeerBlockService $peerBlockService)
     {
     }
 
     public function store(InterestRequirementRequest $request, Requirement $requirement): JsonResponse
     {
+
+        $requirement->loadMissing('user');
+        $ownerId = (string) data_get($requirement, 'user.id');
+        $authId = (string) $request->user()->id;
+
+        if ($ownerId !== '' && $ownerId !== $authId && $this->peerBlockService->isBlockedEitherWay($authId, $ownerId)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'You cannot interact with this peer.',
+                'data' => null,
+                'meta' => null,
+            ], 422);
+        }
+
         if ($requirement->status !== 'open') {
             return response()->json([
                 'status' => false,
@@ -38,8 +54,6 @@ class RequirementInterestController extends Controller
                 'comment' => $request->input('comment'),
             ]
         );
-
-        $requirement->loadMissing('user');
 
         try {
             $this->requirementNotificationService->notifyRequirementInterest(

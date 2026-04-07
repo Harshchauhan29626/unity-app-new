@@ -9,6 +9,7 @@ use App\Http\Requests\Api\GenerateReferralCodeRequest;
 use App\Http\Resources\ReferralMemberResource;
 use App\Models\Referral;
 use App\Models\User;
+use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
 use App\Services\Referrals\ReferralService;
@@ -150,9 +151,14 @@ class ReferralController extends BaseApiController
         ]);
     }
 
-    public function store(StoreReferralRequest $request, NotifyUserService $notifyUserService)
+    public function store(StoreReferralRequest $request, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
         $authUser = $request->user();
+        $targetUserId = (string) $request->input('to_user_id');
+
+        if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, $targetUserId)) {
+            return $this->error('You cannot interact with this peer.', 422);
+        }
 
         try {
             $referral = Referral::create([

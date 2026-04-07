@@ -8,6 +8,7 @@ use App\Events\ActivityCreated;
 use App\Models\Post;
 use App\Models\Testimonial;
 use App\Models\User;
+use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
@@ -106,9 +107,14 @@ class TestimonialController extends BaseApiController
         ]);
     }
 
-    public function store(StoreTestimonialRequest $request, NotifyUserService $notifyUserService)
+    public function store(StoreTestimonialRequest $request, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
         $authUser = $request->user();
+        $targetUserId = (string) $request->input('to_user_id');
+
+        if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, $targetUserId)) {
+            return $this->error('You cannot interact with this peer.', 422);
+        }
 
         $media = null;
         if ($request->filled('media_id')) {

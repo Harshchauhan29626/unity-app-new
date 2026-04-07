@@ -8,6 +8,7 @@ use App\Models\P2pMeeting;
 use App\Models\Post;
 use App\Models\User;
 use App\Events\ActivityCreated;
+use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
@@ -83,9 +84,14 @@ class P2pMeetingController extends BaseApiController
         ]);
     }
 
-    public function store(StoreP2pMeetingRequest $request, NotifyUserService $notifyUserService)
+    public function store(StoreP2pMeetingRequest $request, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
         $authUser = $request->user();
+        $targetUserId = (string) $request->input('peer_user_id');
+
+        if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, $targetUserId)) {
+            return $this->error('You cannot interact with this peer.', 422);
+        }
 
         try {
             $meeting = P2pMeeting::create([

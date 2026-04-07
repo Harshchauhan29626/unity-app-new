@@ -7,12 +7,13 @@ use App\Http\Resources\MemberDetailResource;
 use App\Http\Resources\UserResource;
 use App\Models\Connection;
 use App\Models\User;
+use App\Services\Blocks\PeerBlockService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
 
 class MemberController extends BaseApiController
 {
-    public function index(Request $request)
+    public function index(Request $request, PeerBlockService $peerBlockService)
     {
         $query = User::query()
             ->select([
@@ -39,6 +40,16 @@ class MemberController extends BaseApiController
         $query->where(function ($statusQuery) {
             $statusQuery->whereNull('status')->orWhere('status', 'active');
         });
+
+
+        $excludedUserIds = array_values(array_unique(array_filter(array_merge(
+            $peerBlockService->blockedUserIdsFor((string) $request->user()->id),
+            $peerBlockService->usersWhoBlockedMeIdsFor((string) $request->user()->id)
+        ))));
+
+        if (! empty($excludedUserIds)) {
+            $query->whereNotIn('id', $excludedUserIds);
+        }
 
         if ($search = trim((string) $request->input('q', ''))) {
             $query->whereRaw(
@@ -84,24 +95,31 @@ class MemberController extends BaseApiController
         return $this->success($data);
     }
 
-    public function names()
+    public function names(Request $request, PeerBlockService $peerBlockService)
     {
         $members = User::query()
             ->select('id', 'display_name')
             ->whereNull('deleted_at')
             ->where(function ($statusQuery) {
                 $statusQuery->whereNull('status')->orWhere('status', 'active');
-            })
-            ->orderBy('display_name', 'asc')
-            ->get();
+            });
+
+        $excludedUserIds = array_values(array_unique(array_filter(array_merge(
+            $peerBlockService->blockedUserIdsFor((string) $request->user()->id),
+            $peerBlockService->usersWhoBlockedMeIdsFor((string) $request->user()->id)
+        ))));
+
+        if (! empty($excludedUserIds)) {
+            $members->whereNotIn('id', $excludedUserIds);
+        }
 
         return $this->success(
-            $members,
+            $members->orderBy('display_name', 'asc')->get(),
             'Member names fetched successfully.'
         );
     }
 
-    public function show(Request $request, string $id)
+    public function show(Request $request, string $id, PeerBlockService $peerBlockService)
     {
         $user = User::with(['city', 'activeCircle.cityRef'])->find($id);
 
@@ -109,10 +127,15 @@ class MemberController extends BaseApiController
             return $this->error('Member not found', 404);
         }
 
+
+        if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $user->id)) {
+            return $this->error('Peer not found.', 404);
+        }
+
         return $this->success(new MemberDetailResource($user));
     }
 
-    public function publicProfileBySlug(Request $request, string $slug)
+    public function publicProfileBySlug(Request $request, string $slug, PeerBlockService $peerBlockService)
     {
         $user = User::with(['city', 'activeCircle.cityRef'])
             ->where('public_profile_slug', $slug)
@@ -122,10 +145,15 @@ class MemberController extends BaseApiController
             return $this->error('Public profile not found', 404);
         }
 
+
+        if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $user->id)) {
+            return $this->error('Peer not found.', 404);
+        }
+
         return $this->success(new MemberDetailResource($user));
     }
 
-    public function sendConnectionRequest(Request $request, string $id, NotifyUserService $notifyUserService)
+    public function sendConnectionRequest(Request $request, string $id, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
         $authUser = $request->user();
 
@@ -136,6 +164,11 @@ class MemberController extends BaseApiController
         $target = User::find($id);
         if (! $target) {
             return $this->error('Member not found', 404);
+        }
+
+
+        if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, (string) $target->id)) {
+            return $this->error('You cannot interact with this peer.', 422);
         }
 
         $existing = Connection::where(function ($q) use ($authUser, $target) {

@@ -16,6 +16,7 @@ use App\Events\Chat\ChatReadUpdated;
 use App\Events\Chat\MessageSent;
 use App\Events\Chat\ChatTyping;
 use App\Jobs\SendPushNotificationJob;
+use App\Services\Blocks\PeerBlockService;
 use App\Support\Chat\AuthorizesChatAccess;
 use App\Support\Media\Probe;
 use Illuminate\Http\Request;
@@ -65,7 +66,7 @@ class ChatController extends BaseApiController
         return $this->success(ChatResource::collection($chats));
     }
 
-    public function storeChat(StoreChatRequest $request)
+    public function storeChat(StoreChatRequest $request, PeerBlockService $peerBlockService)
     {
         $authUserId = (string) auth()->id();
         $data = $request->validated();
@@ -73,6 +74,11 @@ class ChatController extends BaseApiController
 
         if ($authUserId === $otherUserId) {
             return $this->error('You cannot start a chat with yourself', 422);
+        }
+
+
+        if ($peerBlockService->isBlockedEitherWay($authUserId, $otherUserId)) {
+            return $this->error('You cannot interact with this peer.', 422);
         }
 
         $otherUser = User::find($otherUserId);
@@ -187,7 +193,7 @@ class ChatController extends BaseApiController
         return $this->success($data);
     }
 
-    public function storeMessage(StoreMessageRequest $request, string $id)
+    public function storeMessage(StoreMessageRequest $request, string $id, PeerBlockService $peerBlockService)
     {
         $authUser = $request->user();
         $data = $request->validated() ?? [];
@@ -201,6 +207,13 @@ class ChatController extends BaseApiController
 
         if (! $chat) {
             return $this->error('Chat not found', 404);
+        }
+
+
+        $otherUserId = (string) ((string) $chat->user1_id === (string) $authUser->id ? $chat->user2_id : $chat->user1_id);
+
+        if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, $otherUserId)) {
+            return $this->error('You cannot interact with this peer.', 422);
         }
 
         $filesInput = $request->file('files', []);

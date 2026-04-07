@@ -7,6 +7,7 @@ use App\Http\Resources\P2PMeetingRequestResource;
 use App\Models\Notification;
 use App\Models\P2PMeetingRequest;
 use App\Models\User;
+use App\Services\Blocks\PeerBlockService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -15,7 +16,7 @@ use Illuminate\Validation\Rule;
 
 class P2PMeetingRequestController extends BaseApiController
 {
-    public function store(Request $request, NotifyUserService $notifyUserService)
+    public function store(Request $request, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
         $authUser = $request->user();
 
@@ -32,6 +33,11 @@ class P2PMeetingRequestController extends BaseApiController
         ], [
             'to_user_id.not_in' => 'You cannot send a meeting request to yourself.',
         ]);
+
+
+        if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, (string) $validated['to_user_id'])) {
+            return $this->error('You cannot interact with this peer.', 422);
+        }
 
         $scheduledAt = Carbon::parse($validated['scheduled_at']);
         $duplicateExists = P2PMeetingRequest::query()
@@ -124,17 +130,17 @@ class P2PMeetingRequestController extends BaseApiController
         return $this->success(new P2PMeetingRequestResource($meetingRequest));
     }
 
-    public function accept(Request $request, string $id, NotifyUserService $notifyUserService)
+    public function accept(Request $request, string $id, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
-        return $this->respondToRequest($request, $id, 'accepted', $notifyUserService);
+        return $this->respondToRequest($request, $id, 'accepted', $notifyUserService, $peerBlockService);
     }
 
-    public function reject(Request $request, string $id, NotifyUserService $notifyUserService)
+    public function reject(Request $request, string $id, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
-        return $this->respondToRequest($request, $id, 'rejected', $notifyUserService);
+        return $this->respondToRequest($request, $id, 'rejected', $notifyUserService, $peerBlockService);
     }
 
-    public function cancel(Request $request, string $id, NotifyUserService $notifyUserService)
+    public function cancel(Request $request, string $id, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
         $meetingRequest = P2PMeetingRequest::query()
             ->with(['requester', 'invitee'])
@@ -150,6 +156,11 @@ class P2PMeetingRequestController extends BaseApiController
 
         if ($meetingRequest->status !== 'pending') {
             return $this->error('Only pending requests can be cancelled.', 422);
+        }
+
+
+        if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $meetingRequest->invitee_id)) {
+            return $this->error('You cannot interact with this peer.', 422);
         }
 
         DB::transaction(function () use ($meetingRequest, $request, $notifyUserService) {
@@ -173,7 +184,7 @@ class P2PMeetingRequestController extends BaseApiController
         return $this->success(new P2PMeetingRequestResource($meetingRequest), 'Meeting request cancelled successfully.');
     }
 
-    private function respondToRequest(Request $request, string $id, string $status, NotifyUserService $notifyUserService)
+    private function respondToRequest(Request $request, string $id, string $status, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
         $meetingRequest = P2PMeetingRequest::query()
             ->with(['requester', 'invitee'])
@@ -189,6 +200,11 @@ class P2PMeetingRequestController extends BaseApiController
 
         if ($meetingRequest->status !== 'pending') {
             return $this->error('Only pending requests can be updated.', 422);
+        }
+
+
+        if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $meetingRequest->requester_id)) {
+            return $this->error('You cannot interact with this peer.', 422);
         }
 
         DB::transaction(function () use ($meetingRequest, $status, $request, $notifyUserService) {
