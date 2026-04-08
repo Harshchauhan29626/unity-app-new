@@ -89,6 +89,30 @@ class ZohoBillingClient
         }
     }
 
+    public function requestPdf(string $path, array $query = []): array
+    {
+        $url = rtrim((string) config('zoho_billing.base_url'), '/') . '/' . ltrim($path, '/');
+        $token = $this->tokenService->getAccessToken();
+
+        $response = Http::timeout(config('zoho_billing.http_timeout', 20))
+            ->retry(config('zoho_billing.http_retry_times', 2), config('zoho_billing.http_retry_sleep_ms', 200))
+            ->withHeaders([
+                'Authorization' => 'Zoho-oauthtoken ' . $token,
+                'X-com-zoho-subscriptions-organizationid' => (string) config('zoho_billing.org_id'),
+                'Accept' => 'application/pdf',
+            ])
+            ->get($url, $query);
+
+        if (! $response->successful()) {
+            $this->throwZohoException($response->status(), $response->json(), $response->body());
+        }
+
+        return [
+            'content' => $response->body(),
+            'content_type' => (string) ($response->header('Content-Type') ?: 'application/pdf'),
+        ];
+    }
+
     private function throwZohoException(int $status, mixed $json, ?string $body = null): void
     {
         $code = data_get($json, 'code');

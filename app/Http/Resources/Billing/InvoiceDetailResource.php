@@ -53,6 +53,7 @@ class InvoiceDetailResource extends JsonResource
             'terms' => $this['terms'] ?? null,
             'invoice_url' => $this['invoice_url'] ?? null,
             'pdf_url' => $this['pdf_url'] ?? null,
+            'download_pdf_url' => isset($this['invoice_id']) ? '/api/v1/billing/invoices/' . $this['invoice_id'] . '/pdf' : null,
             'created_time' => $this['created_time'] ?? null,
             'last_payment_date' => $this['last_payment_date'] ?? null,
         ];

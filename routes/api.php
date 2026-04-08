@@ -392,6 +392,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/billing/hostedpages/{hostedpageId}/sync', [BillingCheckoutController::class, 'syncHostedPage']);
         Route::get('/billing/invoices', [InvoiceController::class, 'index']);
         Route::get('/billing/invoices/{invoiceId}', [InvoiceController::class, 'show']);
+        Route::get('/billing/invoices/{invoiceId}/pdf', [InvoiceController::class, 'pdf']);
         Route::get('/circles/{circle}/package', [CircleSubscriptionController::class, 'package']);
         Route::post('/billing/circle-checkout/{circle}', [CircleSubscriptionController::class, 'checkout']);
     });

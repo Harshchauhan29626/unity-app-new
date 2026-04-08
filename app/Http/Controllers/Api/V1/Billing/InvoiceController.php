@@ -8,6 +8,7 @@ use App\Http\Resources\Billing\InvoiceListItemResource;
 use App\Models\User;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
 
@@ -88,6 +89,46 @@ class InvoiceController extends BaseApiController
             return $this->error('Failed to fetch invoice detail.', (int) $runtimeException->getCode() >= 400 ? (int) $runtimeException->getCode() : 500);
         } catch (Throwable $throwable) {
             return $this->error('Failed to fetch invoice detail.', 500);
+        }
+    }
+
+    public function pdf(Request $request, string $invoiceId)
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if (! $this->zohoBillingService->hasUserZohoMapping($user)) {
+            return $this->error('Invoice not found.', 404);
+        }
+
+        try {
+            $pdf = $this->zohoBillingService->getInvoicePdfForUser($user, $invoiceId);
+
+            if (! is_array($pdf) || (string) ($pdf['content'] ?? '') === '') {
+                return $this->error('Invoice not found.', 404);
+            }
+
+            $invoiceNumber = (string) ($pdf['invoice_number'] ?? $invoiceId);
+            $safeInvoiceNumber = Str::of($invoiceNumber)->replaceMatches('/[^A-Za-z0-9\\-_]/', '-')->toString();
+            $filename = 'invoice-' . trim($safeInvoiceNumber, '-') . '.pdf';
+
+            return response()->stream(
+                fn () => print($pdf['content']),
+                200,
+                [
+                    'Content-Type' => 'application/pdf',
+                    'Content-Disposition' => 'inline; filename="' . $filename . '"',
+                    'Content-Length' => (string) strlen((string) $pdf['content']),
+                ]
+            );
+        } catch (RuntimeException $runtimeException) {
+            if ((int) $runtimeException->getCode() === 404) {
+                return $this->error('Invoice not found.', 404);
+            }
+
+            return $this->error('Failed to fetch invoice PDF.', (int) $runtimeException->getCode() >= 400 ? (int) $runtimeException->getCode() : 500);
+        } catch (Throwable $throwable) {
+            return $this->error('Failed to fetch invoice PDF.', 500);
         }
     }
 }

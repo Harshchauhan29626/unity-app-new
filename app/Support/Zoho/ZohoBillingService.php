@@ -493,6 +493,23 @@ class ZohoBillingService
         return null;
     }
 
+    public function getInvoicePdfForUser(User $user, string $invoiceId): ?array
+    {
+        $invoice = $this->getInvoiceForUser($user, $invoiceId);
+
+        if (! is_array($invoice)) {
+            return null;
+        }
+
+        $pdf = $this->client->requestPdf('/invoices/' . $invoiceId, ['accept' => 'pdf']);
+
+        return [
+            'content' => $pdf['content'] ?? '',
+            'content_type' => $pdf['content_type'] ?? 'application/pdf',
+            'invoice_number' => (string) ($invoice['invoice_number'] ?? $invoiceId),
+        ];
+    }
+
     public function listSubscriptionsByCustomer(string $customerId): array
     {
         return $this->client->request('GET', '/subscriptions', [
