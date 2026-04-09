@@ -256,12 +256,7 @@ class ReferralService
                     $referrer,
                     $rewardCoins,
                     'referral_signup:' . $newUserId,
-                    [
-                        'reason' => 'Referral reward',
-                        'referral_code' => $normalized,
-                        'referred_user_id' => $newUserId,
-                        'referred_user_email' => (string) $newUser->email,
-                    ]
+                    (string) $newUserId
                 );
 
                 Log::info('referral.reward.granted', [

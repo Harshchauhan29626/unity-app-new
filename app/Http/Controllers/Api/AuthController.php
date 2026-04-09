@@ -8,6 +8,7 @@ use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
 use App\Mail\WelcomePeerMail;
 use App\Models\EmailLog;
+use App\Models\JoinedCircleCategory;
 use App\Models\OtpCode;
 use App\Models\ReferralData;
 use App\Models\User;
@@ -22,6 +23,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 
 class AuthController extends BaseApiController
 {
@@ -73,6 +75,8 @@ class AuthController extends BaseApiController
             'exists' => true,
         ]);
 
+        $this->persistOptionalJoinedCategories($persistedUser, $data);
+
         $referralMeta = null;
 
         if (filled($normalizedReferralCode)) {
@@ -117,6 +121,43 @@ class AuthController extends BaseApiController
                 'referral' => $referralMeta,
             ],
         ], 201);
+    }
+
+    private function persistOptionalJoinedCategories(User $user, array $data): void
+    {
+        if (! Schema::hasTable('joined_circle_categories')) {
+            return;
+        }
+
+        $level1CategoryId = (int) ($data['level1_category_id'] ?? 0);
+        $level4CategoryId = (int) ($data['level4_category_id'] ?? 0);
+
+        if ($level1CategoryId <= 0 && $level4CategoryId <= 0) {
+            return;
+        }
+
+        try {
+            JoinedCircleCategory::query()->updateOrCreate(
+                [
+                    'user_id' => (string) $user->id,
+                    'circle_id' => null,
+                    'circle_member_id' => null,
+                ],
+                [
+                    'level1_category_id' => $level1CategoryId > 0 ? $level1CategoryId : null,
+                    'level2_category_id' => null,
+                    'level3_category_id' => null,
+                    'level4_category_id' => $level4CategoryId > 0 ? $level4CategoryId : null,
+                ]
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('auth.register.joined_circle_categories_persist_failed', [
+                'user_id' => (string) $user->id,
+                'level1_category_id' => $level1CategoryId > 0 ? $level1CategoryId : null,
+                'level4_category_id' => $level4CategoryId > 0 ? $level4CategoryId : null,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     private function ensureReferralDataPersisted(User $user, string $referralCode, array $referralMeta): void

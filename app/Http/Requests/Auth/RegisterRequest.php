@@ -44,6 +44,8 @@ class RegisterRequest extends FormRequest
             // NEW OPTIONAL FIELDS FOR REGISTRATION
             'company_name' => ['nullable', 'string', 'max:255'],
             'designation'  => ['nullable', 'string', 'max:255'],
+            'level1_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
+            'level4_category_id' => ['nullable', 'integer', 'exists:circle_category_level4,id'],
             'referral_code' => [
                 'nullable',
                 'string',
