@@ -46,6 +46,14 @@ class UsersController extends Controller
 
         $users = $query->paginate($perPage)->appends($request->query());
         $canEditUsers = AdminAccess::canEditUsers(Auth::guard('admin')->user());
+        $joinedCircleCategoryTreesByUserId = $users->getCollection()
+            ->mapWithKeys(function (User $user) {
+                $memberships = $user->relationLoaded('circleMembers')
+                    ? $user->circleMembers
+                    : collect();
+
+                return [(string) $user->id => $this->buildJoinedCircleCategoryTrees($memberships)];
+            });
 
         $membershipStatuses = User::query()
             ->whereNotNull('membership_status')
@@ -66,6 +74,7 @@ class UsersController extends Controller
             'circleId' => $circleId,
             'filters' => $filters,
             'canEditUsers' => $canEditUsers,
+            'joinedCircleCategoryTreesByUserId' => $joinedCircleCategoryTreesByUserId,
         ]);
     }
 
@@ -244,130 +253,7 @@ class UsersController extends Controller
             ->orderByDesc('joined_at')
             ->get();
 
-        $joinedCircleCategoryTrees = collect();
-        $circleIds = $circleMemberships->pluck('circle_id')->filter()->unique()->values();
-
-        if ($circleIds->isNotEmpty()) {
-            $circlesById = Circle::query()
-                ->whereIn('id', $circleIds)
-                ->get(['id', 'name'])
-                ->keyBy('id');
-
-            $selectionByCircleMemberId = collect();
-            if (Schema::hasTable('circle_member_category_selections')) {
-                $selectionByCircleMemberId = CircleMemberCategorySelection::query()
-                    ->whereIn('circle_member_id', $circleMemberships->pluck('id')->filter()->values())
-                    ->get([
-                        'circle_member_id',
-                        'level1_category_id',
-                        'level2_category_id',
-                        'level3_category_id',
-                        'level4_category_id',
-                    ])
-                    ->keyBy(fn (CircleMemberCategorySelection $row) => (string) $row->circle_member_id);
-            }
-
-            $selectedIdsByMembership = $circleMemberships->mapWithKeys(function ($membership) use ($selectionByCircleMemberId) {
-                $selection = $selectionByCircleMemberId->get((string) $membership->id);
-
-                return [
-                    (string) $membership->id => [
-                        'level1' => (int) ($selection?->level1_category_id ?? 0),
-                        'level2' => (int) ($selection?->level2_category_id ?? 0),
-                        'level3' => (int) ($selection?->level3_category_id ?? 0),
-                        'level4' => (int) ($selection?->level4_category_id ?? 0),
-                    ],
-                ];
-            });
-
-            $selectedLevel1Ids = $selectedIdsByMembership->pluck('level1')->filter(fn ($id) => $id > 0)->unique()->values();
-            $selectedLevel2Ids = $selectedIdsByMembership->pluck('level2')->filter(fn ($id) => $id > 0)->unique()->values();
-            $selectedLevel3Ids = $selectedIdsByMembership->pluck('level3')->filter(fn ($id) => $id > 0)->unique()->values();
-            $selectedLevel4Ids = $selectedIdsByMembership->pluck('level4')->filter(fn ($id) => $id > 0)->unique()->values();
-
-            $level1ById = $selectedLevel1Ids->isEmpty()
-                ? collect()
-                : CircleCategory::query()->whereIn('id', $selectedLevel1Ids)->get()->keyBy('id');
-            $level2ById = $selectedLevel2Ids->isEmpty()
-                ? collect()
-                : CircleCategoryLevel2::query()->whereIn('id', $selectedLevel2Ids)->get()->keyBy('id');
-            $level3ById = $selectedLevel3Ids->isEmpty()
-                ? collect()
-                : CircleCategoryLevel3::query()->whereIn('id', $selectedLevel3Ids)->get()->keyBy('id');
-            $level4ById = $selectedLevel4Ids->isEmpty()
-                ? collect()
-                : CircleCategoryLevel4::query()->whereIn('id', $selectedLevel4Ids)->get()->keyBy('id');
-
-            $joinedCircleCategoryTrees = $circleMemberships->map(function ($membership) use (
-                $circlesById,
-                $selectedIdsByMembership,
-                $level1ById,
-                $level2ById,
-                $level3ById,
-                $level4ById
-            ) {
-                $selectedIds = $selectedIdsByMembership->get((string) $membership->id, [
-                    'level1' => 0,
-                    'level2' => 0,
-                    'level3' => 0,
-                    'level4' => 0,
-                ]);
-
-                $level1 = $selectedIds['level1'] > 0 ? $level1ById->get($selectedIds['level1']) : null;
-                $level2 = $selectedIds['level2'] > 0 ? $level2ById->get($selectedIds['level2']) : null;
-                $level3 = $selectedIds['level3'] > 0 ? $level3ById->get($selectedIds['level3']) : null;
-                $level4 = $selectedIds['level4'] > 0 ? $level4ById->get($selectedIds['level4']) : null;
-
-                if (! $level1 && $level2) {
-                    $parentLevel1Id = (int) ($level2->circle_category_id ?? 0);
-                    if ($parentLevel1Id > 0) {
-                        $level1 = CircleCategory::query()->find($parentLevel1Id);
-                    }
-                }
-
-                if (! $level2 && $level3) {
-                    $parentLevel2Id = (int) ($level3->level2_id ?? 0);
-                    if ($parentLevel2Id > 0) {
-                        $level2 = CircleCategoryLevel2::query()->find($parentLevel2Id);
-                    }
-                }
-
-                if (! $level3 && $level4) {
-                    $parentLevel3Id = (int) ($level4->level3_id ?? 0);
-                    if ($parentLevel3Id > 0) {
-                        $level3 = CircleCategoryLevel3::query()->find($parentLevel3Id);
-                    }
-                }
-
-                $singlePathTree = collect();
-                if ($level1) {
-                    $level4Children = ($level3 && $level4) ? collect([$level4]) : collect();
-                    $level3Children = ($level2 && $level3)
-                        ? collect([['node' => $level3, 'children' => $level4Children]])
-                        : collect();
-                    $level2Children = $level2
-                        ? collect([['node' => $level2, 'children' => $level3Children]])
-                        : collect();
-
-                    $singlePathTree = collect([[
-                        'node' => $level1,
-                        'children' => $level2Children,
-                    ]]);
-                }
-
-                return [
-                    'membership' => $membership,
-                    'circle' => $circlesById->get($membership->circle_id),
-                    'categories' => $singlePathTree,
-                    'selected_category_path' => [
-                        'level1' => $level1,
-                        'level2' => $level2,
-                        'level3' => $level3,
-                        'level4' => $level4,
-                    ],
-                ];
-            });
-        }
+        $joinedCircleCategoryTrees = $this->buildJoinedCircleCategoryTrees($circleMemberships);
 
         $circleCategoryOptionsByCircle = $this->buildCircleCategoryPickerData($circles);
 
@@ -1442,6 +1328,139 @@ class UsersController extends Controller
         }
 
         return $result;
+    }
+
+    private function buildJoinedCircleCategoryTrees($circleMemberships)
+    {
+        $circleMemberships = collect($circleMemberships)->values();
+        if ($circleMemberships->isEmpty()) {
+            return collect();
+        }
+
+        $circleIds = $circleMemberships->pluck('circle_id')->filter()->unique()->values();
+        if ($circleIds->isEmpty()) {
+            return collect();
+        }
+
+        $circlesById = Circle::query()
+            ->whereIn('id', $circleIds)
+            ->get(['id', 'name'])
+            ->keyBy('id');
+
+        $selectionByCircleMemberId = collect();
+        if (Schema::hasTable('circle_member_category_selections')) {
+            $selectionByCircleMemberId = CircleMemberCategorySelection::query()
+                ->whereIn('circle_member_id', $circleMemberships->pluck('id')->filter()->values())
+                ->get([
+                    'circle_member_id',
+                    'level1_category_id',
+                    'level2_category_id',
+                    'level3_category_id',
+                    'level4_category_id',
+                ])
+                ->keyBy(fn (CircleMemberCategorySelection $row) => (string) $row->circle_member_id);
+        }
+
+        $selectedIdsByMembership = $circleMemberships->mapWithKeys(function ($membership) use ($selectionByCircleMemberId) {
+            $selection = $selectionByCircleMemberId->get((string) $membership->id);
+
+            return [
+                (string) $membership->id => [
+                    'level1' => (int) ($selection?->level1_category_id ?? 0),
+                    'level2' => (int) ($selection?->level2_category_id ?? 0),
+                    'level3' => (int) ($selection?->level3_category_id ?? 0),
+                    'level4' => (int) ($selection?->level4_category_id ?? 0),
+                ],
+            ];
+        });
+
+        $selectedLevel1Ids = $selectedIdsByMembership->pluck('level1')->filter(fn ($id) => $id > 0)->unique()->values();
+        $selectedLevel2Ids = $selectedIdsByMembership->pluck('level2')->filter(fn ($id) => $id > 0)->unique()->values();
+        $selectedLevel3Ids = $selectedIdsByMembership->pluck('level3')->filter(fn ($id) => $id > 0)->unique()->values();
+        $selectedLevel4Ids = $selectedIdsByMembership->pluck('level4')->filter(fn ($id) => $id > 0)->unique()->values();
+
+        $level1ById = $selectedLevel1Ids->isEmpty()
+            ? collect()
+            : CircleCategory::query()->whereIn('id', $selectedLevel1Ids)->get()->keyBy('id');
+        $level2ById = $selectedLevel2Ids->isEmpty()
+            ? collect()
+            : CircleCategoryLevel2::query()->whereIn('id', $selectedLevel2Ids)->get()->keyBy('id');
+        $level3ById = $selectedLevel3Ids->isEmpty()
+            ? collect()
+            : CircleCategoryLevel3::query()->whereIn('id', $selectedLevel3Ids)->get()->keyBy('id');
+        $level4ById = $selectedLevel4Ids->isEmpty()
+            ? collect()
+            : CircleCategoryLevel4::query()->whereIn('id', $selectedLevel4Ids)->get()->keyBy('id');
+
+        return $circleMemberships->map(function ($membership) use (
+            $circlesById,
+            $selectedIdsByMembership,
+            $level1ById,
+            $level2ById,
+            $level3ById,
+            $level4ById
+        ) {
+            $selectedIds = $selectedIdsByMembership->get((string) $membership->id, [
+                'level1' => 0,
+                'level2' => 0,
+                'level3' => 0,
+                'level4' => 0,
+            ]);
+
+            $level1 = $selectedIds['level1'] > 0 ? $level1ById->get($selectedIds['level1']) : null;
+            $level2 = $selectedIds['level2'] > 0 ? $level2ById->get($selectedIds['level2']) : null;
+            $level3 = $selectedIds['level3'] > 0 ? $level3ById->get($selectedIds['level3']) : null;
+            $level4 = $selectedIds['level4'] > 0 ? $level4ById->get($selectedIds['level4']) : null;
+
+            if (! $level1 && $level2) {
+                $parentLevel1Id = (int) ($level2->circle_category_id ?? 0);
+                if ($parentLevel1Id > 0) {
+                    $level1 = CircleCategory::query()->find($parentLevel1Id);
+                }
+            }
+
+            if (! $level2 && $level3) {
+                $parentLevel2Id = (int) ($level3->level2_id ?? 0);
+                if ($parentLevel2Id > 0) {
+                    $level2 = CircleCategoryLevel2::query()->find($parentLevel2Id);
+                }
+            }
+
+            if (! $level3 && $level4) {
+                $parentLevel3Id = (int) ($level4->level3_id ?? 0);
+                if ($parentLevel3Id > 0) {
+                    $level3 = CircleCategoryLevel3::query()->find($parentLevel3Id);
+                }
+            }
+
+            $singlePathTree = collect();
+            if ($level1) {
+                $level4Children = ($level3 && $level4) ? collect([$level4]) : collect();
+                $level3Children = ($level2 && $level3)
+                    ? collect([['node' => $level3, 'children' => $level4Children]])
+                    : collect();
+                $level2Children = $level2
+                    ? collect([['node' => $level2, 'children' => $level3Children]])
+                    : collect();
+
+                $singlePathTree = collect([[
+                    'node' => $level1,
+                    'children' => $level2Children,
+                ]]);
+            }
+
+            return [
+                'membership' => $membership,
+                'circle' => $circlesById->get($membership->circle_id),
+                'categories' => $singlePathTree,
+                'selected_category_path' => [
+                    'level1' => $level1,
+                    'level2' => $level2,
+                    'level3' => $level3,
+                    'level4' => $level4,
+                ],
+            ];
+        });
     }
 
     private function upsertCircleMemberCategorySelection(CircleMember $memberRecord, string $userId, array $validated): void
