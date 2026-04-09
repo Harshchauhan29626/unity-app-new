@@ -290,11 +290,6 @@ class UsersController extends Controller
             $joinedCircleCategoryTrees = $circleMemberships->map(function ($membership) use ($circlesWithCategories, $level2ByMain, $level3ByMain, $level4ByMain) {
                 $circle = $circlesWithCategories->get($membership->circle_id);
                 $mainCategories = $circle?->categories ?? collect();
-                $selectedCategoryPath = is_array($membership->meta) ? ($membership->meta['category_path'] ?? []) : [];
-                $selectedLevel1Id = (int) ($selectedCategoryPath['level1_category_id'] ?? 0);
-                $selectedLevel2Id = (int) ($selectedCategoryPath['level2_category_id'] ?? 0);
-                $selectedLevel3Id = (int) ($selectedCategoryPath['level3_category_id'] ?? 0);
-                $selectedLevel4Id = (int) ($selectedCategoryPath['level4_category_id'] ?? 0);
 
                 $categoryTree = $mainCategories->map(function ($mainCategory) use ($level2ByMain, $level3ByMain, $level4ByMain) {
                     $level2Items = $level2ByMain->get($mainCategory->id, collect());
@@ -343,20 +338,7 @@ class UsersController extends Controller
                     'membership' => $membership,
                     'circle' => $circle,
                     'categories' => $categoryTree,
-                    'selected_category_path' => [
-                        'level1' => $selectedLevel1Id > 0
-                            ? $mainCategories->firstWhere('id', $selectedLevel1Id)
-                            : null,
-                        'level2' => $selectedLevel2Id > 0
-                            ? $level2ByMain->flatten(1)->firstWhere('id', $selectedLevel2Id)
-                            : null,
-                        'level3' => $selectedLevel3Id > 0
-                            ? $level3ByMain->flatten(1)->firstWhere('id', $selectedLevel3Id)
-                            : null,
-                        'level4' => $selectedLevel4Id > 0
-                            ? $level4ByMain->flatten(1)->firstWhere('id', $selectedLevel4Id)
-                            : null,
-                    ],
+                    'selected_category_path' => [],
                 ];
             });
         }
@@ -588,7 +570,6 @@ class UsersController extends Controller
                     'circle_id' => $selectedCircleId,
                 ]);
                 $memberRecord->fill(array_merge($membershipAttributes, ['left_at' => null]));
-                $memberRecord->meta = $this->mergeMembershipCategoryMeta($memberRecord->meta, $validated);
                 $memberRecord->save();
 
                 $circle = Circle::query()->whereKey($selectedCircleId)->firstOrFail();
@@ -672,7 +653,6 @@ class UsersController extends Controller
                     'circle_id' => $additionalCircleId,
                 ]);
                 $additionalMemberRecord->fill(array_merge($additionalMembership, ['left_at' => null]));
-                $additionalMemberRecord->meta = $this->mergeMembershipCategoryMeta($additionalMemberRecord->meta, $validated);
                 $additionalMemberRecord->save();
             }
 
@@ -1428,29 +1408,6 @@ class UsersController extends Controller
         }
 
         return $result;
-    }
-
-    private function mergeMembershipCategoryMeta($existingMeta, array $validated): array
-    {
-        $meta = is_array($existingMeta) ? $existingMeta : [];
-
-        $level1 = (int) ($validated['level1_category_id'] ?? 0);
-        $level2 = (int) ($validated['level2_category_id'] ?? 0);
-        $level3 = (int) ($validated['level3_category_id'] ?? 0);
-        $level4 = (int) ($validated['level4_category_id'] ?? 0);
-
-        if ($level1 <= 0 && $level2 <= 0 && $level3 <= 0 && $level4 <= 0) {
-            return $meta;
-        }
-
-        $meta['category_path'] = [
-            'level1_category_id' => $level1 > 0 ? $level1 : null,
-            'level2_category_id' => $level2 > 0 ? $level2 : null,
-            'level3_category_id' => $level3 > 0 ? $level3 : null,
-            'level4_category_id' => $level4 > 0 ? $level4 : null,
-        ];
-
-        return $meta;
     }
 
 }
