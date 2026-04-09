@@ -126,6 +126,7 @@ class AuthController extends BaseApiController
                 'token' => $token,
                 'user'  => $persistedUser,
                 'referral' => $referralMeta,
+                'categories' => $this->buildJoinedCategoriesPayload($persistedUser),
             ],
         ], 201);
     }
@@ -178,9 +179,11 @@ class AuthController extends BaseApiController
         }
 
         $level1CategoryId = (int) ($data['level1_category_id'] ?? 0);
+        $level2CategoryId = (int) ($data['level2_category_id'] ?? 0);
+        $level3CategoryId = (int) ($data['level3_category_id'] ?? 0);
         $level4CategoryId = (int) ($data['level4_category_id'] ?? 0);
 
-        if ($level1CategoryId <= 0 && $level4CategoryId <= 0) {
+        if ($level1CategoryId <= 0 && $level2CategoryId <= 0 && $level3CategoryId <= 0 && $level4CategoryId <= 0) {
             return;
         }
 
@@ -193,8 +196,8 @@ class AuthController extends BaseApiController
                 [
                     'circle_member_id' => $circleMemberId,
                     'level1_category_id' => $level1CategoryId > 0 ? $level1CategoryId : null,
-                    'level2_category_id' => null,
-                    'level3_category_id' => null,
+                    'level2_category_id' => $level2CategoryId > 0 ? $level2CategoryId : null,
+                    'level3_category_id' => $level3CategoryId > 0 ? $level3CategoryId : null,
                     'level4_category_id' => $level4CategoryId > 0 ? $level4CategoryId : null,
                 ]
             );
@@ -202,10 +205,51 @@ class AuthController extends BaseApiController
             Log::warning('auth.register.joined_circle_categories_persist_failed', [
                 'user_id' => (string) $user->id,
                 'level1_category_id' => $level1CategoryId > 0 ? $level1CategoryId : null,
+                'level2_category_id' => $level2CategoryId > 0 ? $level2CategoryId : null,
+                'level3_category_id' => $level3CategoryId > 0 ? $level3CategoryId : null,
                 'level4_category_id' => $level4CategoryId > 0 ? $level4CategoryId : null,
                 'error' => $exception->getMessage(),
             ]);
         }
+    }
+
+    private function buildJoinedCategoriesPayload(User $user): array
+    {
+        if (! Schema::hasTable('joined_circle_categories')) {
+            return [];
+        }
+
+        return JoinedCircleCategory::query()
+            ->where('user_id', (string) $user->id)
+            ->with([
+                'circle:id,name',
+                'level1Category:id,name',
+                'level2Category:id,name',
+                'level3Category:id,name',
+                'level4Category:id,name',
+            ])
+            ->orderByDesc('updated_at')
+            ->get()
+            ->map(function (JoinedCircleCategory $row): array {
+                return [
+                    'circle_id' => $row->circle_id,
+                    'circle_name' => $row->circle?->name,
+                    'level1_category' => $row->level1Category
+                        ? ['id' => $row->level1Category->id, 'name' => $row->level1Category->name]
+                        : null,
+                    'level2_category' => $row->level2Category
+                        ? ['id' => $row->level2Category->id, 'name' => $row->level2Category->name]
+                        : null,
+                    'level3_category' => $row->level3Category
+                        ? ['id' => $row->level3Category->id, 'name' => $row->level3Category->name]
+                        : null,
+                    'level4_category' => $row->level4Category
+                        ? ['id' => $row->level4Category->id, 'name' => $row->level4Category->name]
+                        : null,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function ensureReferralDataPersisted(User $user, string $referralCode, array $referralMeta): void

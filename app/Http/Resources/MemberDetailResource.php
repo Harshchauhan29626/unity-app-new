@@ -32,6 +32,8 @@ class MemberDetailResource extends UserResource
             ->with([
                 'circle:id,name',
                 'level1Category:id,name',
+                'level2Category:id,name',
+                'level3Category:id,name',
                 'level4Category:id,name',
             ])
             ->orderByDesc('updated_at')
@@ -42,6 +44,12 @@ class MemberDetailResource extends UserResource
                     'circle_name' => $row->circle?->name,
                     'level1_category' => $row->level1Category
                         ? ['id' => $row->level1Category->id, 'name' => $row->level1Category->name]
+                        : null,
+                    'level2_category' => $row->level2Category
+                        ? ['id' => $row->level2Category->id, 'name' => $row->level2Category->name]
+                        : null,
+                    'level3_category' => $row->level3Category
+                        ? ['id' => $row->level3Category->id, 'name' => $row->level3Category->name]
                         : null,
                     'level4_category' => $row->level4Category
                         ? ['id' => $row->level4Category->id, 'name' => $row->level4Category->name]
