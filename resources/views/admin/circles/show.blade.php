@@ -258,10 +258,10 @@
                         <div class="mt-2 d-flex flex-wrap gap-2">
                             @forelse($circleCategories as $category)
                                 <span class="badge bg-light text-dark border">
-                                    {{ data_get($category, 'category_name', '—') }}
+                                    {{ data_get($category, 'name', '—') }}
                                 </span>
                             @empty
-                                <span class="text-muted">No categories assigned</span>
+                                <span class="text-muted">—</span>
                             @endforelse
                         </div>
                     </div>
