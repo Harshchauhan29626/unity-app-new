@@ -2,6 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\CircleCategory;
+use App\Models\CircleCategoryLevel2;
+use App\Models\CircleCategoryLevel3;
+use App\Models\CircleCategoryLevel4;
+use App\Models\CircleMemberCategorySelection;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -138,8 +143,52 @@ class UserResource extends JsonResource
             ->groupBy('circle_id')
             ->map(fn ($items) => $items->first());
 
-        return $memberships->map(function ($membership) use ($subscriptionMap): array {
+        $selectionByCircleMemberId = collect();
+        if (Schema::hasTable('circle_member_category_selections')) {
+            $selectionByCircleMemberId = CircleMemberCategorySelection::query()
+                ->whereIn('circle_member_id', $memberships->pluck('id')->filter()->values())
+                ->get([
+                    'circle_member_id',
+                    'level1_category_id',
+                    'level2_category_id',
+                    'level3_category_id',
+                    'level4_category_id',
+                ])
+                ->keyBy(fn (CircleMemberCategorySelection $row) => (string) $row->circle_member_id);
+        }
+
+        $level1Ids = $selectionByCircleMemberId->pluck('level1_category_id')->filter()->unique()->values();
+        $level2Ids = $selectionByCircleMemberId->pluck('level2_category_id')->filter()->unique()->values();
+        $level3Ids = $selectionByCircleMemberId->pluck('level3_category_id')->filter()->unique()->values();
+        $level4Ids = $selectionByCircleMemberId->pluck('level4_category_id')->filter()->unique()->values();
+
+        $level1ById = $level1Ids->isEmpty()
+            ? collect()
+            : CircleCategory::query()->whereIn('id', $level1Ids)->get()->keyBy('id');
+        $level2ById = $level2Ids->isEmpty()
+            ? collect()
+            : CircleCategoryLevel2::query()->whereIn('id', $level2Ids)->get()->keyBy('id');
+        $level3ById = $level3Ids->isEmpty()
+            ? collect()
+            : CircleCategoryLevel3::query()->whereIn('id', $level3Ids)->get()->keyBy('id');
+        $level4ById = $level4Ids->isEmpty()
+            ? collect()
+            : CircleCategoryLevel4::query()->whereIn('id', $level4Ids)->get()->keyBy('id');
+
+        return $memberships->map(function ($membership) use (
+            $subscriptionMap,
+            $selectionByCircleMemberId,
+            $level1ById,
+            $level2ById,
+            $level3ById,
+            $level4ById
+        ): array {
             $subscription = $subscriptionMap->get((string) $membership->circle_id);
+            $selection = $selectionByCircleMemberId->get((string) $membership->id);
+            $level1 = $selection ? $level1ById->get($selection->level1_category_id) : null;
+            $level2 = $selection ? $level2ById->get($selection->level2_category_id) : null;
+            $level3 = $selection ? $level3ById->get($selection->level3_category_id) : null;
+            $level4 = $selection ? $level4ById->get($selection->level4_category_id) : null;
 
             return [
                 'circle_member_id' => $membership->id,
@@ -156,6 +205,12 @@ class UserResource extends JsonResource
                 'addon_name' => optional($subscription)->zoho_addon_name,
                 'circle_subscription_id' => optional($subscription)->id,
                 'subscription_status' => optional($subscription)->status,
+                'selected_category_path' => [
+                    'level1' => $level1 ? ['id' => $level1->id, 'name' => $level1->name] : null,
+                    'level2' => $level2 ? ['id' => $level2->id, 'name' => $level2->name] : null,
+                    'level3' => $level3 ? ['id' => $level3->id, 'name' => $level3->name] : null,
+                    'level4' => $level4 ? ['id' => $level4->id, 'name' => $level4->name] : null,
+                ],
             ];
         })->values()->all();
     }
