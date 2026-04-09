@@ -303,7 +303,7 @@ class UsersController extends Controller
 
                     $level3ByLevel2 = [];
                     foreach ($level3Items as $level3) {
-                        $level2Id = $level3->level2_id ?? $level3->circle_category_level2_id ?? null;
+                        $level2Id = $level3->level2_id ?? null;
                         if ($level2Id === null) {
                             continue;
                         }
@@ -312,7 +312,7 @@ class UsersController extends Controller
 
                     $level4ByLevel3 = [];
                     foreach ($level4Items as $level4) {
-                        $level3Id = $level4->level3_id ?? $level4->circle_category_level3_id ?? null;
+                        $level3Id = $level4->level3_id ?? null;
                         if ($level3Id === null) {
                             continue;
                         }
@@ -1341,32 +1341,26 @@ class UsersController extends Controller
         $level3 = $level2Ids->isEmpty()
             ? collect()
             : CircleCategoryLevel3::query()
-                ->where(function ($query) use ($level2Ids): void {
-                    $query->whereIn('level2_id', $level2Ids)
-                        ->orWhereIn('circle_category_level2_id', $level2Ids);
-                })
+                ->whereIn('level2_id', $level2Ids)
                 ->orderBy('sort_order')
                 ->orderBy('id')
-                ->get(['id', 'circle_category_id', 'level2_id', 'circle_category_level2_id', 'name']);
+                ->get(['id', 'circle_category_id', 'level2_id', 'name']);
 
         $level3Ids = $level3->pluck('id')->values();
 
         $level4 = $level3Ids->isEmpty()
             ? collect()
             : CircleCategoryLevel4::query()
-                ->where(function ($query) use ($level3Ids): void {
-                    $query->whereIn('level3_id', $level3Ids)
-                        ->orWhereIn('circle_category_level3_id', $level3Ids);
-                })
+                ->whereIn('level3_id', $level3Ids)
                 ->orderBy('sort_order')
                 ->orderBy('id')
-                ->get(['id', 'circle_category_id', 'level3_id', 'circle_category_level3_id', 'name']);
+                ->get(['id', 'circle_category_id', 'level3_id', 'name']);
 
         $mainById = $mainCategories->keyBy('id');
         $level2ByMain = $level2->groupBy('circle_category_id');
         $level3ByLevel2 = [];
         foreach ($level3 as $row) {
-            $level2Id = $row->level2_id ?? $row->circle_category_level2_id;
+            $level2Id = $row->level2_id ?? null;
             if (! $level2Id) {
                 continue;
             }
@@ -1374,7 +1368,7 @@ class UsersController extends Controller
         }
         $level4ByLevel3 = [];
         foreach ($level4 as $row) {
-            $level3Id = $row->level3_id ?? $row->circle_category_level3_id;
+            $level3Id = $row->level3_id ?? null;
             if (! $level3Id) {
                 continue;
             }
