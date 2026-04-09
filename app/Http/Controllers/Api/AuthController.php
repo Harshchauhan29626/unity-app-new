@@ -213,7 +213,7 @@ class AuthController extends BaseApiController
     private function sendWelcomePeerEmail(User $user): void
     {
         if (EmailLog::query()
-            ->where('user_id', (string) $user->id)
+            ->where('to_email', (string) $user->email)
             ->where('template_key', 'welcome_peer')
             ->exists()) {
             return;
@@ -224,31 +224,30 @@ class AuthController extends BaseApiController
         try {
             Mail::to($user->email)->send($mailable);
 
-            app(EmailLogService::class)->logMailableSent($mailable, [
-                'user_id' => (string) $user->id,
+            EmailLog::query()->create([
                 'to_email' => (string) $user->email,
-                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
                 'template_key' => 'welcome_peer',
-                'source_module' => 'auth',
-                'related_type' => 'user',
-                'related_id' => (string) $user->id,
                 'payload' => [
                     'flow' => 'registration',
+                    'mailable_class' => WelcomePeerMail::class,
                 ],
+                'status' => 'sent',
+                'sent_at' => now(),
+                'created_at' => now(),
             ]);
         } catch (\Throwable $exception) {
-            app(EmailLogService::class)->logMailableFailed($mailable, [
-                'user_id' => (string) $user->id,
+            EmailLog::query()->create([
                 'to_email' => (string) $user->email,
-                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
                 'template_key' => 'welcome_peer',
-                'source_module' => 'auth',
-                'related_type' => 'user',
-                'related_id' => (string) $user->id,
                 'payload' => [
                     'flow' => 'registration',
+                    'mailable_class' => WelcomePeerMail::class,
+                    'error' => $exception->getMessage(),
                 ],
-            ], $exception);
+                'status' => 'failed',
+                'sent_at' => now(),
+                'created_at' => now(),
+            ]);
 
             Log::warning('auth.register.welcome_email_failed', [
                 'user_id' => (string) $user->id,
