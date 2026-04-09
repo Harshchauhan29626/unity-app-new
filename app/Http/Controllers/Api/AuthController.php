@@ -8,6 +8,7 @@ use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
 use App\Mail\WelcomePeerMail;
 use App\Models\EmailLog;
+use App\Models\CircleMember;
 use App\Models\JoinedCircleCategory;
 use App\Models\OtpCode;
 use App\Models\ReferralData;
@@ -75,7 +76,13 @@ class AuthController extends BaseApiController
             'exists' => true,
         ]);
 
-        $this->persistOptionalJoinedCategories($persistedUser, $data);
+        $circleMember = $this->attachOptionalCircleMembership($persistedUser, $data);
+        $this->persistOptionalJoinedCategories(
+            $persistedUser,
+            $data,
+            $circleMember?->circle_id,
+            $circleMember?->id
+        );
 
         $referralMeta = null;
 
@@ -123,9 +130,50 @@ class AuthController extends BaseApiController
         ], 201);
     }
 
-    private function persistOptionalJoinedCategories(User $user, array $data): void
+    private function attachOptionalCircleMembership(User $user, array $data): ?CircleMember
+    {
+        $circleId = (string) ($data['circle_id'] ?? '');
+        if ($circleId === '') {
+            return null;
+        }
+
+        $attributes = [
+            'role' => 'member',
+            'status' => (string) config('circle.member_joined_status', 'approved'),
+            'left_at' => null,
+        ];
+
+        if (Schema::hasColumn('circle_members', 'joined_at')) {
+            $attributes['joined_at'] = now();
+        }
+
+        $member = CircleMember::query()->withTrashed()->firstOrNew([
+            'user_id' => (string) $user->id,
+            'circle_id' => $circleId,
+        ]);
+
+        if ($member->trashed()) {
+            $member->deleted_at = null;
+        }
+
+        $member->fill($attributes);
+        $member->save();
+
+        if (Schema::hasColumn('users', 'active_circle_id')) {
+            $user->active_circle_id = $circleId;
+            $user->save();
+        }
+
+        return $member;
+    }
+
+    private function persistOptionalJoinedCategories(User $user, array $data, ?string $circleId, ?string $circleMemberId): void
     {
         if (! Schema::hasTable('joined_circle_categories')) {
+            return;
+        }
+
+        if (! $circleId) {
             return;
         }
 
@@ -140,10 +188,10 @@ class AuthController extends BaseApiController
             JoinedCircleCategory::query()->updateOrCreate(
                 [
                     'user_id' => (string) $user->id,
-                    'circle_id' => null,
-                    'circle_member_id' => null,
+                    'circle_id' => $circleId,
                 ],
                 [
+                    'circle_member_id' => $circleMemberId,
                     'level1_category_id' => $level1CategoryId > 0 ? $level1CategoryId : null,
                     'level2_category_id' => null,
                     'level3_category_id' => null,
