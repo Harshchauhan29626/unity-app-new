@@ -2,6 +2,10 @@
 
 namespace App\Models;
 
+use App\Models\CircleCategory;
+use App\Models\CircleCategoryLevel2;
+use App\Models\CircleCategoryLevel3;
+use App\Models\CircleCategoryLevel4;
 use App\Support\AdminAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -37,6 +41,10 @@ class CircleJoinRequest extends Model
         'user_id',
         'circle_id',
         'reason_for_joining',
+        'level1_category_id',
+        'level2_category_id',
+        'level3_category_id',
+        'level4_category_id',
         'status',
         'requested_at',
         'cd_approved_by',
@@ -63,6 +71,10 @@ class CircleJoinRequest extends Model
         'fee_marked_at' => 'datetime',
         'fee_paid_at' => 'datetime',
         'notes' => 'array',
+        'level1_category_id' => 'integer',
+        'level2_category_id' => 'integer',
+        'level3_category_id' => 'integer',
+        'level4_category_id' => 'integer',
     ];
 
     protected static function booted(): void
@@ -136,4 +148,26 @@ class CircleJoinRequest extends Model
     {
         return $this->belongsTo(User::class, 'id_rejected_by');
     }
+
+
+    public function level1Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategory::class, 'level1_category_id');
+    }
+
+    public function level2Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel2::class, 'level2_category_id');
+    }
+
+    public function level3Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel3::class, 'level3_category_id');
+    }
+
+    public function level4Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel4::class, 'level4_category_id');
+    }
 }
+

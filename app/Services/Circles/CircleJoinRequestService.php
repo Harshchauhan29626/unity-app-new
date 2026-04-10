@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class CircleJoinRequestService
@@ -20,9 +21,9 @@ class CircleJoinRequestService
     ) {
     }
 
-    public function submitRequest(User $user, Circle $circle, ?string $reason): CircleJoinRequest
+    public function submitRequest(User $user, Circle $circle, ?string $reason, array $categoryIds = []): CircleJoinRequest
     {
-        return DB::transaction(function () use ($user, $circle, $reason) {
+        return DB::transaction(function () use ($user, $circle, $reason, $categoryIds) {
             $alreadyMember = CircleMember::query()
                 ->where('circle_id', $circle->id)
                 ->where('user_id', $user->id)
@@ -48,13 +49,43 @@ class CircleJoinRequestService
                 ]);
             }
 
-            $request = CircleJoinRequest::query()->create([
+            $payload = [
                 'user_id' => $user->id,
                 'circle_id' => $circle->id,
                 'reason_for_joining' => $reason,
                 'status' => CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
                 'requested_at' => now(),
+            ];
+
+            $selection = [
+                'level1_category_id' => isset($categoryIds['level1_category_id']) ? (int) $categoryIds['level1_category_id'] : null,
+                'level2_category_id' => isset($categoryIds['level2_category_id']) ? (int) $categoryIds['level2_category_id'] : null,
+                'level3_category_id' => isset($categoryIds['level3_category_id']) ? (int) $categoryIds['level3_category_id'] : null,
+                'level4_category_id' => isset($categoryIds['level4_category_id']) ? (int) $categoryIds['level4_category_id'] : null,
+            ];
+
+            foreach ($selection as $key => $value) {
+                if ($value !== null && $value <= 0) {
+                    $selection[$key] = null;
+                }
+            }
+
+            $hasCategoryColumns = Schema::hasColumns('circle_join_requests', [
+                'level1_category_id',
+                'level2_category_id',
+                'level3_category_id',
+                'level4_category_id',
             ]);
+
+            if ($hasCategoryColumns) {
+                $payload = array_merge($payload, $selection);
+            } else {
+                $payload['notes'] = array_filter([
+                    'category_selection' => array_filter($selection, fn ($value) => $value !== null),
+                ]);
+            }
+
+            $request = CircleJoinRequest::query()->create($payload);
 
             $this->notifyStakeholders($request, $user);
 
