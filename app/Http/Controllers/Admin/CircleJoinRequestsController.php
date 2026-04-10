@@ -14,6 +14,7 @@ use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -162,15 +163,40 @@ class CircleJoinRequestsController extends Controller
 
     private function approveRequest(CircleJoinRequest $record, $actor): void
     {
-        if ((string) $record->status === CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
-            $this->service->approveByCd($record, $actor);
+        DB::transaction(function () use ($record, $actor): void {
+            $request = CircleJoinRequest::query()->lockForUpdate()->findOrFail($record->id);
+            $oldStatus = (string) $request->status;
 
-            return;
-        }
+            if ($oldStatus === CircleJoinRequest::STATUS_PENDING_CD_APPROVAL) {
+                $request->status = CircleJoinRequest::STATUS_PENDING_ID_APPROVAL;
+                $request->cd_approved_by = $actor->id;
+                $request->cd_approved_at = now();
+                $request->cd_rejected_by = null;
+                $request->cd_rejected_at = null;
+                $request->cd_rejection_reason = null;
+            } elseif ($oldStatus === CircleJoinRequest::STATUS_PENDING_ID_APPROVAL) {
+                $request->status = CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE;
+                $request->id_approved_by = $actor->id;
+                $request->id_approved_at = now();
+                $request->id_rejected_by = null;
+                $request->id_rejected_at = null;
+                $request->id_rejection_reason = null;
+                $request->fee_marked_at = $request->fee_marked_at ?: now();
+            } else {
+                throw ValidationException::withMessages([
+                    'status' => ["Invalid status transition from {$oldStatus}."],
+                ]);
+            }
 
-        if ((string) $record->status === CircleJoinRequest::STATUS_PENDING_ID_APPROVAL) {
-            $this->service->approveById($record, $actor);
-        }
+            $request->save();
+            $request->refresh();
+
+            Log::info('Circle join request status changed', [
+                'request_id' => $request->id,
+                'from' => $oldStatus,
+                'to' => $request->status,
+            ]);
+        });
     }
 
     private function rejectRequest(CircleJoinRequest $record, $actor, string $reason): void
