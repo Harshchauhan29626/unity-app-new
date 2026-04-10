@@ -10,6 +10,8 @@ use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
+use App\Models\CircleMemberCategorySelection;
+use App\Models\JoinedCircleCategory;
 use App\Services\Circles\CircleJoinRequestService;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
@@ -206,7 +208,7 @@ class CircleJoinRequestsController extends Controller
                     'left_at' => null,
                 ])->save();
             } else {
-                CircleMember::query()->create([
+                $member = CircleMember::query()->create([
                     'circle_id' => $locked->circle_id,
                     'user_id' => $locked->user_id,
                     'status' => 'approved',
@@ -215,6 +217,8 @@ class CircleJoinRequestsController extends Controller
                     'left_at' => null,
                 ]);
             }
+
+            $this->upsertApprovedCategorySelection($locked, $member);
         });
     }
 
@@ -255,6 +259,43 @@ class CircleJoinRequestsController extends Controller
 
             $locked->forceFill($updates)->save();
         });
+    }
+
+    private function upsertApprovedCategorySelection(CircleJoinRequest $request, CircleMember $member): void
+    {
+        $selectedCategoryIds = $this->resolveSelectedCategoryIds($request);
+
+        if (Schema::hasTable('circle_member_category_selections')) {
+            CircleMemberCategorySelection::query()->updateOrCreate(
+                [
+                    'circle_member_id' => $member->id,
+                    'user_id' => $request->user_id,
+                    'circle_id' => $request->circle_id,
+                ],
+                [
+                    'level1_category_id' => $selectedCategoryIds['level1_category_id'],
+                    'level2_category_id' => $selectedCategoryIds['level2_category_id'],
+                    'level3_category_id' => $selectedCategoryIds['level3_category_id'],
+                    'level4_category_id' => $selectedCategoryIds['level4_category_id'],
+                ]
+            );
+        }
+
+        if (Schema::hasTable('joined_circle_categories')) {
+            JoinedCircleCategory::query()->updateOrCreate(
+                [
+                    'circle_member_id' => $member->id,
+                ],
+                [
+                    'user_id' => $request->user_id,
+                    'circle_id' => $request->circle_id,
+                    'level1_category_id' => $selectedCategoryIds['level1_category_id'],
+                    'level2_category_id' => $selectedCategoryIds['level2_category_id'],
+                    'level3_category_id' => $selectedCategoryIds['level3_category_id'],
+                    'level4_category_id' => $selectedCategoryIds['level4_category_id'],
+                ]
+            );
+        }
     }
 
     private function resolveSelectedCategoryIds(CircleJoinRequest $record): array
