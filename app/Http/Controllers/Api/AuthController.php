@@ -8,10 +8,12 @@ use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
 use App\Mail\WelcomePeerMail;
 use App\Models\EmailLog;
+
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\JoinedCircleCategory;
+
 use App\Models\OtpCode;
 use App\Models\ReferralData;
 use App\Models\User;
@@ -358,6 +360,7 @@ class AuthController extends BaseApiController
     {
         if (EmailLog::query()
             ->where('to_email', (string) $user->email)
+            ->where('user_id', (string) $user->id)
             ->where('template_key', 'welcome_peer')
             ->exists()) {
             return;
@@ -392,6 +395,31 @@ class AuthController extends BaseApiController
                 'sent_at' => now(),
                 'created_at' => now(),
             ]);
+            app(EmailLogService::class)->logMailableSent($mailable, [
+                'user_id' => (string) $user->id,
+                'to_email' => (string) $user->email,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'template_key' => 'welcome_peer',
+                'source_module' => 'auth',
+                'related_type' => 'user',
+                'related_id' => (string) $user->id,
+                'payload' => [
+                    'flow' => 'registration',
+                ],
+            ]);
+        } catch (\Throwable $exception) {
+            app(EmailLogService::class)->logMailableFailed($mailable, [
+                'user_id' => (string) $user->id,
+                'to_email' => (string) $user->email,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'template_key' => 'welcome_peer',
+                'source_module' => 'auth',
+                'related_type' => 'user',
+                'related_id' => (string) $user->id,
+                'payload' => [
+                    'flow' => 'registration',
+                ],
+            ], $exception);
 
             Log::warning('auth.register.welcome_email_failed', [
                 'user_id' => (string) $user->id,
