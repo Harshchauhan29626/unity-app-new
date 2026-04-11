@@ -392,7 +392,7 @@ class Circle extends Model
 
     public function categories(): BelongsToMany
     {
-        return $this->belongsToMany(Category::class, 'circle_category_mappings', 'circle_id', 'category_id')
+        return $this->belongsToMany(CircleCategory::class, 'circle_category_mappings', 'circle_id', 'category_id')
             ->withTimestamps();
     }
 

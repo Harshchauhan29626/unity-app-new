@@ -2,8 +2,9 @@
 
 namespace App\Imports;
 
-use App\Models\Category;
+use App\Models\CircleCategory;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
 use ZipArchive;
 
 class CategoriesImport
@@ -26,8 +27,9 @@ class CategoriesImport
             ];
         }
 
-        $existingNormalized = Category::query()
-            ->pluck('category_name')
+        $existingNormalized = CircleCategory::query()
+            ->where('level', 1)
+            ->pluck('name')
             ->mapWithKeys(fn ($name) => [$this->normalizeName((string) $name) => true])
             ->all();
 
@@ -40,27 +42,33 @@ class CategoriesImport
         $insertRows = [];
 
         foreach ($rows as $row) {
-            $categoryNameRaw = $this->firstNonNull($row, ['category', 'category_name']);
-            $categoryName = trim((string) ($categoryNameRaw ?? ''));
+            $nameRaw = $this->firstNonNull($row, ['name', 'category', 'category_name']);
+            $name = trim((string) ($nameRaw ?? ''));
 
-            if ($categoryName === '') {
+            if ($name === '') {
                 $skippedEmptyCount++;
                 continue;
             }
 
-            $normalizedName = $this->normalizeName($categoryName);
+            $normalizedName = $this->normalizeName($name);
             if (isset($existingNormalized[$normalizedName]) || isset($seenInFile[$normalizedName])) {
                 $skippedDuplicateCount++;
                 continue;
             }
 
-            $sector = $this->firstNonNull($row, ['sector']);
-            $remarks = $this->firstNonNull($row, ['remarks']);
+            $slug = $this->nullableTrim($this->firstNonNull($row, ['slug']));
+            $circleKey = $this->nullableTrim($this->firstNonNull($row, ['circle_key']));
+            $sortOrder = $this->toInt($this->firstNonNull($row, ['sort_order']), 0);
+            $isActive = $this->toBool($this->firstNonNull($row, ['is_active']), true);
 
             $insertRows[] = [
-                'category_name' => $categoryName,
-                'sector' => $this->nullableTrim($sector),
-                'remarks' => $this->nullableTrim($remarks),
+                'parent_id' => null,
+                'name' => $name,
+                'slug' => $slug ?: Str::slug($name),
+                'circle_key' => $circleKey,
+                'level' => 1,
+                'sort_order' => $sortOrder,
+                'is_active' => $isActive,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
@@ -71,7 +79,7 @@ class CategoriesImport
 
         if ($insertRows !== []) {
             foreach (array_chunk($insertRows, 500) as $chunk) {
-                Category::query()->insert($chunk);
+                CircleCategory::query()->insert($chunk);
             }
 
             $importedCount = count($insertRows);
@@ -241,8 +249,11 @@ class CategoriesImport
         return match ($header) {
             'category' => 'category',
             'category_name' => 'category_name',
-            'sector' => 'sector',
-            'remarks' => 'remarks',
+            'name' => 'name',
+            'slug' => 'slug',
+            'circle_key' => 'circle_key',
+            'sort_order' => 'sort_order',
+            'is_active' => 'is_active',
             'id' => 'id',
             'created_at' => 'created_at',
             'updated_at' => 'updated_at',
@@ -270,6 +281,26 @@ class CategoriesImport
         }
 
         return null;
+    }
+
+    private function toInt(mixed $value, int $default): int
+    {
+        if ($value === null || $value === '') {
+            return $default;
+        }
+
+        return is_numeric($value) ? (int) $value : $default;
+    }
+
+    private function toBool(mixed $value, bool $default): bool
+    {
+        if ($value === null || $value === '') {
+            return $default;
+        }
+
+        $parsed = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+        return $parsed ?? $default;
     }
 
     private function columnIndexFromCellRef(string $ref): int

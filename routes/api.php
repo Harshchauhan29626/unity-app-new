@@ -50,6 +50,8 @@ use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionCon
 use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
+use App\Http\Controllers\Api\V1\CircleCategoryController;
+use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
 use App\Http\Controllers\Api\V1\FollowController;
 use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
@@ -98,6 +100,8 @@ Route::prefix('v1')->group(function () {
     Route::get('/referrals/validate/{code}', [ReferralController::class, 'validateCode']);
 
     Route::get('/industries/tree', [IndustryController::class, 'tree']);
+    Route::get('/circle-categories', [CircleCategoryController::class, 'index']);
+    Route::get('/circle-categories/{idOrSlug}', [CircleCategoryController::class, 'show']);
     Route::get('/collaboration-types', [CollaborationTypeController::class, 'index']);
 
     Route::post('/contacts/sync', [UserContactController::class, 'syncContacts']);
@@ -167,6 +171,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index']);
         Route::put('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
         Route::patch('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
+
+        Route::get('/circles/{circleId}/category-tree', [CircleCategoryUsageController::class, 'circleCategoryTree']);
+        Route::get('/members/{memberId}/selected-categories', [CircleCategoryUsageController::class, 'memberSelectedCategories']);
+        Route::get('/members/{memberId}/available-categories', [CircleCategoryUsageController::class, 'memberAvailableCategories']);
 
         // Circle Join Requests
         Route::post('/circle-join-requests', [CircleJoinRequestController::class, 'store']);

@@ -7,11 +7,37 @@ const categoryInputs = () => categoryCheckboxes
     ? Array.from(categoryCheckboxes.querySelectorAll('input[name="categories[]"]'))
     : [];
 
+const enforceSingleSelection = (activeCheckbox = null) => {
+    const inputs = categoryInputs();
+    if (inputs.length === 0) {
+        return;
+    }
+
+    if (activeCheckbox && activeCheckbox.checked) {
+        inputs.forEach((checkbox) => {
+            if (checkbox !== activeCheckbox) {
+                checkbox.checked = false;
+            }
+        });
+        return;
+    }
+
+    const checked = inputs.filter((checkbox) => checkbox.checked);
+    if (checked.length <= 1) {
+        return;
+    }
+
+    checked.slice(1).forEach((checkbox) => {
+        checkbox.checked = false;
+    });
+};
+
 const renderSelectedCategoryPreview = () => {
     if (!selectedCategoryPreview) {
         return;
     }
 
+    enforceSingleSelection();
     const selected = categoryInputs().filter((checkbox) => checkbox.checked);
 
     if (selected.length === 0) {
@@ -41,6 +67,10 @@ const addCategoryFromPicker = () => {
         return;
     }
 
+    categoryInputs().forEach((checkbox) => {
+        checkbox.checked = false;
+    });
+
     targetCheckbox.checked = true;
     targetCheckbox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
@@ -52,7 +82,10 @@ const addCategoryFromPicker = () => {
 };
 
 categoryInputs().forEach((checkbox) => {
-    checkbox.addEventListener('change', renderSelectedCategoryPreview);
+    checkbox.addEventListener('change', () => {
+        enforceSingleSelection(checkbox);
+        renderSelectedCategoryPreview();
+    });
 });
 
 addCategoryBtn?.addEventListener('click', addCategoryFromPicker);

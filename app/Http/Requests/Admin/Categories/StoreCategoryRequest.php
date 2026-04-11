@@ -14,17 +14,20 @@ class StoreCategoryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'category_name' => ['required', 'string', 'max:255', 'unique:categories,category_name'],
-            'sector' => ['nullable', 'string', 'max:255'],
-            'remarks' => ['nullable', 'string'],
+            'name' => ['required', 'string', 'max:255', 'unique:circle_categories,name'],
+            'slug' => ['nullable', 'string', 'max:255', 'unique:circle_categories,slug'],
+            'circle_key' => ['nullable', 'string', 'max:255'],
+            'level' => ['nullable', 'integer'],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
+            'is_active' => ['nullable', 'boolean'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'category_name.required' => 'Category name is required.',
-            'category_name.unique' => 'This category already exists.',
+            'name.required' => 'Category name is required.',
+            'name.unique' => 'This category already exists.',
         ];
     }
 }

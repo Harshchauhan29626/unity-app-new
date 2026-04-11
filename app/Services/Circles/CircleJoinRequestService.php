@@ -3,6 +3,8 @@
 namespace App\Services\Circles;
 
 use App\Models\Circle;
+use App\Models\CircleCategoryLevel3;
+use App\Models\CircleCategoryLevel4;
 use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
 use App\Models\Role;
@@ -10,6 +12,7 @@ use App\Models\User;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class CircleJoinRequestService
@@ -20,9 +23,9 @@ class CircleJoinRequestService
     ) {
     }
 
-    public function submitRequest(User $user, Circle $circle, ?string $reason): CircleJoinRequest
+    public function submitRequest(User $user, Circle $circle, ?string $reason, array $categoryIds = []): CircleJoinRequest
     {
-        return DB::transaction(function () use ($user, $circle, $reason) {
+        return DB::transaction(function () use ($user, $circle, $reason, $categoryIds) {
             $alreadyMember = CircleMember::query()
                 ->where('circle_id', $circle->id)
                 ->where('user_id', $user->id)
@@ -48,13 +51,45 @@ class CircleJoinRequestService
                 ]);
             }
 
-            $request = CircleJoinRequest::query()->create([
+            $payload = [
                 'user_id' => $user->id,
                 'circle_id' => $circle->id,
                 'reason_for_joining' => $reason,
                 'status' => CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
                 'requested_at' => now(),
+            ];
+
+            $selection = [
+                'level1_category_id' => isset($categoryIds['level1_category_id']) ? (int) $categoryIds['level1_category_id'] : null,
+                'level2_category_id' => isset($categoryIds['level2_category_id']) ? (int) $categoryIds['level2_category_id'] : null,
+                'level3_category_id' => isset($categoryIds['level3_category_id']) ? (int) $categoryIds['level3_category_id'] : null,
+                'level4_category_id' => isset($categoryIds['level4_category_id']) ? (int) $categoryIds['level4_category_id'] : null,
+            ];
+
+            foreach ($selection as $key => $value) {
+                if ($value !== null && $value <= 0) {
+                    $selection[$key] = null;
+                }
+            }
+
+            $selection = $this->resolveCategorySelection($selection);
+
+            $hasCategoryColumns = Schema::hasColumns('circle_join_requests', [
+                'level1_category_id',
+                'level2_category_id',
+                'level3_category_id',
+                'level4_category_id',
             ]);
+
+            if ($hasCategoryColumns) {
+                $payload = array_merge($payload, $selection);
+            } else {
+                $payload['notes'] = array_filter([
+                    'category_selection' => array_filter($selection, fn ($value) => $value !== null),
+                ]);
+            }
+
+            $request = CircleJoinRequest::query()->create($payload);
 
             $this->notifyStakeholders($request, $user);
 
@@ -62,11 +97,61 @@ class CircleJoinRequestService
         });
     }
 
+    private function resolveCategorySelection(array $selection): array
+    {
+        $level4CategoryId = (int) ($selection['level4_category_id'] ?? 0);
+        if ($level4CategoryId <= 0) {
+            return $selection;
+        }
+
+        $level4 = CircleCategoryLevel4::query()
+            ->select(['id', 'level3_id', 'level2_id', 'circle_category_id'])
+            ->find($level4CategoryId);
+
+        if (! $level4) {
+            return $selection;
+        }
+
+        $level3CategoryId = (int) ($selection['level3_category_id'] ?? 0);
+        if ($level3CategoryId <= 0 && (int) $level4->level3_id > 0) {
+            $selection['level3_category_id'] = (int) $level4->level3_id;
+            $level3CategoryId = (int) $selection['level3_category_id'];
+        }
+
+        $level3Level2Id = null;
+        if ($level3CategoryId > 0) {
+            $level3 = CircleCategoryLevel3::query()
+                ->select(['id', 'level2_id'])
+                ->find($level3CategoryId);
+
+            $level3Level2Id = $level3 ? (int) ($level3->level2_id ?? 0) : null;
+        }
+
+        $level2CategoryId = (int) ($selection['level2_category_id'] ?? 0);
+        if ($level2CategoryId <= 0) {
+            $level2FromLevel4 = (int) ($level4->level2_id ?? 0);
+            $selection['level2_category_id'] = $level2FromLevel4 > 0 ? $level2FromLevel4 : (int) ($level3Level2Id ?? 0);
+        }
+
+        $level1CategoryId = (int) ($selection['level1_category_id'] ?? 0);
+        if ($level1CategoryId <= 0 && (int) $level4->circle_category_id > 0) {
+            $selection['level1_category_id'] = (int) $level4->circle_category_id;
+        }
+
+        foreach (['level1_category_id', 'level2_category_id', 'level3_category_id', 'level4_category_id'] as $key) {
+            $selection[$key] = (int) ($selection[$key] ?? 0) > 0 ? (int) $selection[$key] : null;
+        }
+
+        return $selection;
+    }
+
     public function approveByCd(CircleJoinRequest $request, User $admin): CircleJoinRequest
     {
         return DB::transaction(function () use ($request, $admin) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_CD_APPROVAL);
+
+            $oldStatus = (string) $locked->status;
 
             $locked->forceFill([
                 'status' => CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
@@ -78,6 +163,13 @@ class CircleJoinRequestService
             ])->save();
 
             $updated = $locked->fresh(['user', 'circle']);
+
+            Log::info('circle_join_request.approved_cd', [
+                'request_id' => $updated->id,
+                'old_status' => $oldStatus,
+                'new_status' => (string) $updated->status,
+                'approved_by' => $admin->id,
+            ]);
 
             $this->safeSendTransitionNotifications(
                 $updated,
@@ -118,6 +210,8 @@ class CircleJoinRequestService
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_ID_APPROVAL);
 
+            $oldStatus = (string) $locked->status;
+
             $locked->forceFill([
                 'status' => CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
                 'id_approved_by' => $admin->id,
@@ -125,10 +219,16 @@ class CircleJoinRequestService
                 'id_rejected_by' => null,
                 'id_rejected_at' => null,
                 'id_rejection_reason' => null,
-                'fee_marked_at' => now(),
             ])->save();
 
             $updated = $locked->fresh(['user', 'circle']);
+
+            Log::info('circle_join_request.approved_id', [
+                'request_id' => $updated->id,
+                'old_status' => $oldStatus,
+                'new_status' => (string) $updated->status,
+                'approved_by' => $admin->id,
+            ]);
 
             $this->safeSendTransitionNotifications(
                 $updated,
@@ -144,6 +244,8 @@ class CircleJoinRequestService
         return DB::transaction(function () use ($request, $admin, $reason) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_ID_APPROVAL);
+
+            $oldStatus = (string) $locked->status;
 
             $locked->forceFill([
                 'status' => CircleJoinRequest::STATUS_REJECTED_BY_ID,

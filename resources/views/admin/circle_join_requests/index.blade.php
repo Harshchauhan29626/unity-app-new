@@ -12,6 +12,8 @@
         'rejected_by_cd' => 'Rejected by CD',
         'rejected_by_id' => 'Rejected by ID',
         'cancelled' => 'Cancelled',
+        'approved' => 'Approved',
+        'rejected' => 'Rejected',
     ];
 @endphp
 

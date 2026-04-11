@@ -306,6 +306,30 @@
                         <div class="form-text">Adds or reactivates membership without removing existing circles.</div>
                     </div>
                     <div class="col-md-4">
+                        <label class="form-label" for="level1_category_id">Level 1 Category</label>
+                        <select name="level1_category_id" id="level1_category_id" class="form-select">
+                            <option value="">Select level 1 category</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="level2_category_id">Level 2 Category</label>
+                        <select name="level2_category_id" id="level2_category_id" class="form-select" disabled>
+                            <option value="">Select level 2 category</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="level3_category_id">Level 3 Category</label>
+                        <select name="level3_category_id" id="level3_category_id" class="form-select" disabled>
+                            <option value="">Select level 3 category</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="level4_category_id">Level 4 Category</label>
+                        <select name="level4_category_id" id="level4_category_id" class="form-select" disabled>
+                            <option value="">Select level 4 category</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
                         <label class="form-label">Circle Joined Date</label>
                         <input type="date" name="circle_joined_at" class="form-control" value="{{ old('circle_joined_at', optional($user->circle_joined_at)->format('Y-m-d')) }}">
                     </div>
@@ -381,6 +405,81 @@
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+
+                    <div class="col-12 mt-3">
+                        <h6 class="mb-2">Joined Circle Categories</h6>
+                        @php
+                            $joinedCircleCategoryTrees = $joinedCircleCategoryTrees ?? collect();
+                        @endphp
+
+                        @if($joinedCircleCategoryTrees->isEmpty())
+                            <div class="text-muted">—</div>
+                        @else
+                            <div class="row g-3">
+                                @foreach($joinedCircleCategoryTrees as $circleTree)
+                                    <div class="col-12">
+                                        <div class="border rounded p-3 bg-light-subtle">
+                                            <div class="fw-semibold mb-2">
+                                                Joined Circle: {{ $circleTree['circle']?->name ?: ($circleTree['membership']->circle?->name ?? '—') }}
+                                            </div>
+
+                                            @php
+                                                $selectedPath = $circleTree['selected_category_path'] ?? [];
+                                            @endphp
+                                            @if(!empty($selectedPath['level1']) || !empty($selectedPath['level2']) || !empty($selectedPath['level3']) || !empty($selectedPath['level4']))
+                                                <div class="small mb-2">
+                                                    @if(!empty($selectedPath['level1'])) <div><strong>Level 1:</strong> {{ $selectedPath['level1']->name }}</div> @endif
+                                                    @if(!empty($selectedPath['level2'])) <div><strong>Level 2:</strong> {{ $selectedPath['level2']->name }}</div> @endif
+                                                    @if(!empty($selectedPath['level3'])) <div><strong>Level 3:</strong> {{ $selectedPath['level3']->name }}</div> @endif
+                                                    @if(!empty($selectedPath['level4'])) <div><strong>Level 4:</strong> {{ $selectedPath['level4']->name }}</div> @endif
+                                                </div>
+                                            @endif
+
+                                            @if(($circleTree['categories'] ?? collect())->isEmpty())
+                                                <div class="text-muted">—</div>
+                                            @else
+                                                @foreach($circleTree['categories'] as $mainCategoryTree)
+                                                    <div class="mb-3">
+                                                        <span class="badge bg-light text-dark border mb-2">
+                                                            Category: {{ $mainCategoryTree['node']->name }}
+                                                        </span>
+
+                                                        @if(($mainCategoryTree['children'] ?? collect())->isEmpty())
+                                                            <div class="text-muted ms-2">—</div>
+                                                        @else
+                                                            <ul class="mb-0">
+                                                                @foreach($mainCategoryTree['children'] as $level2Tree)
+                                                                    <li>
+                                                                        {{ $level2Tree['node']->name }}
+                                                                        @if(($level2Tree['children'] ?? collect())->isNotEmpty())
+                                                                            <ul>
+                                                                                @foreach($level2Tree['children'] as $level3Tree)
+                                                                                    <li>
+                                                                                        {{ $level3Tree['node']->name }}
+                                                                                        @if(($level3Tree['children'] ?? collect())->isNotEmpty())
+                                                                                            <ul>
+                                                                                                @foreach($level3Tree['children'] as $level4Node)
+                                                                                                    <li>{{ $level4Node->name }}</li>
+                                                                                                @endforeach
+                                                                                            </ul>
+                                                                                        @endif
+                                                                                    </li>
+                                                                                @endforeach
+                                                                            </ul>
+                                                                        @endif
+                                                                    </li>
+                                                                @endforeach
+                                                            </ul>
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -547,6 +646,11 @@ document.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('DOMContentLoaded', () => {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         const uploadUrl = '{{ route('admin.files.upload') }}';
+        const circleCategoryOptionsByCircle = @json($circleCategoryOptionsByCircle ?? []);
+        const oldLevel1 = '{{ old('level1_category_id', '') }}';
+        const oldLevel2 = '{{ old('level2_category_id', '') }}';
+        const oldLevel3 = '{{ old('level3_category_id', '') }}';
+        const oldLevel4 = '{{ old('level4_category_id', '') }}';
 
         const setupUploader = (prefix) => {
             const fileInput = document.getElementById(`${prefix}File`);
@@ -613,6 +717,101 @@ document.addEventListener('DOMContentLoaded', function () {
 
         setupUploader('profilePhoto');
         setupUploader('coverPhoto');
+
+        const circleSelect = document.getElementById('additional_circle_id');
+        const level1Select = document.getElementById('level1_category_id');
+        const level2Select = document.getElementById('level2_category_id');
+        const level3Select = document.getElementById('level3_category_id');
+        const level4Select = document.getElementById('level4_category_id');
+
+        const resetSelect = (selectEl, placeholder, disabled = true) => {
+            if (!selectEl) return;
+            selectEl.innerHTML = `<option value="">${placeholder}</option>`;
+            selectEl.disabled = disabled;
+        };
+
+        const fillSelect = (selectEl, options, placeholder, selectedValue = '') => {
+            if (!selectEl) return;
+            selectEl.innerHTML = `<option value="">${placeholder}</option>`;
+            (options || []).forEach((item) => {
+                const option = document.createElement('option');
+                option.value = String(item.id);
+                option.textContent = item.name;
+                if (selectedValue !== '' && String(selectedValue) === String(item.id)) {
+                    option.selected = true;
+                }
+                selectEl.appendChild(option);
+            });
+            selectEl.disabled = (options || []).length === 0;
+        };
+
+        const getCircleData = () => {
+            const circleId = circleSelect?.value || '';
+            return circleCategoryOptionsByCircle[String(circleId)] || { level1: [], level2: [], level3: [], level4: [] };
+        };
+
+        const handleLevel1Change = (presetLevel2 = '') => {
+            const data = getCircleData();
+            const level1Id = level1Select?.value || '';
+            const level2Options = (data.level2 || []).filter((item) => String(item.parent_id) === String(level1Id));
+            fillSelect(level2Select, level2Options, 'Select level 2 category', presetLevel2);
+            resetSelect(level3Select, 'Select level 3 category');
+            resetSelect(level4Select, 'Select level 4 category');
+        };
+
+        const handleLevel2Change = (presetLevel3 = '') => {
+            const data = getCircleData();
+            const level2Id = level2Select?.value || '';
+            const level3Options = (data.level3 || []).filter((item) => String(item.parent_id) === String(level2Id));
+            fillSelect(level3Select, level3Options, 'Select level 3 category', presetLevel3);
+            resetSelect(level4Select, 'Select level 4 category');
+        };
+
+        const handleLevel3Change = (presetLevel4 = '') => {
+            const data = getCircleData();
+            const level3Id = level3Select?.value || '';
+            const level4Options = (data.level4 || []).filter((item) => String(item.parent_id) === String(level3Id));
+            fillSelect(level4Select, level4Options, 'Select level 4 category', presetLevel4);
+        };
+
+        const handleCircleChange = () => {
+            const data = getCircleData();
+            fillSelect(level1Select, data.level1 || [], 'Select level 1 category', oldLevel1);
+            resetSelect(level2Select, 'Select level 2 category');
+            resetSelect(level3Select, 'Select level 3 category');
+            resetSelect(level4Select, 'Select level 4 category');
+
+            if (oldLevel1 && level1Select?.value) {
+                handleLevel1Change(oldLevel2);
+                if (oldLevel2 && level2Select?.value) {
+                    handleLevel2Change(oldLevel3);
+                    if (oldLevel3 && level3Select?.value) {
+                        handleLevel3Change(oldLevel4);
+                    }
+                }
+            } else if ((data.level1 || []).length === 1 && level1Select) {
+                level1Select.value = String(data.level1[0].id);
+                handleLevel1Change();
+            }
+        };
+
+        circleSelect?.addEventListener('change', () => {
+            resetSelect(level2Select, 'Select level 2 category');
+            resetSelect(level3Select, 'Select level 3 category');
+            resetSelect(level4Select, 'Select level 4 category');
+
+            const data = getCircleData();
+            fillSelect(level1Select, data.level1 || [], 'Select level 1 category');
+            if ((data.level1 || []).length === 1 && level1Select) {
+                level1Select.value = String(data.level1[0].id);
+                handleLevel1Change();
+            }
+        });
+        level1Select?.addEventListener('change', () => handleLevel1Change());
+        level2Select?.addEventListener('change', () => handleLevel2Change());
+        level3Select?.addEventListener('change', () => handleLevel3Change());
+
+        handleCircleChange();
     });
 </script>
 @endpush

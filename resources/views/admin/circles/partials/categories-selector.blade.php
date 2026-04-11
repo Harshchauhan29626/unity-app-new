@@ -7,7 +7,7 @@
                 <select id="categoryPicker" class="form-select">
                     <option value="">Select category</option>
                     @foreach(($categories ?? collect()) as $category)
-                        <option value="{{ $category->id }}">{{ $category->category_name }}</option>
+                        <option value="{{ $category->id }}">{{ $category->name }}</option>
                     @endforeach
                 </select>
                 <button type="button" class="btn btn-outline-primary" id="addCategoryBtn">Add Category</button>
@@ -23,12 +23,12 @@
                                     type="checkbox"
                                     name="categories[]"
                                     value="{{ $category->id }}"
-                                    data-category-name="{{ $category->category_name }}"
+                                    data-category-name="{{ $category->name }}"
                                     id="category_{{ $category->id }}"
                                     @checked(in_array($category->id, $selectedCategoryIds ?? []))
                                 >
                                 <label class="form-check-label" for="category_{{ $category->id }}">
-                                    {{ $category->category_name }}
+                                    {{ $category->name }}
                                 </label>
                             </div>
                         </div>

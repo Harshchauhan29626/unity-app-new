@@ -8,6 +8,12 @@ use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
 use App\Mail\WelcomePeerMail;
 use App\Models\EmailLog;
+
+use App\Models\CircleCategoryLevel3;
+use App\Models\CircleCategoryLevel4;
+use App\Models\CircleMember;
+use App\Models\JoinedCircleCategory;
+
 use App\Models\OtpCode;
 use App\Models\ReferralData;
 use App\Models\User;
@@ -22,12 +28,14 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 
 class AuthController extends BaseApiController
 {
     public function register(RegisterRequest $request, ReferralService $referralService)
     {
         $data = $request->validated();
+        $data = $this->resolveRegisterCategoryPath($data);
         $incomingReferralCode = $data['referral_code']
             ?? $request->input('referral_code')
             ?? $request->input('referralCode');
@@ -73,6 +81,14 @@ class AuthController extends BaseApiController
             'exists' => true,
         ]);
 
+        $circleMember = $this->attachOptionalCircleMembership($persistedUser, $data);
+        $this->persistOptionalJoinedCategories(
+            $persistedUser,
+            $data,
+            $circleMember?->circle_id,
+            $circleMember?->id
+        );
+
         $referralMeta = null;
 
         if (filled($normalizedReferralCode)) {
@@ -115,8 +131,179 @@ class AuthController extends BaseApiController
                 'token' => $token,
                 'user'  => $persistedUser,
                 'referral' => $referralMeta,
+                'categories' => $this->buildJoinedCategoriesPayload($persistedUser),
             ],
         ], 201);
+    }
+
+    private function attachOptionalCircleMembership(User $user, array $data): ?CircleMember
+    {
+        $circleId = (string) ($data['circle_id'] ?? '');
+        if ($circleId === '') {
+            return null;
+        }
+
+        $attributes = [
+            'role' => 'member',
+            'status' => (string) config('circle.member_joined_status', 'approved'),
+            'left_at' => null,
+        ];
+
+        if (Schema::hasColumn('circle_members', 'joined_at')) {
+            $attributes['joined_at'] = now();
+        }
+
+        $member = CircleMember::query()->withTrashed()->firstOrNew([
+            'user_id' => (string) $user->id,
+            'circle_id' => $circleId,
+        ]);
+
+        if ($member->trashed()) {
+            $member->deleted_at = null;
+        }
+
+        $member->fill($attributes);
+        $member->save();
+
+        if (Schema::hasColumn('users', 'active_circle_id')) {
+            $user->active_circle_id = $circleId;
+            $user->save();
+        }
+
+        return $member;
+    }
+
+    private function persistOptionalJoinedCategories(User $user, array $data, ?string $circleId, ?string $circleMemberId): void
+    {
+        if (! Schema::hasTable('joined_circle_categories')) {
+            return;
+        }
+
+        if (! $circleId) {
+            return;
+        }
+
+        $level1CategoryId = (int) ($data['level1_category_id'] ?? 0);
+        $level2CategoryId = (int) ($data['level2_category_id'] ?? 0);
+        $level3CategoryId = (int) ($data['level3_category_id'] ?? 0);
+        $level4CategoryId = (int) ($data['level4_category_id'] ?? 0);
+
+        if ($level1CategoryId <= 0 && $level2CategoryId <= 0 && $level3CategoryId <= 0 && $level4CategoryId <= 0) {
+            return;
+        }
+
+        try {
+            JoinedCircleCategory::query()->updateOrCreate(
+                [
+                    'user_id' => (string) $user->id,
+                    'circle_id' => $circleId,
+                ],
+                [
+                    'circle_member_id' => $circleMemberId,
+                    'level1_category_id' => $level1CategoryId > 0 ? $level1CategoryId : null,
+                    'level2_category_id' => $level2CategoryId > 0 ? $level2CategoryId : null,
+                    'level3_category_id' => $level3CategoryId > 0 ? $level3CategoryId : null,
+                    'level4_category_id' => $level4CategoryId > 0 ? $level4CategoryId : null,
+                ]
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('auth.register.joined_circle_categories_persist_failed', [
+                'user_id' => (string) $user->id,
+                'level1_category_id' => $level1CategoryId > 0 ? $level1CategoryId : null,
+                'level2_category_id' => $level2CategoryId > 0 ? $level2CategoryId : null,
+                'level3_category_id' => $level3CategoryId > 0 ? $level3CategoryId : null,
+                'level4_category_id' => $level4CategoryId > 0 ? $level4CategoryId : null,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    private function resolveRegisterCategoryPath(array $data): array
+    {
+        $level1CategoryId = (int) ($data['level1_category_id'] ?? 0);
+        $level2CategoryId = (int) ($data['level2_category_id'] ?? 0);
+        $level3CategoryId = (int) ($data['level3_category_id'] ?? 0);
+        $level4CategoryId = (int) ($data['level4_category_id'] ?? 0);
+
+        if ($level4CategoryId <= 0) {
+            return $data;
+        }
+
+        $level4 = CircleCategoryLevel4::query()
+            ->select(['id', 'level3_id', 'level2_id', 'circle_category_id'])
+            ->find($level4CategoryId);
+
+        if (! $level4) {
+            return $data;
+        }
+
+        if ($level3CategoryId <= 0 && (int) $level4->level3_id > 0) {
+            $level3CategoryId = (int) $level4->level3_id;
+        }
+
+        $level3Level2Id = null;
+        if ($level3CategoryId > 0) {
+            $level3 = CircleCategoryLevel3::query()
+                ->select(['id', 'level2_id'])
+                ->find($level3CategoryId);
+
+            $level3Level2Id = $level3 ? (int) ($level3->level2_id ?? 0) : null;
+        }
+
+        if ($level2CategoryId <= 0) {
+            $level2FromLevel4 = (int) ($level4->level2_id ?? 0);
+            $level2CategoryId = $level2FromLevel4 > 0 ? $level2FromLevel4 : (int) ($level3Level2Id ?? 0);
+        }
+
+        if ($level1CategoryId <= 0 && (int) $level4->circle_category_id > 0) {
+            $level1CategoryId = (int) $level4->circle_category_id;
+        }
+
+        $data['level1_category_id'] = $level1CategoryId > 0 ? $level1CategoryId : null;
+        $data['level2_category_id'] = $level2CategoryId > 0 ? $level2CategoryId : null;
+        $data['level3_category_id'] = $level3CategoryId > 0 ? $level3CategoryId : null;
+        $data['level4_category_id'] = $level4CategoryId > 0 ? $level4CategoryId : null;
+
+        return $data;
+    }
+
+    private function buildJoinedCategoriesPayload(User $user): array
+    {
+        if (! Schema::hasTable('joined_circle_categories')) {
+            return [];
+        }
+
+        return JoinedCircleCategory::query()
+            ->where('user_id', (string) $user->id)
+            ->with([
+                'circle:id,name',
+                'level1Category:id,name',
+                'level2Category:id,name',
+                'level3Category:id,name',
+                'level4Category:id,name',
+            ])
+            ->orderByDesc('updated_at')
+            ->get()
+            ->map(function (JoinedCircleCategory $row): array {
+                return [
+                    'circle_id' => $row->circle_id,
+                    'circle_name' => $row->circle?->name,
+                    'level1_category' => $row->level1Category
+                        ? ['id' => $row->level1Category->id, 'name' => $row->level1Category->name]
+                        : null,
+                    'level2_category' => $row->level2Category
+                        ? ['id' => $row->level2Category->id, 'name' => $row->level2Category->name]
+                        : null,
+                    'level3_category' => $row->level3Category
+                        ? ['id' => $row->level3Category->id, 'name' => $row->level3Category->name]
+                        : null,
+                    'level4_category' => $row->level4Category
+                        ? ['id' => $row->level4Category->id, 'name' => $row->level4Category->name]
+                        : null,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function ensureReferralDataPersisted(User $user, string $referralCode, array $referralMeta): void
@@ -172,6 +359,7 @@ class AuthController extends BaseApiController
     private function sendWelcomePeerEmail(User $user): void
     {
         if (EmailLog::query()
+            ->where('to_email', (string) $user->email)
             ->where('user_id', (string) $user->id)
             ->where('template_key', 'welcome_peer')
             ->exists()) {
@@ -183,6 +371,30 @@ class AuthController extends BaseApiController
         try {
             Mail::to($user->email)->send($mailable);
 
+            EmailLog::query()->create([
+                'to_email' => (string) $user->email,
+                'template_key' => 'welcome_peer',
+                'payload' => [
+                    'flow' => 'registration',
+                    'mailable_class' => WelcomePeerMail::class,
+                ],
+                'status' => 'sent',
+                'sent_at' => now(),
+                'created_at' => now(),
+            ]);
+        } catch (\Throwable $exception) {
+            EmailLog::query()->create([
+                'to_email' => (string) $user->email,
+                'template_key' => 'welcome_peer',
+                'payload' => [
+                    'flow' => 'registration',
+                    'mailable_class' => WelcomePeerMail::class,
+                    'error' => $exception->getMessage(),
+                ],
+                'status' => 'failed',
+                'sent_at' => now(),
+                'created_at' => now(),
+            ]);
             app(EmailLogService::class)->logMailableSent($mailable, [
                 'user_id' => (string) $user->id,
                 'to_email' => (string) $user->email,

@@ -55,20 +55,17 @@
                 <tr>
                     <th>ID</th>
                     <th>Category Name</th>
-                    <th>Sector</th>
-                    <th>Remarks</th>
-                    <th style="width: 140px;">Actions</th>
+                    <th style="width: 210px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse ($categories as $category)
                     <tr>
                         <td>{{ $category->id }}</td>
-                        <td>{{ $category->category_name }}</td>
-                        <td>{{ $category->sector ?: '—' }}</td>
-                        <td>{{ $category->remarks ?: '—' }}</td>
+                        <td>{{ $category->name }}</td>
                         <td>
                             <div class="d-flex gap-1">
+                                <a href="{{ route('admin.categories.view', $category) }}" class="btn btn-sm btn-outline-secondary">View</a>
                                 <a href="{{ route('admin.categories.edit', $category) }}" class="btn btn-sm btn-outline-primary">Edit</a>
                                 <form method="POST" action="{{ route('admin.categories.destroy', $category) }}" onsubmit="return confirm('Delete this category?')">
                                     @csrf
@@ -80,7 +77,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="text-center text-muted py-3">No categories found.</td>
+                        <td colspan="3" class="text-center text-muted py-3">No categories found.</td>
                     </tr>
                 @endforelse
             </tbody>
