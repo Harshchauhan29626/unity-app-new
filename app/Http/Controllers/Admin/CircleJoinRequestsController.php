@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -54,6 +55,10 @@ class CircleJoinRequestsController extends Controller
             ->when($request->query('status'), fn ($q, $v) => in_array($v, $pendingStatuses, true) ? $q->where('status', $v) : $q->whereRaw('1=0'))
             ->when($request->query('date_from'), fn ($q, $v) => $q->whereDate('requested_at', '>=', $v))
             ->when($request->query('date_to'), fn ($q, $v) => $q->whereDate('requested_at', '<=', $v));
+
+        if (Schema::hasColumn('circle_join_requests', 'fee_paid_at')) {
+            $query->whereNull('fee_paid_at');
+        }
 
         $requests = $query->latest('created_at')->paginate(25)->appends($request->query());
 
