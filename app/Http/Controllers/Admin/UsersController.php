@@ -29,6 +29,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -103,6 +104,10 @@ class UsersController extends Controller
 
         $request->merge([
             'public_profile_slug' => $this->publicProfileSlugService->normalize($request->input('public_profile_slug')),
+            'level_1_category_id' => $request->input('level_1_category_id', $request->input('level1_category_id')),
+            'level_2_category_id' => $request->input('level_2_category_id', $request->input('level2_category_id')),
+            'level_3_category_id' => $request->input('level_3_category_id', $request->input('level3_category_id')),
+            'level_4_category_id' => $request->input('level_4_category_id', $request->input('level4_category_id')),
         ]);
 
         $validated = $request->validate([
@@ -339,6 +344,10 @@ class UsersController extends Controller
 
         $request->merge([
             'public_profile_slug' => $this->publicProfileSlugService->normalize($request->input('public_profile_slug')),
+            'level_1_category_id' => $request->input('level_1_category_id', $request->input('level1_category_id')),
+            'level_2_category_id' => $request->input('level_2_category_id', $request->input('level2_category_id')),
+            'level_3_category_id' => $request->input('level_3_category_id', $request->input('level3_category_id')),
+            'level_4_category_id' => $request->input('level_4_category_id', $request->input('level4_category_id')),
         ]);
         $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
         $adminRoleIds = Role::query()
@@ -377,10 +386,10 @@ class UsersController extends Controller
                 'different:active_circle_id',
                 Rule::requiredIf($request->has('add_circle_membership')),
             ],
-            'level1_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
-            'level2_category_id' => ['nullable', 'integer', 'exists:circle_category_level2,id'],
-            'level3_category_id' => ['nullable', 'integer', 'exists:circle_category_level3,id'],
-            'level4_category_id' => ['nullable', 'integer', 'exists:circle_category_level4,id'],
+            'level_1_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
+            'level_2_category_id' => ['nullable', 'integer', 'exists:circle_category_level2,id'],
+            'level_3_category_id' => ['nullable', 'integer', 'exists:circle_category_level3,id'],
+            'level_4_category_id' => ['nullable', 'integer', 'exists:circle_category_level4,id'],
             'active_circle_addon_code' => ['nullable', 'string', 'max:100'],
             'active_circle_addon_name' => ['nullable', 'string', 'max:255'],
             'circle_joined_at' => [Rule::requiredIf($request->has('add_circle_membership')), 'nullable', 'date'],
@@ -413,6 +422,8 @@ class UsersController extends Controller
         ], [
             'role_ids.max' => 'You can not assign multiple roles.',
         ]);
+
+        $validated = $this->validateCategoryHierarchy($validated, $request);
 
         $csvFields = [
             'industry_tags',
@@ -1406,12 +1417,17 @@ class UsersController extends Controller
         $selectedIdsByMembership = $circleMemberships->mapWithKeys(function ($membership) use ($selectionByCircleMemberId) {
             $selection = $selectionByCircleMemberId->get((string) $membership->id);
 
+            $level1Id = (int) ($membership->level_1_category_id ?? 0);
+            $level2Id = (int) ($membership->level_2_category_id ?? 0);
+            $level3Id = (int) ($membership->level_3_category_id ?? 0);
+            $level4Id = (int) ($membership->level_4_category_id ?? 0);
+
             return [
                 (string) $membership->id => [
-                    'level1' => (int) ($selection?->level1_category_id ?? 0),
-                    'level2' => (int) ($selection?->level2_category_id ?? 0),
-                    'level3' => (int) ($selection?->level3_category_id ?? 0),
-                    'level4' => (int) ($selection?->level4_category_id ?? 0),
+                    'level1' => $level1Id > 0 ? $level1Id : (int) ($selection?->level1_category_id ?? 0),
+                    'level2' => $level2Id > 0 ? $level2Id : (int) ($selection?->level2_category_id ?? 0),
+                    'level3' => $level3Id > 0 ? $level3Id : (int) ($selection?->level3_category_id ?? 0),
+                    'level4' => $level4Id > 0 ? $level4Id : (int) ($selection?->level4_category_id ?? 0),
                 ],
             ];
         });
@@ -1507,15 +1523,36 @@ class UsersController extends Controller
 
     private function upsertCircleMemberCategorySelection(CircleMember $memberRecord, string $userId, array $validated): void
     {
+        $level1Id = (int) ($validated['level_1_category_id'] ?? 0);
+        $level2Id = (int) ($validated['level_2_category_id'] ?? 0);
+        $level3Id = (int) ($validated['level_3_category_id'] ?? 0);
+        $level4Id = (int) ($validated['level_4_category_id'] ?? 0);
+        $hasSelection = $level1Id > 0 || $level2Id > 0 || $level3Id > 0 || $level4Id > 0;
+
+        $circleMemberCategoryPayload = [
+            'level_1_category_id' => $level1Id > 0 ? $level1Id : null,
+            'level_2_category_id' => $level2Id > 0 ? $level2Id : null,
+            'level_3_category_id' => $level3Id > 0 ? $level3Id : null,
+            'level_4_category_id' => $level4Id > 0 ? $level4Id : null,
+        ];
+
+        if (Schema::hasColumn('circle_members', 'level_1_category_id')) {
+            $memberRecord->level_1_category_id = $circleMemberCategoryPayload['level_1_category_id'];
+        }
+        if (Schema::hasColumn('circle_members', 'level_2_category_id')) {
+            $memberRecord->level_2_category_id = $circleMemberCategoryPayload['level_2_category_id'];
+        }
+        if (Schema::hasColumn('circle_members', 'level_3_category_id')) {
+            $memberRecord->level_3_category_id = $circleMemberCategoryPayload['level_3_category_id'];
+        }
+        if (Schema::hasColumn('circle_members', 'level_4_category_id')) {
+            $memberRecord->level_4_category_id = $circleMemberCategoryPayload['level_4_category_id'];
+        }
+        $memberRecord->save();
+
         if (! Schema::hasTable('joined_circle_categories')) {
             return;
         }
-
-        $level1Id = (int) ($validated['level1_category_id'] ?? 0);
-        $level2Id = (int) ($validated['level2_category_id'] ?? 0);
-        $level3Id = (int) ($validated['level3_category_id'] ?? 0);
-        $level4Id = (int) ($validated['level4_category_id'] ?? 0);
-        $hasSelection = $level1Id > 0 || $level2Id > 0 || $level3Id > 0 || $level4Id > 0;
 
         if (! $hasSelection) {
             JoinedCircleCategory::query()
@@ -1527,15 +1564,67 @@ class UsersController extends Controller
 
         JoinedCircleCategory::query()->updateOrCreate(
             ['circle_member_id' => $memberRecord->id],
-            [
-                'user_id' => $userId,
-                'circle_id' => $memberRecord->circle_id,
-                'level1_category_id' => $level1Id > 0 ? $level1Id : null,
-                'level2_category_id' => $level2Id > 0 ? $level2Id : null,
-                'level3_category_id' => $level3Id > 0 ? $level3Id : null,
-                'level4_category_id' => $level4Id > 0 ? $level4Id : null,
-            ]
+            array_merge(
+                [
+                    'user_id' => $userId,
+                    'circle_id' => $memberRecord->circle_id,
+                ],
+                [
+                    'level1_category_id' => $circleMemberCategoryPayload['level_1_category_id'],
+                    'level2_category_id' => $circleMemberCategoryPayload['level_2_category_id'],
+                    'level3_category_id' => $circleMemberCategoryPayload['level_3_category_id'],
+                    'level4_category_id' => $circleMemberCategoryPayload['level_4_category_id'],
+                ],
+            )
         );
+    }
+
+    private function validateCategoryHierarchy(array $validated, Request $request): array
+    {
+        $level1Id = (int) ($validated['level_1_category_id'] ?? 0);
+        $level2Id = (int) ($validated['level_2_category_id'] ?? 0);
+        $level3Id = (int) ($validated['level_3_category_id'] ?? 0);
+        $level4Id = (int) ($validated['level_4_category_id'] ?? 0);
+
+        if ($level2Id > 0) {
+            $level2 = CircleCategoryLevel2::query()->find($level2Id);
+            if (! $level2 || ($level1Id > 0 && (int) $level2->circle_category_id !== $level1Id)) {
+                throw ValidationException::withMessages([
+                    'level_2_category_id' => 'Selected Level 2 category does not belong to the selected Level 1 category.',
+                ]);
+            }
+            if ($level1Id === 0 && $level2) {
+                $validated['level_1_category_id'] = (int) $level2->circle_category_id;
+                $level1Id = (int) $validated['level_1_category_id'];
+            }
+        }
+
+        if ($level3Id > 0) {
+            $level3 = CircleCategoryLevel3::query()->find($level3Id);
+            if (! $level3 || ($level2Id > 0 && (int) $level3->level2_id !== $level2Id)) {
+                throw ValidationException::withMessages([
+                    'level_3_category_id' => 'Selected Level 3 category does not belong to the selected Level 2 category.',
+                ]);
+            }
+            if ($level2Id === 0 && $level3) {
+                $validated['level_2_category_id'] = (int) $level3->level2_id;
+                $level2Id = (int) $validated['level_2_category_id'];
+            }
+        }
+
+        if ($level4Id > 0) {
+            $level4 = CircleCategoryLevel4::query()->find($level4Id);
+            if (! $level4 || ($level3Id > 0 && (int) $level4->level3_id !== $level3Id)) {
+                throw ValidationException::withMessages([
+                    'level_4_category_id' => 'Selected Level 4 category does not belong to the selected Level 3 category.',
+                ]);
+            }
+            if ($level3Id === 0 && $level4) {
+                $validated['level_3_category_id'] = (int) $level4->level3_id;
+            }
+        }
+
+        return $validated;
     }
 
     private function welcomeMailFlashMessage(string $reason): array
