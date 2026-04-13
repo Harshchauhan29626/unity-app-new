@@ -1536,6 +1536,8 @@ class UsersController extends Controller
                 'level4_category_id' => $level4Id > 0 ? $level4Id : null,
             ]
         );
+    }
+
     private function welcomeMailFlashMessage(string $reason): array
     {
         return match ($reason) {
