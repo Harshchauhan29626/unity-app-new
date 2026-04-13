@@ -181,7 +181,13 @@ class TestimonialController extends BaseApiController
                 'Received a testimonial / review',
                 (string) $authUser->id,
                 (string) $testimonial->id,
-                'Life impact added for testimonial activity.'
+                'Life impact added for testimonial activity.',
+                [
+                    'content' => $testimonial->content,
+                    'media_ids' => collect($testimonial->media ?? [])->pluck('id')->filter()->values()->all(),
+                    'from_user_id' => $testimonial->from_user_id ? (string) $testimonial->from_user_id : null,
+                    'to_user_id' => $testimonial->to_user_id ? (string) $testimonial->to_user_id : null,
+                ]
             );
 
             // Postman example (testimonial create):

@@ -276,7 +276,14 @@ class ReferralService
                     'New referral joined successfully',
                     $newUserId,
                     (string) $data->id,
-                    'Life impact added for successful referral-based registration.'
+                    'Life impact added for successful referral-based registration.',
+                    [
+                        'to_user_id' => $newUserId,
+                        'referred_user_id' => $newUserId,
+                        'referrer_user_id' => $referrerUserId,
+                        'referral_code' => $normalized,
+                        'coins' => $rewardCoins,
+                    ]
                 );
 
                 Log::info('referral.life_impacted.incremented', [

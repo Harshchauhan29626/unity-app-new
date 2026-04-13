@@ -183,7 +183,14 @@ class BusinessDealController extends BaseApiController
                 'Closed a business deal',
                 (string) $authUser->id,
                 (string) $businessDeal->id,
-                'Life impact added for business deal activity.'
+                'Life impact added for business deal activity.',
+                [
+                    'deal_date' => $businessDeal->deal_date,
+                    'deal_amount' => $businessDeal->deal_amount,
+                    'business_type' => $businessDeal->business_type,
+                    'comment' => $businessDeal->comment,
+                    'to_user_id' => $businessDeal->to_user_id ? (string) $businessDeal->to_user_id : null,
+                ]
             );
             $businessDeal->setAttribute('life_impacted_count', $updatedLifeImpact);
 

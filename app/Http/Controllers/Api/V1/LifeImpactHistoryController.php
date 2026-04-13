@@ -22,7 +22,10 @@ class LifeImpactHistoryController extends BaseApiController
 
         $query = LifeImpactHistory::query()
             ->where('user_id', (string) $user->id)
-            ->with(['triggeredByUser:id,first_name,last_name,display_name'])
+            ->with([
+                'user:id,first_name,last_name,display_name,email,life_impacted_count',
+                'triggeredByUser:id,first_name,last_name,display_name,email,life_impacted_count',
+            ])
             ->orderByDesc('created_at');
 
         if (filled($request->query('activity_type'))) {
