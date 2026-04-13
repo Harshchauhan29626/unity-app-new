@@ -133,4 +133,24 @@ class CircleMember extends Model
     {
         return $this->hasOne(CircleMemberCategorySelection::class, 'circle_member_id');
     }
+
+    public function level1Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategory::class, 'level_1_category_id');
+    }
+
+    public function level2Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel2::class, 'level_2_category_id');
+    }
+
+    public function level3Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel3::class, 'level_3_category_id');
+    }
+
+    public function level4Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel4::class, 'level_4_category_id');
+    }
 }
