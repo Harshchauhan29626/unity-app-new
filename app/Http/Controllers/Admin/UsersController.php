@@ -1406,12 +1406,17 @@ class UsersController extends Controller
         $selectedIdsByMembership = $circleMemberships->mapWithKeys(function ($membership) use ($selectionByCircleMemberId) {
             $selection = $selectionByCircleMemberId->get((string) $membership->id);
 
+            $level1Id = (int) ($membership->level_1_category_id ?? 0);
+            $level2Id = (int) ($membership->level_2_category_id ?? 0);
+            $level3Id = (int) ($membership->level_3_category_id ?? 0);
+            $level4Id = (int) ($membership->level_4_category_id ?? 0);
+
             return [
                 (string) $membership->id => [
-                    'level1' => (int) ($selection?->level1_category_id ?? 0),
-                    'level2' => (int) ($selection?->level2_category_id ?? 0),
-                    'level3' => (int) ($selection?->level3_category_id ?? 0),
-                    'level4' => (int) ($selection?->level4_category_id ?? 0),
+                    'level1' => $level1Id > 0 ? $level1Id : (int) ($selection?->level1_category_id ?? 0),
+                    'level2' => $level2Id > 0 ? $level2Id : (int) ($selection?->level2_category_id ?? 0),
+                    'level3' => $level3Id > 0 ? $level3Id : (int) ($selection?->level3_category_id ?? 0),
+                    'level4' => $level4Id > 0 ? $level4Id : (int) ($selection?->level4_category_id ?? 0),
                 ],
             ];
         });
@@ -1507,15 +1512,36 @@ class UsersController extends Controller
 
     private function upsertCircleMemberCategorySelection(CircleMember $memberRecord, string $userId, array $validated): void
     {
-        if (! Schema::hasTable('joined_circle_categories')) {
-            return;
-        }
-
         $level1Id = (int) ($validated['level1_category_id'] ?? 0);
         $level2Id = (int) ($validated['level2_category_id'] ?? 0);
         $level3Id = (int) ($validated['level3_category_id'] ?? 0);
         $level4Id = (int) ($validated['level4_category_id'] ?? 0);
         $hasSelection = $level1Id > 0 || $level2Id > 0 || $level3Id > 0 || $level4Id > 0;
+
+        $circleMemberCategoryPayload = [
+            'level_1_category_id' => $level1Id > 0 ? $level1Id : null,
+            'level_2_category_id' => $level2Id > 0 ? $level2Id : null,
+            'level_3_category_id' => $level3Id > 0 ? $level3Id : null,
+            'level_4_category_id' => $level4Id > 0 ? $level4Id : null,
+        ];
+
+        if (Schema::hasColumn('circle_members', 'level_1_category_id')) {
+            $memberRecord->level_1_category_id = $circleMemberCategoryPayload['level_1_category_id'];
+        }
+        if (Schema::hasColumn('circle_members', 'level_2_category_id')) {
+            $memberRecord->level_2_category_id = $circleMemberCategoryPayload['level_2_category_id'];
+        }
+        if (Schema::hasColumn('circle_members', 'level_3_category_id')) {
+            $memberRecord->level_3_category_id = $circleMemberCategoryPayload['level_3_category_id'];
+        }
+        if (Schema::hasColumn('circle_members', 'level_4_category_id')) {
+            $memberRecord->level_4_category_id = $circleMemberCategoryPayload['level_4_category_id'];
+        }
+        $memberRecord->save();
+
+        if (! Schema::hasTable('joined_circle_categories')) {
+            return;
+        }
 
         if (! $hasSelection) {
             JoinedCircleCategory::query()
@@ -1527,14 +1553,18 @@ class UsersController extends Controller
 
         JoinedCircleCategory::query()->updateOrCreate(
             ['circle_member_id' => $memberRecord->id],
-            [
-                'user_id' => $userId,
-                'circle_id' => $memberRecord->circle_id,
-                'level1_category_id' => $level1Id > 0 ? $level1Id : null,
-                'level2_category_id' => $level2Id > 0 ? $level2Id : null,
-                'level3_category_id' => $level3Id > 0 ? $level3Id : null,
-                'level4_category_id' => $level4Id > 0 ? $level4Id : null,
-            ]
+            array_merge(
+                [
+                    'user_id' => $userId,
+                    'circle_id' => $memberRecord->circle_id,
+                ],
+                [
+                    'level1_category_id' => $circleMemberCategoryPayload['level_1_category_id'],
+                    'level2_category_id' => $circleMemberCategoryPayload['level_2_category_id'],
+                    'level3_category_id' => $circleMemberCategoryPayload['level_3_category_id'],
+                    'level4_category_id' => $circleMemberCategoryPayload['level_4_category_id'],
+                ],
+            )
         );
     }
 
