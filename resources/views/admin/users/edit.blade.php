@@ -44,10 +44,6 @@
     </form>
 @endif
 
-<form id="sendWelcomeMailForm" method="POST" action="{{ route('admin.users.membership-welcome-email.send', $user->id) }}">
-    @csrf
-</form>
-
 <form id="userEditForm" action="{{ route('admin.users.update', $user->id) }}" method="POST">
     @csrf
     @method('PUT')
@@ -427,14 +423,12 @@
                                             @php
                                                 $selectedPath = $circleTree['selected_category_path'] ?? [];
                                             @endphp
-                                            @if(!empty($selectedPath['level1']) || !empty($selectedPath['level2']) || !empty($selectedPath['level3']) || !empty($selectedPath['level4']))
-                                                <div class="small mb-2">
-                                                    @if(!empty($selectedPath['level1'])) <div><strong>Level 1:</strong> {{ $selectedPath['level1']->name }}</div> @endif
-                                                    @if(!empty($selectedPath['level2'])) <div><strong>Level 2:</strong> {{ $selectedPath['level2']->name }}</div> @endif
-                                                    @if(!empty($selectedPath['level3'])) <div><strong>Level 3:</strong> {{ $selectedPath['level3']->name }}</div> @endif
-                                                    @if(!empty($selectedPath['level4'])) <div><strong>Level 4:</strong> {{ $selectedPath['level4']->name }}</div> @endif
-                                                </div>
-                                            @endif
+                                            <div class="small mb-2">
+                                                <div><strong>Level 1:</strong> {{ $selectedPath['level1']->name ?? '—' }}</div>
+                                                <div><strong>Level 2:</strong> {{ $selectedPath['level2']->name ?? '—' }}</div>
+                                                <div><strong>Level 3:</strong> {{ $selectedPath['level3']->name ?? '—' }}</div>
+                                                <div><strong>Level 4:</strong> {{ $selectedPath['level4']->name ?? '—' }}</div>
+                                            </div>
 
                                             @if(($circleTree['categories'] ?? collect())->isEmpty())
                                                 <div class="text-muted">—</div>
@@ -529,15 +523,6 @@
                     @endforeach
                 </div>
             </div>
-        </div>
-
-        <div class="col-12">
-            @include('admin.users.partials.membership_welcome_email_card', [
-                'user' => $user,
-                'showSendButton' => true,
-                'sendFormId' => 'sendWelcomeMailForm',
-                'sendButtonClass' => 'btn btn-outline-primary',
-            ])
         </div>
 
         <div class="col-12">

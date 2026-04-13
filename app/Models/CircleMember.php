@@ -35,6 +35,10 @@ class CircleMember extends Model
     protected $fillable = [
         'circle_id',
         'user_id',
+        'level_1_category_id',
+        'level_2_category_id',
+        'level_3_category_id',
+        'level_4_category_id',
         'role',
         'role_id',
         'status',
@@ -61,6 +65,10 @@ class CircleMember extends Model
         'paid_starts_at' => 'datetime',
         'paid_ends_at' => 'datetime',
         'joined_via_payment' => 'boolean',
+        'level_1_category_id' => 'integer',
+        'level_2_category_id' => 'integer',
+        'level_3_category_id' => 'integer',
+        'level_4_category_id' => 'integer',
         'meta' => 'array',
     ];
 
@@ -124,5 +132,25 @@ class CircleMember extends Model
     public function categorySelection(): HasOne
     {
         return $this->hasOne(CircleMemberCategorySelection::class, 'circle_member_id');
+    }
+
+    public function level1Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategory::class, 'level_1_category_id');
+    }
+
+    public function level2Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel2::class, 'level_2_category_id');
+    }
+
+    public function level3Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel3::class, 'level_3_category_id');
+    }
+
+    public function level4Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel4::class, 'level_4_category_id');
     }
 }

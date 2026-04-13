@@ -11,6 +11,7 @@ use App\Models\EmailLog;
 
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
+use App\Models\CircleCategoryLevel2;
 use App\Models\CircleMember;
 use App\Models\JoinedCircleCategory;
 
@@ -29,6 +30,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends BaseApiController
 {
@@ -82,12 +84,7 @@ class AuthController extends BaseApiController
         ]);
 
         $circleMember = $this->attachOptionalCircleMembership($persistedUser, $data);
-        $this->persistOptionalJoinedCategories(
-            $persistedUser,
-            $data,
-            $circleMember?->circle_id,
-            $circleMember?->id
-        );
+        $this->persistOptionalJoinedCategories($persistedUser, $data, $circleMember);
 
         $referralMeta = null;
 
@@ -173,22 +170,43 @@ class AuthController extends BaseApiController
         return $member;
     }
 
-    private function persistOptionalJoinedCategories(User $user, array $data, ?string $circleId, ?string $circleMemberId): void
+    private function persistOptionalJoinedCategories(User $user, array $data, ?CircleMember $circleMember): void
     {
-        if (! Schema::hasTable('joined_circle_categories')) {
+        if (! $circleMember) {
             return;
         }
 
-        if (! $circleId) {
+        $circleId = (string) ($circleMember->circle_id ?? '');
+        if ($circleId === '') {
             return;
         }
 
-        $level1CategoryId = (int) ($data['level1_category_id'] ?? 0);
-        $level2CategoryId = (int) ($data['level2_category_id'] ?? 0);
-        $level3CategoryId = (int) ($data['level3_category_id'] ?? 0);
-        $level4CategoryId = (int) ($data['level4_category_id'] ?? 0);
+        $level1CategoryId = (int) ($data['level_1_category_id'] ?? 0);
+        $level2CategoryId = (int) ($data['level_2_category_id'] ?? 0);
+        $level3CategoryId = (int) ($data['level_3_category_id'] ?? 0);
+        $level4CategoryId = (int) ($data['level_4_category_id'] ?? 0);
 
         if ($level1CategoryId <= 0 && $level2CategoryId <= 0 && $level3CategoryId <= 0 && $level4CategoryId <= 0) {
+            return;
+        }
+
+        $this->assertCircleCategoryMapping($circleId, $level1CategoryId);
+
+        if (Schema::hasColumn('circle_members', 'level_1_category_id')) {
+            $circleMember->level_1_category_id = $level1CategoryId > 0 ? $level1CategoryId : null;
+        }
+        if (Schema::hasColumn('circle_members', 'level_2_category_id')) {
+            $circleMember->level_2_category_id = $level2CategoryId > 0 ? $level2CategoryId : null;
+        }
+        if (Schema::hasColumn('circle_members', 'level_3_category_id')) {
+            $circleMember->level_3_category_id = $level3CategoryId > 0 ? $level3CategoryId : null;
+        }
+        if (Schema::hasColumn('circle_members', 'level_4_category_id')) {
+            $circleMember->level_4_category_id = $level4CategoryId > 0 ? $level4CategoryId : null;
+        }
+        $circleMember->save();
+
+        if (! Schema::hasTable('joined_circle_categories')) {
             return;
         }
 
@@ -199,7 +217,7 @@ class AuthController extends BaseApiController
                     'circle_id' => $circleId,
                 ],
                 [
-                    'circle_member_id' => $circleMemberId,
+                    'circle_member_id' => $circleMember->id,
                     'level1_category_id' => $level1CategoryId > 0 ? $level1CategoryId : null,
                     'level2_category_id' => $level2CategoryId > 0 ? $level2CategoryId : null,
                     'level3_category_id' => $level3CategoryId > 0 ? $level3CategoryId : null,
@@ -220,55 +238,158 @@ class AuthController extends BaseApiController
 
     private function resolveRegisterCategoryPath(array $data): array
     {
-        $level1CategoryId = (int) ($data['level1_category_id'] ?? 0);
-        $level2CategoryId = (int) ($data['level2_category_id'] ?? 0);
-        $level3CategoryId = (int) ($data['level3_category_id'] ?? 0);
-        $level4CategoryId = (int) ($data['level4_category_id'] ?? 0);
+        $level1CategoryId = (int) ($data['level_1_category_id'] ?? 0);
+        $level2CategoryId = (int) ($data['level_2_category_id'] ?? 0);
+        $level3CategoryId = (int) ($data['level_3_category_id'] ?? 0);
+        $level4CategoryId = (int) ($data['level_4_category_id'] ?? 0);
 
-        if ($level4CategoryId <= 0) {
-            return $data;
+        if ($level4CategoryId > 0) {
+            $level4 = CircleCategoryLevel4::query()
+                ->select(['id', 'level3_id', 'level2_id', 'circle_category_id'])
+                ->find($level4CategoryId);
+
+            if ($level4) {
+                if ($level3CategoryId <= 0 && (int) $level4->level3_id > 0) {
+                    $level3CategoryId = (int) $level4->level3_id;
+                }
+                if ($level2CategoryId <= 0 && (int) $level4->level2_id > 0) {
+                    $level2CategoryId = (int) $level4->level2_id;
+                }
+                if ($level1CategoryId <= 0 && (int) $level4->circle_category_id > 0) {
+                    $level1CategoryId = (int) $level4->circle_category_id;
+                }
+            }
         }
 
-        $level4 = CircleCategoryLevel4::query()
-            ->select(['id', 'level3_id', 'level2_id', 'circle_category_id'])
-            ->find($level4CategoryId);
-
-        if (! $level4) {
-            return $data;
-        }
-
-        if ($level3CategoryId <= 0 && (int) $level4->level3_id > 0) {
-            $level3CategoryId = (int) $level4->level3_id;
-        }
-
-        $level3Level2Id = null;
         if ($level3CategoryId > 0) {
             $level3 = CircleCategoryLevel3::query()
-                ->select(['id', 'level2_id'])
+                ->select(['id', 'level2_id', 'circle_category_id'])
                 ->find($level3CategoryId);
-
-            $level3Level2Id = $level3 ? (int) ($level3->level2_id ?? 0) : null;
+            if ($level3) {
+                if ($level2CategoryId <= 0 && (int) $level3->level2_id > 0) {
+                    $level2CategoryId = (int) $level3->level2_id;
+                }
+                if ($level1CategoryId <= 0 && (int) $level3->circle_category_id > 0) {
+                    $level1CategoryId = (int) $level3->circle_category_id;
+                }
+            }
         }
 
-        if ($level2CategoryId <= 0) {
-            $level2FromLevel4 = (int) ($level4->level2_id ?? 0);
-            $level2CategoryId = $level2FromLevel4 > 0 ? $level2FromLevel4 : (int) ($level3Level2Id ?? 0);
+        if ($level2CategoryId > 0) {
+            $level2 = CircleCategoryLevel2::query()
+                ->select(['id', 'circle_category_id'])
+                ->find($level2CategoryId);
+            if ($level2 && $level1CategoryId <= 0 && (int) $level2->circle_category_id > 0) {
+                $level1CategoryId = (int) $level2->circle_category_id;
+            }
         }
 
-        if ($level1CategoryId <= 0 && (int) $level4->circle_category_id > 0) {
-            $level1CategoryId = (int) $level4->circle_category_id;
-        }
+        $data['level_1_category_id'] = $level1CategoryId > 0 ? $level1CategoryId : null;
+        $data['level_2_category_id'] = $level2CategoryId > 0 ? $level2CategoryId : null;
+        $data['level_3_category_id'] = $level3CategoryId > 0 ? $level3CategoryId : null;
+        $data['level_4_category_id'] = $level4CategoryId > 0 ? $level4CategoryId : null;
 
-        $data['level1_category_id'] = $level1CategoryId > 0 ? $level1CategoryId : null;
-        $data['level2_category_id'] = $level2CategoryId > 0 ? $level2CategoryId : null;
-        $data['level3_category_id'] = $level3CategoryId > 0 ? $level3CategoryId : null;
-        $data['level4_category_id'] = $level4CategoryId > 0 ? $level4CategoryId : null;
+        $this->assertValidCategoryHierarchy($data);
 
         return $data;
     }
 
+    private function assertValidCategoryHierarchy(array $data): void
+    {
+        $level1CategoryId = (int) ($data['level_1_category_id'] ?? 0);
+        $level2CategoryId = (int) ($data['level_2_category_id'] ?? 0);
+        $level3CategoryId = (int) ($data['level_3_category_id'] ?? 0);
+        $level4CategoryId = (int) ($data['level_4_category_id'] ?? 0);
+
+        if ($level2CategoryId > 0) {
+            $level2 = CircleCategoryLevel2::query()->find($level2CategoryId);
+            if (! $level2 || ($level1CategoryId > 0 && (int) $level2->circle_category_id !== $level1CategoryId)) {
+                throw ValidationException::withMessages([
+                    'level_2_category_id' => 'Selected Level 2 category does not belong to the selected Level 1 category.',
+                ]);
+            }
+        }
+
+        if ($level3CategoryId > 0) {
+            $level3 = CircleCategoryLevel3::query()->find($level3CategoryId);
+            if (! $level3 || ($level2CategoryId > 0 && (int) $level3->level2_id !== $level2CategoryId)) {
+                throw ValidationException::withMessages([
+                    'level_3_category_id' => 'Selected Level 3 category does not belong to the selected Level 2 category.',
+                ]);
+            }
+        }
+
+        if ($level4CategoryId > 0) {
+            $level4 = CircleCategoryLevel4::query()->find($level4CategoryId);
+            if (! $level4 || ($level3CategoryId > 0 && (int) $level4->level3_id !== $level3CategoryId)) {
+                throw ValidationException::withMessages([
+                    'level_4_category_id' => 'Selected Level 4 category does not belong to the selected Level 3 category.',
+                ]);
+            }
+        }
+    }
+
+    private function assertCircleCategoryMapping(string $circleId, int $level1CategoryId): void
+    {
+        if ($circleId === '' || $level1CategoryId <= 0 || ! Schema::hasTable('circle_category_mappings')) {
+            return;
+        }
+
+        $isMapped = DB::table('circle_category_mappings')
+            ->where('circle_id', $circleId)
+            ->where('category_id', $level1CategoryId)
+            ->exists();
+
+        if (! $isMapped) {
+            throw ValidationException::withMessages([
+                'level_1_category_id' => 'Selected category does not belong to the selected circle.',
+            ]);
+        }
+    }
+
     private function buildJoinedCategoriesPayload(User $user): array
     {
+        $joinedStatus = (string) config('circle.member_joined_status', 'approved');
+
+        $memberships = CircleMember::query()
+            ->where('user_id', (string) $user->id)
+            ->where('status', $joinedStatus)
+            ->whereNull('deleted_at')
+            ->whereNull('left_at')
+            ->with([
+                'circle:id,name',
+                'level1Category:id,name',
+                'level2Category:id,name',
+                'level3Category:id,name',
+                'level4Category:id,name',
+            ])
+            ->orderByDesc('joined_at')
+            ->get();
+
+        if ($memberships->isNotEmpty()) {
+            return $memberships
+                ->map(function (CircleMember $membership): array {
+                    return [
+                        'circle_id' => $membership->circle_id,
+                        'circle_name' => $membership->circle?->name,
+                        'level1_category' => $membership->level1Category
+                            ? ['id' => $membership->level1Category->id, 'name' => $membership->level1Category->name]
+                            : null,
+                        'level2_category' => $membership->level2Category
+                            ? ['id' => $membership->level2Category->id, 'name' => $membership->level2Category->name]
+                            : null,
+                        'level3_category' => $membership->level3Category
+                            ? ['id' => $membership->level3Category->id, 'name' => $membership->level3Category->name]
+                            : null,
+                        'level4_category' => $membership->level4Category
+                            ? ['id' => $membership->level4Category->id, 'name' => $membership->level4Category->name]
+                            : null,
+                    ];
+                })
+                ->values()
+                ->all();
+        }
+
         if (! Schema::hasTable('joined_circle_categories')) {
             return [];
         }
