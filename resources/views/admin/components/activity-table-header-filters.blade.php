@@ -6,7 +6,7 @@
 @endphp
 <tr class="bg-light align-middle">
     <th colspan="{{ $colspan ?? 1 }}">
-        <form method="GET" action="{{ $actionUrl }}" class="d-flex flex-wrap gap-2 align-items-end justify-content-between">
+        <form method="GET" action="{{ $actionUrl }}" class="d-flex flex-wrap gap-2 align-items-end justify-content-between admin-filter-form">
             <div class="d-flex flex-wrap gap-2 align-items-end">
                 <div>
                     <label class="form-label small text-muted mb-1">{{ $label ?? 'Search created by' }}</label>

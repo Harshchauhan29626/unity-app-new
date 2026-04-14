@@ -8,7 +8,7 @@
 
 <div class="card shadow-sm mb-3">
     <div class="card-body">
-        <form method="GET" action="{{ $action }}" class="row g-2 align-items-end">
+        <form method="GET" action="{{ $action }}" class="row g-2 align-items-end admin-filter-form">
             <div class="col-md-4">
                 <label class="form-label small text-muted">{{ $label }}</label>
                 <input type="text" name="q" value="{{ $q }}" class="form-control" placeholder="Name, company, or city">

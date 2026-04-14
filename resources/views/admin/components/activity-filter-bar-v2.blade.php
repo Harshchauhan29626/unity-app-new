@@ -12,7 +12,7 @@
 <div class="card shadow-sm mb-3">
     <div class="card-body">
         @if ($renderFormTag)
-            <form method="GET" action="{{ $actionUrl }}" class="row g-3 align-items-end" @if($formId) id="{{ $formId }}" @endif>
+            <form method="GET" action="{{ $actionUrl }}" class="row g-3 align-items-end admin-filter-form" @if($formId) id="{{ $formId }}" @endif>
         @else
             <div class="row g-3 align-items-end">
         @endif
@@ -21,7 +21,7 @@
                 <input id="activityFilterQuery" type="text" name="q" value="{{ $q }}" class="form-control" placeholder="Name, company, or city" @if($formId) form="{{ $formId }}" @endif>
                 <div class="mt-2">
                     <label for="activityFilterCircle" class="form-label small text-muted">Circle</label>
-                    <select id="activityFilterCircle" name="circle_id" class="form-select" @if($formId) form="{{ $formId }}" @endif>
+                    <select id="activityFilterCircle" name="circle_id" class="form-select js-searchable-select" @if($formId) form="{{ $formId }}" @endif>
                         <option value="">All Circles</option>
                         @foreach (($circles ?? collect()) as $circle)
                             <option value="{{ $circle->id }}" @selected($circleId !== '' && $circleId === (string) $circle->id)>{{ $circle->name }}</option>
