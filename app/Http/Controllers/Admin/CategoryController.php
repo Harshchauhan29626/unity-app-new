@@ -54,7 +54,7 @@ class CategoryController extends Controller
 
     public function show(CircleCategory $category): View
     {
-        abort_unless((int) $category->level === 1, 404);
+        abort_unless((int) $category->level === 1 && $category->is_active, 404);
 
         $level2Categories = CircleCategoryLevel2::query()
             ->where('circle_category_id', $category->id)
@@ -251,47 +251,47 @@ class CategoryController extends Controller
             ->with('success', 'Category updated successfully.');
     }
 
-    public function destroy(string $category): RedirectResponse
+    public function destroy(CircleCategory $category): RedirectResponse
     {
         try {
-            $categoryId = (int) $category;
-            $circleCategory = CircleCategory::query()
-                ->where('id', $categoryId)
-                ->where('level', 1)
-                ->first();
-
-            if (! $circleCategory) {
+            if ((int) $category->level !== 1) {
                 return redirect()
                     ->route('admin.categories.index')
                     ->with('error', 'Category not found.');
             }
 
-            DB::transaction(function () use ($circleCategory): void {
+            if (! $category->is_active) {
+                return redirect()
+                    ->route('admin.categories.index')
+                    ->with('error', 'Category is already inactive.');
+            }
+
+            DB::transaction(function () use ($category): void {
                 $now = now();
 
                 CircleCategoryLevel4::query()
-                    ->where('circle_category_id', $circleCategory->id)
+                    ->where('circle_category_id', $category->id)
                     ->update([
                         'is_active' => false,
                         'updated_at' => $now,
                     ]);
 
                 CircleCategoryLevel3::query()
-                    ->where('circle_category_id', $circleCategory->id)
+                    ->where('circle_category_id', $category->id)
                     ->update([
                         'is_active' => false,
                         'updated_at' => $now,
                     ]);
 
                 CircleCategoryLevel2::query()
-                    ->where('circle_category_id', $circleCategory->id)
+                    ->where('circle_category_id', $category->id)
                     ->update([
                         'is_active' => false,
                         'updated_at' => $now,
                     ]);
 
                 $deactivatedMain = CircleCategory::query()
-                    ->where('id', $circleCategory->id)
+                    ->where('id', $category->id)
                     ->update([
                         'is_active' => false,
                         'updated_at' => $now,
@@ -307,7 +307,7 @@ class CategoryController extends Controller
                 ->with('success', 'Category deactivated successfully.');
         } catch (\Throwable $e) {
             Log::error('admin.circle_category.delete_failed', [
-                'category_id' => (int) $category,
+                'category_id' => (int) $category->id,
                 'message' => $e->getMessage(),
             ]);
 
