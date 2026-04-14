@@ -13,6 +13,7 @@ use App\Models\CircleCategoryLevel4;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -247,27 +248,67 @@ class CategoryController extends Controller
             ->with('success', 'Category updated successfully.');
     }
 
-    public function destroy(CircleCategory $category): RedirectResponse
+    public function destroy(string $category): RedirectResponse
     {
         try {
+            $categoryId = (int) $category;
+            $circleCategory = CircleCategory::query()
+                ->where('id', $categoryId)
+                ->where('level', 1)
+                ->first();
+
+            if (! $circleCategory) {
+                return redirect()
+                    ->route('admin.categories.index')
+                    ->with('error', 'Category not found.');
+            }
+
             if (
-                $category->circleMappings()->exists() ||
-                (
-                    DB::getSchemaBuilder()->hasColumn('event_galleries', 'circle_category_id') &&
-                    DB::table('event_galleries')->where('circle_category_id', $category->id)->exists()
-                )
+                DB::getSchemaBuilder()->hasColumn('event_galleries', 'circle_category_id') &&
+                DB::table('event_galleries')->where('circle_category_id', $circleCategory->id)->exists()
             ) {
                 return redirect()
                     ->route('admin.categories.index')
                     ->with('error', 'This category is in use and cannot be deleted.');
             }
 
-            $category->delete();
+            DB::transaction(function () use ($circleCategory): void {
+                CircleCategoryLevel4::query()
+                    ->where('circle_category_id', $circleCategory->id)
+                    ->delete();
+
+                CircleCategoryLevel3::query()
+                    ->where('circle_category_id', $circleCategory->id)
+                    ->delete();
+
+                CircleCategoryLevel2::query()
+                    ->where('circle_category_id', $circleCategory->id)
+                    ->delete();
+
+                if (DB::getSchemaBuilder()->hasTable('circle_category_mappings')) {
+                    DB::table('circle_category_mappings')
+                        ->where('category_id', $circleCategory->id)
+                        ->delete();
+                }
+
+                $deletedMain = CircleCategory::query()
+                    ->where('id', $circleCategory->id)
+                    ->delete();
+
+                if ($deletedMain !== 1) {
+                    throw new \RuntimeException('Circle category deletion did not affect any rows.');
+                }
+            });
 
             return redirect()
                 ->route('admin.categories.index')
                 ->with('success', 'Category deleted successfully.');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Log::error('admin.circle_category.delete_failed', [
+                'category_id' => (int) $category,
+                'message' => $e->getMessage(),
+            ]);
+
             return redirect()
                 ->route('admin.categories.index')
                 ->with('error', 'Something went wrong: ' . $e->getMessage());
