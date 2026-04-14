@@ -55,8 +55,8 @@ class RegisterRequest extends FormRequest
             // PHONE IS REQUIRED + UNIQUE TO AVOID DB UNIQUE VIOLATION
             'phone' => ['required', 'string', 'max:20', 'unique:users,phone'],
 
-            // PASSWORD WITH CONFIRMATION
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            // PASSWORD WITH CONFIRMATION (OPTIONAL FOR OTP-ONLY REGISTRATION)
+            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
 
             // NEW OPTIONAL FIELDS FOR REGISTRATION
             'company_name' => ['nullable', 'string', 'max:255'],

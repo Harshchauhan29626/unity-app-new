@@ -21,7 +21,7 @@ class WelcomePeerMail extends Mailable
     public function build()
     {
         return $this->subject('Welcome to Peers Global')
-            ->view('emails.membership.welcome_peer')
+            ->view('emails.welcome_peer')
             ->with([
                 'user' => $this->user,
             ]);

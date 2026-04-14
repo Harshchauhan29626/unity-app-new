@@ -487,10 +487,8 @@ class AuthController extends BaseApiController
             return;
         }
 
-        $mailable = new WelcomePeerMail($user);
-
         try {
-            Mail::to($user->email)->send($mailable);
+            Mail::to($user->email)->send(new WelcomePeerMail($user));
 
             EmailLog::query()->create([
                 'to_email' => (string) $user->email,
@@ -503,49 +501,29 @@ class AuthController extends BaseApiController
                 'sent_at' => now(),
                 'created_at' => now(),
             ]);
-        } catch (\Throwable $exception) {
-            EmailLog::query()->create([
-                'to_email' => (string) $user->email,
-                'template_key' => 'welcome_peer',
-                'payload' => [
-                    'flow' => 'registration',
-                    'mailable_class' => WelcomePeerMail::class,
-                    'error' => $exception->getMessage(),
-                ],
-                'status' => 'failed',
-                'sent_at' => now(),
-                'created_at' => now(),
+        } catch (\Throwable $e) {
+            Log::error('Welcome peer mail failed', [
+                'user_id' => $user->id ?? null,
+                'email' => $user->email ?? null,
+                'error' => $e->getMessage(),
             ]);
-            app(EmailLogService::class)->logMailableSent($mailable, [
-                'user_id' => (string) $user->id,
-                'to_email' => (string) $user->email,
-                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
-                'template_key' => 'welcome_peer',
-                'source_module' => 'auth',
-                'related_type' => 'user',
-                'related_id' => (string) $user->id,
-                'payload' => [
-                    'flow' => 'registration',
-                ],
-            ]);
-        } catch (\Throwable $exception) {
-            app(EmailLogService::class)->logMailableFailed($mailable, [
-                'user_id' => (string) $user->id,
-                'to_email' => (string) $user->email,
-                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
-                'template_key' => 'welcome_peer',
-                'source_module' => 'auth',
-                'related_type' => 'user',
-                'related_id' => (string) $user->id,
-                'payload' => [
-                    'flow' => 'registration',
-                ],
-            ], $exception);
 
-            Log::warning('auth.register.welcome_email_failed', [
-                'user_id' => (string) $user->id,
-                'message' => $exception->getMessage(),
-            ]);
+            try {
+                EmailLog::query()->create([
+                    'to_email' => (string) ($user->email ?? ''),
+                    'template_key' => 'welcome_peer',
+                    'payload' => [
+                        'flow' => 'registration',
+                        'mailable_class' => WelcomePeerMail::class,
+                        'error' => $e->getMessage(),
+                    ],
+                    'status' => 'failed',
+                    'sent_at' => now(),
+                    'created_at' => now(),
+                ]);
+            } catch (\Throwable) {
+                // Registration must not fail due to mail/log persistence errors.
+            }
         }
     }
 
@@ -573,8 +551,13 @@ class AuthController extends BaseApiController
         $user->membership_expiry = $trialEndsAt;
         $user->coins_balance = $user->coins_balance ?? 0;
 
-        // Store the hashed password in password_hash (not password)
-        $user->password_hash = Hash::make($data['password']);
+        // Store the hashed password in password_hash.
+        // For OTP-only registrations (no password provided), persist a random hash to satisfy NOT NULL schema.
+        if (! empty($data['password'])) {
+            $user->password_hash = Hash::make($data['password']);
+        } else {
+            $user->password_hash = Hash::make(Str::random(40));
+        }
 
         // Ensure any legacy password attribute isn't used
         if (isset($user->password)) {
