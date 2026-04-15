@@ -8,6 +8,7 @@ use App\Models\LifeImpactHistory;
 use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class LifeImpactHistoryController extends BaseApiController
 {
@@ -40,13 +41,14 @@ class LifeImpactHistoryController extends BaseApiController
             $query->whereDate('created_at', '<=', (string) $request->query('date_to'));
         }
 
+        $totalLifeImpacted = (int) ((clone $query)->sum(DB::raw('COALESCE(impact_value, 0)')));
         $histories = $query->paginate($perPage);
 
         return response()->json([
             'success' => true,
             'message' => null,
             'data' => [
-                'total_life_impacted' => $this->lifeImpactService->getCurrentTotal((string) $user->id),
+                'total_life_impacted' => $totalLifeImpacted,
                 'items' => LifeImpactHistoryResource::collection($histories->getCollection())->resolve(),
             ],
             'meta' => [
