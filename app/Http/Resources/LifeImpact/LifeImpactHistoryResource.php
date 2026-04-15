@@ -21,7 +21,7 @@ class LifeImpactHistoryResource extends JsonResource
         return [
             'id' => (string) $this->id,
             'activity_type' => (string) $this->activity_type,
-            'impact_value' => (int) $this->impact_value,
+            'impact_value' => $this->resolveImpactValue(),
             'title' => (string) $this->title,
             'description' => $this->description,
             'performed_by' => $performedBy ? [

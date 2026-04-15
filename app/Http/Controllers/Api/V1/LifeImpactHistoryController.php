@@ -5,16 +5,12 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\LifeImpact\LifeImpactHistoryResource;
 use App\Models\LifeImpactHistory;
-use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class LifeImpactHistoryController extends BaseApiController
 {
-    public function __construct(private readonly LifeImpactService $lifeImpactService)
-    {
-    }
-
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -40,13 +36,28 @@ class LifeImpactHistoryController extends BaseApiController
             $query->whereDate('created_at', '<=', (string) $request->query('date_to'));
         }
 
+        $matchingHistories = (clone $query)->get();
+        $sourceBreakdown = $matchingHistories
+            ->map(fn (LifeImpactHistory $history): string => $history->resolveImpactValueSource())
+            ->countBy()
+            ->all();
+        $totalLifeImpacted = (int) $matchingHistories
+            ->sum(fn (LifeImpactHistory $history): int => $history->resolveImpactValue());
+
+        Log::info('life_impact.history.summary', [
+            'user_id' => (string) $user->id,
+            'matched_history_count' => $matchingHistories->count(),
+            'resolved_total_life_impacted' => $totalLifeImpacted,
+            'impact_value_source_breakdown' => $sourceBreakdown,
+        ]);
+
         $histories = $query->paginate($perPage);
 
         return response()->json([
             'success' => true,
             'message' => null,
             'data' => [
-                'total_life_impacted' => $this->lifeImpactService->getCurrentTotal((string) $user->id),
+                'total_life_impacted' => $totalLifeImpacted,
                 'items' => LifeImpactHistoryResource::collection($histories->getCollection())->resolve(),
             ],
             'meta' => [
