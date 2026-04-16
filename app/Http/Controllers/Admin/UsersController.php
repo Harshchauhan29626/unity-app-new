@@ -342,6 +342,10 @@ class UsersController extends Controller
         }
 
         $user = User::query()->findOrFail($userId);
+        $originalCoinsBalance = (int) ($user->coins_balance ?? 0);
+        $submittedCoinsBalance = (int) $request->input('coins_balance', $originalCoinsBalance);
+        $coinsBalanceChanged = $submittedCoinsBalance !== $originalCoinsBalance;
+        $coinsRemark = trim((string) $request->input('coins_remark', ''));
 
         $membershipStatuses = $this->membershipStatuses();
 
@@ -426,10 +430,18 @@ class UsersController extends Controller
             'role_ids.max' => 'You can not assign multiple roles.',
         ]);
 
+        $request->merge([
+            'coins_remark' => $coinsRemark,
+        ]);
+
+        $request->validate([
+            'coins_remark' => [Rule::requiredIf($coinsBalanceChanged), 'nullable', 'string', 'max:1000'],
+        ], [
+            'coins_remark.required' => 'Coins remark is required when coins balance is changed.',
+        ]);
+
         if (Schema::hasColumn('users', 'coins_remark')) {
-            $validated += $request->validate([
-                'coins_remark' => ['nullable', 'string', 'max:1000'],
-            ]);
+            $validated['coins_remark'] = $coinsRemark !== '' ? $coinsRemark : null;
         }
 
         $validated = $this->validateCategoryHierarchy($validated, $request);
@@ -475,7 +487,9 @@ class UsersController extends Controller
         $selectedCircleId = $validated['active_circle_id'] ?? ($validated['circle_id'] ?? null);
         $validated['active_circle_id'] = $selectedCircleId;
         $this->applyCircleAddonFields($validated, $selectedCircleId);
-        DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId) {
+        $ledgerHasRemarkColumn = Schema::hasColumn('coins_ledger', 'remark');
+
+        DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn) {
             $user->fill($updatable);
             $user->status = $validated['status'];
             $user->active_circle_id = $selectedCircleId;
@@ -489,6 +503,34 @@ class UsersController extends Controller
             }
 
             $user->save();
+
+            if ($coinsBalanceChanged) {
+                $newCoinsBalance = (int) ($user->coins_balance ?? 0);
+                $delta = $newCoinsBalance - $originalCoinsBalance;
+
+                if ($delta !== 0) {
+                    $reference = $coinsRemark !== ''
+                        ? "Admin adjustment | {$coinsRemark}"
+                        : 'Admin adjustment';
+
+                    $ledgerPayload = [
+                        'transaction_id' => (string) Str::uuid(),
+                        'user_id' => $user->id,
+                        'amount' => $delta,
+                        'balance_after' => $newCoinsBalance,
+                        'activity_id' => null,
+                        'reference' => $reference,
+                        'created_by' => null,
+                        'created_at' => now(),
+                    ];
+
+                    if ($ledgerHasRemarkColumn) {
+                        $ledgerPayload['remark'] = $coinsRemark !== '' ? $coinsRemark : null;
+                    }
+
+                    DB::table('coins_ledger')->insert($ledgerPayload);
+                }
+            }
 
             if ($selectedCircleId) {
                 $membershipAttributes = [
