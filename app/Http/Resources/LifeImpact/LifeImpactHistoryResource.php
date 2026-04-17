@@ -11,6 +11,9 @@ class LifeImpactHistoryResource extends JsonResource
     {
         $performedBy = $this->triggeredByUser ?: $this->user;
         $activityDetails = is_array($this->meta) ? $this->meta : [];
+        $actionKey = $this->action_key ?: ($activityDetails['action_key'] ?? null);
+        $actionLabel = $this->action_label ?: ($activityDetails['action_label'] ?? $this->title);
+        $remarks = $this->remarks ?: ($activityDetails['additional_remarks'] ?? null);
         $affectedUserId = (string) ($activityDetails['to_user_id'] ?? $activityDetails['affected_user_id'] ?? '');
         $affectedUser = $affectedUserId !== ''
             ? User::query()
@@ -22,8 +25,11 @@ class LifeImpactHistoryResource extends JsonResource
             'id' => (string) $this->id,
             'activity_type' => (string) $this->activity_type,
             'impact_value' => $this->resolveImpactValue(),
+            'action_key' => $actionKey,
+            'action_label' => $actionLabel,
             'title' => (string) $this->title,
             'description' => $this->description,
+            'remarks' => $remarks,
             'performed_by' => $performedBy ? [
                 'id' => (string) $performedBy->id,
                 'first_name' => $performedBy->first_name,

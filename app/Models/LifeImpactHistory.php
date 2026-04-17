@@ -27,6 +27,12 @@ class LifeImpactHistory extends Model
         'activity_type',
         'activity_id',
         'impact_value',
+        'life_impacted',
+        'counted_in_total',
+        'impact_category',
+        'action_key',
+        'action_label',
+        'remarks',
         'title',
         'description',
         'meta',
@@ -34,6 +40,8 @@ class LifeImpactHistory extends Model
 
     protected $casts = [
         'impact_value' => 'integer',
+        'life_impacted' => 'integer',
+        'counted_in_total' => 'boolean',
         'meta' => 'array',
     ];
 

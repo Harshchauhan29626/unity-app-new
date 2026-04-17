@@ -6,6 +6,7 @@ use App\Models\AdminUser;
 use App\Models\Impact;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -14,6 +15,7 @@ class ImpactService
     public function __construct(
         private readonly ImpactUserNotificationService $notificationService,
         private readonly ImpactEmailService $emailService,
+        private readonly LifeImpactService $lifeImpactService,
     ) {
     }
 
@@ -59,11 +61,13 @@ class ImpactService
                 'admin_id' => $adminId,
             ]);
 
-            if ($impact->status !== 'pending') {
-                if ($impact->status === 'approved') {
-                    return $impact->fresh(['user', 'impactedPeer']);
-                }
+            if ($impact->status === 'approved') {
+                $this->lifeImpactService->recordApprovedImpactHistory($impact, $adminId);
 
+                return $impact->fresh(['user', 'impactedPeer']);
+            }
+
+            if ($impact->status !== 'pending') {
                 throw new \RuntimeException('Only pending impacts can be approved.');
             }
 
@@ -84,8 +88,21 @@ class ImpactService
                 'timeline_posted_at' => optional($impact->timeline_posted_at)->toISOString(),
             ]);
 
-            $incrementBy = max(1, (int) ($impact->life_impacted ?? 1));
-            $recalculatedTotal = $this->recalculateUserLifeImpactedCount((string) $impact->user_id);
+            try {
+                $historyResult = $this->lifeImpactService->recordApprovedImpactHistory($impact, $adminId);
+                $recalculatedTotal = (int) ($historyResult['total_life_impacted'] ?? 0);
+            } catch (\Throwable $exception) {
+                Log::error('impact.approval.failed', [
+                    'impact_id' => (string) $impact->id,
+                    'user_id' => (string) $impact->user_id,
+                    'triggered_by_user_id' => (string) $impact->user_id,
+                    'action' => (string) $impact->action,
+                    'impact_value' => max(1, (int) ($impact->life_impacted ?? 1)),
+                    'error' => $exception->getMessage(),
+                ]);
+
+                throw $exception;
+            }
 
             Log::info('impact.approved', [
                 'impact_id' => (string) $impact->id,
@@ -96,7 +113,6 @@ class ImpactService
             Log::info('impact.life_impacted_incremented', [
                 'impact_id' => (string) $impact->id,
                 'user_id' => (string) $impact->user_id,
-                'incremented_by' => $incrementBy,
                 'recalculated_total' => $recalculatedTotal,
             ]);
 
