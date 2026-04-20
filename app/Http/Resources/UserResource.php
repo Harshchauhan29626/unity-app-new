@@ -25,6 +25,13 @@ class UserResource extends JsonResource
         $resolvedCircle = $this->resolvePrimaryCircleContext();
         $resolvedCircleInfo = $resolvedCircle['circle'] ?? null;
 
+        $resolvedCity = null;
+        if ($this->relationLoaded('city') && $this->city) {
+            $resolvedCity = $this->city;
+        } elseif (filled($this->getAttribute('city'))) {
+            $resolvedCity = $this->getAttribute('city');
+        }
+
         return [
             'id'                  => $this->id,
             'public_profile_slug' => $this->public_profile_slug,
@@ -37,7 +44,7 @@ class UserResource extends JsonResource
             'designation'         => $this->designation,
             'email'               => $this->email,
             'phone'               => $this->phone,
-            'city'                => new CityResource($this->whenLoaded('city')),
+            'city'                => $resolvedCity ? new CityResource($resolvedCity) : null,
             'membership_status'   => $membershipStatus,
             'membership_expiry'   => $this->membership_ends_at,
             'membership_status_label' => match ($membershipStatus) {

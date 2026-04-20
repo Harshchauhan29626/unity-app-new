@@ -32,6 +32,7 @@ class MemberController extends BaseApiController
                 'updated_at',
                 'profile_photo_file_id',
                 'city_id',
+                'city',
                 'business_type',
             ])
             ->with('city:id,name');
