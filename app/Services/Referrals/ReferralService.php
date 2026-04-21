@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
 
 class ReferralService
@@ -464,20 +465,32 @@ class ReferralService
                 'referrer_email' => (string) $referrer->email,
             ]);
         } catch (\Throwable $exception) {
-            app(EmailLogService::class)->logMailableFailed($mailable, [
-                'user_id' => (string) $referrer->id,
-                'to_email' => (string) $referrer->email,
-                'to_name' => $referrerName !== '' ? $referrerName : null,
-                'template_key' => 'referral_joined',
-                'source_module' => 'Referral',
-                'related_type' => User::class,
-                'related_id' => (string) $referredUser->id,
-                'payload' => [
+            if ($exception instanceof QueryException) {
+                throw $exception;
+            }
+
+            try {
+                app(EmailLogService::class)->logMailableFailed($mailable, [
+                    'user_id' => (string) $referrer->id,
+                    'to_email' => (string) $referrer->email,
+                    'to_name' => $referrerName !== '' ? $referrerName : null,
+                    'template_key' => 'referral_joined',
+                    'source_module' => 'Referral',
+                    'related_type' => User::class,
+                    'related_id' => (string) $referredUser->id,
+                    'payload' => [
+                        'referrer_user_id' => (string) $referrer->id,
+                        'referred_user_id' => (string) $referredUser->id,
+                        'referral_code' => $referralCode,
+                    ],
+                ], $exception);
+            } catch (\Throwable $logFailureException) {
+                Log::warning('referral.email.log_failed', [
                     'referrer_user_id' => (string) $referrer->id,
-                    'referred_user_id' => (string) $referredUser->id,
-                    'referral_code' => $referralCode,
-                ],
-            ], $exception);
+                    'original_error' => $exception->getMessage(),
+                    'logging_error' => $logFailureException->getMessage(),
+                ]);
+            }
 
             Log::warning('referral.email.failed', [
                 'referrer_user_id' => (string) $referrer->id,
