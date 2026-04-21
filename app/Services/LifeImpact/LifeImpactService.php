@@ -3,7 +3,6 @@
 namespace App\Services\LifeImpact;
 
 use App\Models\Impact;
-use App\Models\LifeImpactHistory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -31,6 +30,8 @@ class LifeImpactService
         }
 
         return (int) DB::transaction(function () use ($userId, $impactValue, $activityType, $title, $triggeredByUserId, $activityId, $description, $meta) {
+            $historyTable = $this->lifeImpactHistoriesTable();
+
             DB::table('users')
                 ->where('id', $userId)
                 ->update([
@@ -38,7 +39,7 @@ class LifeImpactService
                     'updated_at' => now(),
                 ]);
 
-            LifeImpactHistory::query()->create([
+            DB::table($historyTable)->insert([
                 'id' => (string) Str::uuid(),
                 'user_id' => $userId,
                 'triggered_by_user_id' => $triggeredByUserId,
@@ -186,31 +187,31 @@ class LifeImpactService
                 'updated_at' => now(),
             ];
 
-            if (Schema::hasColumn('life_impact_histories', 'life_impacted')) {
+            if (Schema::hasColumn($this->lifeImpactHistoriesTable(), 'life_impacted')) {
                 $payload['life_impacted'] = $impactValue;
             }
 
-            if (Schema::hasColumn('life_impact_histories', 'counted_in_total')) {
+            if (Schema::hasColumn($this->lifeImpactHistoriesTable(), 'counted_in_total')) {
                 $payload['counted_in_total'] = true;
             }
 
-            if (Schema::hasColumn('life_impact_histories', 'impact_category')) {
+            if (Schema::hasColumn($this->lifeImpactHistoriesTable(), 'impact_category')) {
                 $payload['impact_category'] = null;
             }
 
-            if (Schema::hasColumn('life_impact_histories', 'action_key')) {
+            if (Schema::hasColumn($this->lifeImpactHistoriesTable(), 'action_key')) {
                 $payload['action_key'] = $actionKey !== '' ? $actionKey : null;
             }
 
-            if (Schema::hasColumn('life_impact_histories', 'action_label')) {
+            if (Schema::hasColumn($this->lifeImpactHistoriesTable(), 'action_label')) {
                 $payload['action_label'] = $actionLabel !== '' ? $actionLabel : null;
             }
 
-            if (Schema::hasColumn('life_impact_histories', 'remarks')) {
+            if (Schema::hasColumn($this->lifeImpactHistoriesTable(), 'remarks')) {
                 $payload['remarks'] = $normalizedRemarks;
             }
 
-            DB::table('life_impact_histories')->insert($payload);
+            DB::table($this->lifeImpactHistoriesTable())->insert($payload);
 
             $historyId = (string) $payload['id'];
             $total = $this->recomputeTotalFromHistory($userId);
@@ -238,16 +239,16 @@ class LifeImpactService
 
     public function recomputeTotalFromHistory(string $userId): int
     {
-        $query = DB::table('life_impact_histories')->where('user_id', $userId);
+        $query = DB::table($this->lifeImpactHistoriesTable())->where('user_id', $userId);
 
-        if (Schema::hasColumn('life_impact_histories', 'counted_in_total')) {
+        if (Schema::hasColumn($this->lifeImpactHistoriesTable(), 'counted_in_total')) {
             $query->where(function ($subQuery): void {
                 $subQuery->where('counted_in_total', true)
                     ->orWhereNull('counted_in_total');
             });
         }
 
-        $sumExpression = Schema::hasColumn('life_impact_histories', 'life_impacted')
+        $sumExpression = Schema::hasColumn($this->lifeImpactHistoriesTable(), 'life_impacted')
             ? 'COALESCE(life_impacted, impact_value, 0)'
             : 'COALESCE(impact_value, 0)';
 
@@ -276,5 +277,13 @@ class LifeImpactService
         $normalized = trim((string) $value);
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    private function lifeImpactHistoriesTable(): string
+    {
+        $searchPath = (string) config('database.connections.' . config('database.default') . '.search_path', 'public');
+        $schema = trim((string) explode(',', $searchPath)[0], " \t\n\r\0\x0B\"");
+
+        return ($schema !== '' ? $schema . '.' : '') . 'life_impact_histories';
     }
 }
