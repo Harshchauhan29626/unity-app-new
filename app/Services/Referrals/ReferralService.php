@@ -165,7 +165,8 @@ class ReferralService
         $userColumn = $this->referralLinksUserColumn();
         $codeColumn = $this->referralLinksCodeColumn();
 
-        return DB::transaction(function () use ($newUser, $normalized, $userColumn, $codeColumn) {
+        try {
+            return DB::transaction(function () use ($newUser, $normalized, $userColumn, $codeColumn) {
             $link = DB::table('referral_links')
                 ->where($codeColumn, $normalized)
                 ->lockForUpdate()
@@ -318,6 +319,10 @@ class ReferralService
                 ]);
             }
 
+            $referrerLifeImpactedCount = (int) (User::query()
+                ->whereKey($referrerUserId)
+                ->value('life_impacted_count') ?? 0);
+
             if ($referrer) {
                 $this->notifyUserService->notifyUser(
                     $referrer,
@@ -343,10 +348,6 @@ class ReferralService
                 'referral_code' => $normalized,
             ]);
 
-            $referrerLifeImpactedCount = (int) (User::query()
-                ->whereKey($referrerUserId)
-                ->value('life_impacted_count') ?? 0);
-
             return [
                 'referrer_user_id' => $referrerUserId,
                 'referrer_email' => (string) ($data->referrer_email ?? ''),
@@ -355,7 +356,18 @@ class ReferralService
                 'reward_status' => 'granted',
                 'referrer_life_impacted_count' => $referrerLifeImpactedCount,
             ];
-        });
+            });
+        } catch (\Throwable $exception) {
+            Log::error('referral.registration.failed', [
+                'new_user_id' => (string) $newUser->id,
+                'referral_code' => $normalized,
+                'error' => $exception->getMessage(),
+                'file' => $exception->getFile(),
+                'line' => $exception->getLine(),
+            ]);
+
+            throw $exception;
+        }
     }
 
     public function getReferralMembers(User $user, int $perPage = 20): LengthAwarePaginator
@@ -485,6 +497,10 @@ class ReferralService
                     ],
                 ], $exception);
             } catch (\Throwable $logFailureException) {
+                if ($logFailureException instanceof QueryException) {
+                    throw $logFailureException;
+                }
+
                 Log::warning('referral.email.log_failed', [
                     'referrer_user_id' => (string) $referrer->id,
                     'original_error' => $exception->getMessage(),

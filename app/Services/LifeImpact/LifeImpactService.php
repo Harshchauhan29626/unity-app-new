@@ -46,7 +46,7 @@ class LifeImpactService
             }
 
             $actionKey = Str::of($activityType)->lower()->replaceMatches('/[^a-z0-9]+/', '_')->trim('_')->value();
-            $actionLabel = $title !== '' ? $title : Str::of($activityType)->replace('_', ' ')->title()->value();
+            $actionLabel = Str::of($activityType)->replace('_', ' ')->title()->value();
 
             $payload = [
                 'id' => (string) Str::uuid(),
