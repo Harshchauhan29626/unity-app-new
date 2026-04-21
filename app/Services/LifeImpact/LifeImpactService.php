@@ -79,7 +79,12 @@ class LifeImpactService
             }
 
             if (Schema::hasColumn($historyTable, 'action_label')) {
-                $payload['action_label'] = $actionLabel !== '' ? $actionLabel : null;
+                $payload['action_label'] = $actionLabel !== '' ? $actionLabel : 'Referral Registration';
+            }
+
+            if (Schema::hasColumn($historyTable, 'remarks')) {
+                $payload['remarks'] = $description
+                    ?? ($title !== '' ? $title : 'Referral registration impact awarded.');
             }
 
             if (Schema::hasColumn($historyTable, 'status')) {
