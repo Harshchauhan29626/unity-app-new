@@ -31,9 +31,10 @@ class ReferralService
 
     public function generateOrGetReferral(User $user): array
     {
+        $codeColumn = $this->referralLinksCodeColumn();
         $existing = $this->getReferralLinkRowByUserId((string) $user->id);
 
-        if ($existing) {
+        if ($existing && filled($existing->referral_code)) {
             Log::info('referral.code.existing_returned', [
                 'referrer_user_id' => (string) $user->id,
                 'referral_code' => (string) $existing->referral_code,
@@ -46,12 +47,27 @@ class ReferralService
             ];
         }
 
-        $code = $this->referralCodeService->generateUniqueCode();
+        $code = $this->referralCodeService->generateUniqueCode('', $codeColumn);
         $link = $this->buildReferralLinkFromToken($code);
+
+        if ($existing && ! empty($existing->id)) {
+            DB::table('referral_links')
+                ->where('id', $existing->id)
+                ->update([
+                    $codeColumn => $code,
+                    'updated_at' => now(),
+                ]);
+
+            return [
+                'referral_code' => $code,
+                'referral_link' => $link,
+                'is_existing' => true,
+            ];
+        }
 
         $insertPayload = [
             $this->referralLinksUserColumn() => $user->id,
-            'token' => $code,
+            $codeColumn => $code,
             'created_at' => now(),
             'updated_at' => now(),
         ];
@@ -472,12 +488,26 @@ class ReferralService
     private function getReferralLinkRowByUserId(string $userId): ?object
     {
         $userColumn = $this->referralLinksUserColumn();
+        $codeColumn = $this->referralLinksCodeColumn();
 
-        return DB::table('referral_links')
+        $row = DB::table('referral_links')
             ->where($userColumn, $userId)
             ->orderBy('id', 'asc')
-            ->selectRaw('token as referral_code, CONCAT(\'https://peersglobal.com/join/\', token) as referral_link')
+            ->select([
+                'id',
+                DB::raw('"' . $codeColumn . '" as "referral_code"'),
+            ])
             ->first();
+
+        if (! $row) {
+            return null;
+        }
+
+        $row->referral_link = filled($row->referral_code)
+            ? $this->buildReferralLinkFromToken((string) $row->referral_code)
+            : null;
+
+        return $row;
     }
 
     private function referralLinksUserColumn(): string
@@ -491,6 +521,17 @@ class ReferralService
 
     private function buildReferralLinkFromToken(string $token): string
     {
-        return 'https://peersglobal.com/join/' . $token;
+        return $this->referralCodeService->buildReferralLink($token);
+    }
+
+    private function referralLinksCodeColumn(): string
+    {
+        foreach (['token', 'referral_code', 'code', 'ref_code', 'invite_code'] as $column) {
+            if (Schema::hasColumn('referral_links', $column)) {
+                return $column;
+            }
+        }
+
+        throw new \RuntimeException('No referral code column found on referral_links table.');
     }
 }
