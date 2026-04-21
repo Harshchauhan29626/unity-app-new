@@ -45,13 +45,13 @@ class CoinsService
         });
     }
 
-    public function reward(User $user, int $amount, string $reference, ?string $createdBy = null): ?CoinsLedger
+    public function reward(User $user, int $amount, string $reference, array|string|null $meta = null, ?string $createdBy = null): ?CoinsLedger
     {
         if ($amount <= 0) {
             return null;
         }
 
-        return DB::transaction(function () use ($user, $amount, $reference, $createdBy) {
+        return DB::transaction(function () use ($user, $amount, $reference, $meta, $createdBy) {
             $user = User::where('id', $user->id)->lockForUpdate()->firstOrFail();
 
             $newBalance = $user->coins_balance + $amount;
@@ -60,13 +60,25 @@ class CoinsService
                 'coins_balance' => $newBalance,
             ]);
 
+            $resolvedCreatedBy = $createdBy;
+            $remark = null;
+
+            if (is_string($meta) && $resolvedCreatedBy === null) {
+                // Backward compatibility for old call sites passing createdBy as 4th argument.
+                $resolvedCreatedBy = $meta;
+            } elseif (is_array($meta) && ! empty($meta)) {
+                $encodedMeta = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                $remark = $encodedMeta === false ? null : $encodedMeta;
+            }
+
             $ledgerData = [
                 'transaction_id' => Str::uuid()->toString(),
                 'user_id' => $user->id,
                 'amount' => $amount,
                 'balance_after' => $newBalance,
                 'reference' => $reference,
-                'created_by' => $createdBy ?? $user->id,
+                'remark' => $remark,
+                'created_by' => $resolvedCreatedBy ?? $user->id,
                 'created_at' => now(),
             ];
 

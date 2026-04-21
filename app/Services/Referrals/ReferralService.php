@@ -277,6 +277,13 @@ class ReferralService
                     $referrer,
                     $rewardCoins,
                     'referral_signup:' . $newUserId,
+                    [
+                        'source' => 'referral_signup',
+                        'referral_code' => $normalized,
+                        'referred_user_id' => $newUserId,
+                        'referrer_user_id' => $referrerUserId,
+                        'coins' => $rewardCoins,
+                    ],
                     (string) $newUserId
                 );
 
