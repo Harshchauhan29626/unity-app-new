@@ -70,7 +70,7 @@ class RegisterRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:32',
-                'regex:/^[A-Z0-9]{8}$/',
+                'regex:/^[A-Z0-9]{8,32}$/',
                 Rule::exists('referral_links', 'token'),
             ],
         ];
