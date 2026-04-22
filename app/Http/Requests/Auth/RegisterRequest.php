@@ -3,7 +3,6 @@
 namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class RegisterRequest extends FormRequest
 {
@@ -70,8 +69,7 @@ class RegisterRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:32',
-                'regex:/^[A-Z0-9]{8}$/',
-                Rule::exists('referral_links', 'token'),
+                'regex:/^[A-Z0-9]{8,32}$/',
             ],
         ];
     }
@@ -81,7 +79,6 @@ class RegisterRequest extends FormRequest
         return [
             'phone.unique' => 'This phone number is already registered.',
             'referral_code.regex' => 'Referral code format is invalid.',
-            'referral_code.exists' => 'The selected referral code is invalid.',
         ];
     }
 }

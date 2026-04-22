@@ -1625,7 +1625,7 @@ class UsersController extends Controller
                     'level2_category_id' => $circleMemberCategoryPayload['level_2_category_id'],
                     'level3_category_id' => $circleMemberCategoryPayload['level_3_category_id'],
                     'level4_category_id' => $circleMemberCategoryPayload['level_4_category_id'],
-                ],
+                ]
             )
         );
     }

@@ -45,6 +45,18 @@ class LifeImpactHistory extends Model
         'meta' => 'array',
     ];
 
+    public function __construct(array $attributes = [])
+    {
+        parent::__construct($attributes);
+
+        $schema = (string) config('database.connections.' . config('database.default') . '.search_path', 'public');
+        $schema = trim((string) explode(',', $schema)[0], " \t\n\r\0\x0B\"");
+
+        if ($schema !== '') {
+            $this->table = $schema . '.life_impact_histories';
+        }
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');

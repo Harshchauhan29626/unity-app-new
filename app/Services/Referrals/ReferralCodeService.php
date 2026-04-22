@@ -6,14 +6,15 @@ use Illuminate\Support\Facades\DB;
 
 class ReferralCodeService
 {
-    public function generateUniqueCode(string $name = ''): string
+    public function generateUniqueCode(string $name = '', ?string $codeColumn = null): string
     {
         $attempts = 0;
+        $column = $codeColumn ?: 'token';
 
         do {
             $attempts++;
             $code = strtoupper(substr(bin2hex(random_bytes(8)), 0, 8));
-            $exists = DB::table('referral_links')->where('token', $code)->exists();
+            $exists = DB::table('referral_links')->where($column, $code)->exists();
         } while ($exists && $attempts < 50);
 
         if ($exists) {
